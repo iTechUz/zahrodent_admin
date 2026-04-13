@@ -13,6 +13,15 @@ Zahro Dental - stomatologiya klinikasi uchun yaratilgan veb-boshqaruv tizimi. Il
 - Rolga asoslangan kirish va interfeys cheklovlari
 - Mobilga moslashgan (responsive) admin panel
 
+## Texnologiyalar
+
+- **React + TypeScript** — frontend framework
+- **Vite** — build tool
+- **Tailwind CSS** — styling
+- **Shadcn/UI** — UI komponentlar
+- **React Query** — server state management
+- **Zustand** — client state management
+
 ### Texnologik stack
 
 - Frontend: React + TypeScript + Vite

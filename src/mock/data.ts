@@ -1,4 +1,4 @@
-import { Patient, Doctor, Booking, Visit, Payment, Notification, Service } from '@/types';
+import { Patient, Doctor, Booking, Visit, Payment, Notification, Service } from '@/shared/types';
 
 export const mockServices: Service[] = [
   { id: 's1', name: 'Umumiy ko\'rik', category: 'Diagnostika', price: 50000, duration: 30, description: 'To\'liq og\'iz bo\'shlig\'i tekshiruvi' },

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Search, Users, Stethoscope, CalendarDays, DollarSign } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Search, Users, Stethoscope, CalendarDays } from 'lucide-react';
+import { cn } from '@/shared/lib/utils';
 
 interface SearchResult {
   id: string;
@@ -20,7 +20,7 @@ export function GlobalSearch() {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
-  const { patients, doctors, bookings, payments } = useStore();
+  const { patients, doctors, bookings } = useStore();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -70,7 +70,7 @@ export function GlobalSearch() {
       });
 
     return [...patientResults, ...doctorResults, ...bookingResults];
-  }, [query, patients, doctors, bookings, payments]);
+  }, [query, patients, doctors, bookings]);
 
   useEffect(() => { setSelectedIndex(0); }, [query]);
 

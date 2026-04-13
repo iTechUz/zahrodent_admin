@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '@/store/useStore';
-import { StatusBadge, SourceBadge } from '@/components/StatusBadge';
+import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Booking } from '@/types';
+import { Booking } from '@/shared/types';
 
 const WEEKDAYS = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya'];
 const MONTHS = [
