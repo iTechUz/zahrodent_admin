@@ -49,7 +49,7 @@ npm install
 npm run dev
 ```
 
-Default holatda lokal server `http://localhost:8080` da ishlaydi.
+Default holatda lokal server `http://localhost:8070` da ishlaydi (`.env` dagi `VITE_API_URL` ishlatiladi).
 
 ### Build va preview
 
@@ -66,7 +66,22 @@ npm run test
 
 ## DevOps qo'llanma
 
-### 1) Deployment flow (tavsiya etilgan)
+### 0) Docker (production)
+
+Image ikki bosqichli: `node:20-alpine` da `npm ci && npm run build`, so'ng `nginx:alpine`
+`dist/` ni **8070** portda beradi (SPA fallback, gzip, `/assets` 1 yil cache, `index.html` no-cache).
+
+API manzili **runtime** da o'qiladi — konteyner ishga tushganda `VITE_API_URL` dan
+`/env-config.js` (`window.__ENV__`) yoziladi, shuning uchun bitta image istalgan API ga ulanadi:
+
+```bash
+docker build -t zahro-admin .
+docker run -p 8070:8070 --env-file .env zahro-admin   # .env: VITE_API_URL=https://api...
+```
+
+`--build-arg VITE_API_URL=...` faqat default qiymat (runtime qiymat bo'lmasa ishlatiladi).
+
+### 1) Deployment flow (Docker'siz)
 
 1. Kodni serverga pull qiling
 2. `npm ci` bilan dependencylarni toza o'rnating
