@@ -19,14 +19,18 @@ import { Button } from '@/components/ui/button';
 import { useDashboard } from '../hooks/useDashboard';
 import { formatUzS, formatDate } from '@/shared/lib/formatters';
 import { DashboardSkeleton } from '@/components/Skeletons';
+import { QueryErrorState } from '@/shared/components/QueryErrorState';
+import { CLINIC_TIME_ZONE } from '@/shared/lib/date-utils';
 
 function DashboardPageContent() {
   const {
-    patients,
-    bookings,
-    doctors,
+    totalPatients,
+    recentBookings,
+    patientsById,
+    doctorsById,
     todayBookings,
-    totalRevenue,
+    monthRevenue,
+    totalDoctors,
     newPatients,
     completedToday,
     pendingBookings,
@@ -42,9 +46,15 @@ function DashboardPageContent() {
     revenueTrend,
     canViewPayments,
     isLoading,
+    isError,
+    error,
+    refetch,
   } = useDashboard();
 
   if (isLoading) return <DashboardSkeleton />;
+  if (isError) {
+    return <QueryErrorState error={error} onRetry={refetch} title="Bosh sahifa ma'lumotlari yuklanmadi" />;
+  }
 
   return (
     <div className="space-y-6">
@@ -55,41 +65,43 @@ function DashboardPageContent() {
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card px-3 py-1.5 rounded-full border border-border">
           <Clock className="w-3.5 h-3.5 text-primary" />
-          {new Date().toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long' })}
+          {new Date().toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long', timeZone: CLINIC_TIME_ZONE })}
         </div>
       </div>
 
       {/* Tezkor amallar */}
-      <div
-        className={`grid grid-cols-2 gap-3 ${quickActions.length >= 4 ? 'sm:grid-cols-4' : quickActions.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
-      >
-        {quickActions.map((action) => (
-          <button
-            key={action.label}
-            onClick={() => navigate(action.path)}
-            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-primary/5 transition-all group"
-          >
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${action.color} transition-transform group-hover:scale-110`}>
-              <action.icon className="w-4.5 h-4.5" />
-            </div>
-            <span className="text-sm font-medium">{action.label}</span>
-          </button>
-        ))}
-      </div>
+      {quickActions.length > 0 && (
+        <div
+          className={`grid grid-cols-2 gap-3 ${quickActions.length >= 4 ? 'sm:grid-cols-4' : quickActions.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
+        >
+          {quickActions.map((action) => (
+            <button
+              key={action.label}
+              onClick={() => navigate(action.path)}
+              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-primary/5 transition-all group"
+            >
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${action.color} transition-transform group-hover:scale-110`}>
+                <action.icon className="w-4.5 h-4.5" />
+              </div>
+              <span className="text-sm font-medium">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Statistikalar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Jami bemorlar" value={patients.length} icon={<Users className="w-5 h-5" />} />
+        <StatCard title="Jami bemorlar" value={totalPatients} icon={<Users className="w-5 h-5" />} />
         <StatCard
           title="Bugungi qabullar"
-          value={todayBookings.length}
+          value={todayBookings}
           icon={<CalendarDays className="w-5 h-5" />}
           trend={`${completedToday} ta yakunlangan`}
           trendUp={completedToday > 0}
         />
         <StatCard
-          title="Daromad"
-          value={canViewPayments ? formatUzS(totalRevenue) : '—'}
+          title="Daromad (shu oy)"
+          value={canViewPayments ? formatUzS(monthRevenue) : '—'}
           icon={<DollarSign className="w-5 h-5" />}
           trend={canViewPayments ? revenueTrend?.text : "Faqat admin ko'radi"}
           trendUp={canViewPayments ? revenueTrend?.up : undefined}
@@ -132,7 +144,7 @@ function DashboardPageContent() {
             <Stethoscope className="w-5 h-5 text-success" />
           </div>
           <div>
-            <p className="text-2xl font-bold">{activeDoctors} / {doctors.length}</p>
+            <p className="text-2xl font-bold">{activeDoctors} / {totalDoctors}</p>
             <p className="text-xs text-muted-foreground">Faol shifokorlar</p>
           </div>
         </div>
@@ -221,9 +233,12 @@ function DashboardPageContent() {
             </Button>
           </div>
           <div className="space-y-3">
-            {bookings.slice(0, 5).map((b) => {
-              const patient = patients.find((p) => p.id === b.patientId);
-              const doctor = doctors.find((d) => d.id === b.doctorId);
+            {recentBookings.length === 0 && (
+              <p className="text-sm text-muted-foreground py-8 text-center">Hozircha qabullar yo'q</p>
+            )}
+            {recentBookings.map((b) => {
+              const patient = patientsById.get(b.patientId);
+              const doctor = doctorsById.get(b.doctorId);
               return (
                 <div key={b.id} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:bg-muted/10 transition-colors px-2 -mx-2 rounded-lg cursor-pointer" onClick={() => navigate('/bookings')}>
                   <div className="flex items-center gap-3">

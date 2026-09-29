@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PAYMENT_STATUSES, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/shared/constants';
 import { useFinance } from '../hooks/useFinance';
 import { TransactionForm } from '../components/TransactionForm';
@@ -24,6 +24,9 @@ import { formatUzS, formatDate } from '@/shared/lib/formatters';
 import { PaymentStatusBadge } from '@/shared/components/StatusBadge';
 import { exportToExcel } from '@/shared/lib/excel';
 import { paymentsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
+import { clinicToday } from '@/shared/lib/date-utils';
+import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
@@ -37,10 +40,10 @@ export function FinancePageContent() {
     page,
     setPage,
     patients,
-    doctors,
     doctorRevenue,
     totalRevenue,
     thisMonth,
+    todayRevenue,
     totalDebt,
     unpaidCount,
     search,
@@ -57,6 +60,8 @@ export function FinancePageContent() {
     handleSave,
     handleDelete,
     isLoading,
+    error,
+    refetch,
   } = useFinance();
 
   const [isExporting, setIsExporting] = useState(false);
@@ -64,12 +69,9 @@ export function FinancePageContent() {
   const handleExport = async () => {
     try {
       setIsExporting(true);
-      const res = await paymentsApi.list({ 
-        ...filters, 
-        search, 
-        limit: 10000 
-      });
-      
+      // every page (the backend caps limit at 100)
+      const res = await fetchAllPages(paymentsApi.list, { ...filters, search });
+
       const exportData = res.data.map(p => {
         const pt = patients.find(patient => patient.id === p.patientId);
         return {
@@ -83,9 +85,9 @@ export function FinancePageContent() {
         };
       });
 
-      exportToExcel(exportData, `Moliya_Hisoboti_${new Date().toISOString().split('T')[0]}`);
+      await exportToExcel(exportData, `Moliya_Hisoboti_${clinicToday()}`);
       toast.success("Excel fayl tayyorlandi");
-    } catch (error) {
+    } catch {
       toast.error("Eksport qilishda xatolik yuz berdi");
     } finally {
       setIsExporting(false);
@@ -165,10 +167,10 @@ export function FinancePageContent() {
           trendUp
         />
         <StatCard
-          title="Bugungi daromad"
+          title="Shu oy daromadi"
           value={formatUzS(thisMonth)}
           icon={<TrendingUp className="w-5 h-5" />}
-          trend="Bugun to'langan"
+          trend={`Bugun: ${formatUzS(todayRevenue)}`}
           trendUp
         />
         <StatCard
@@ -314,13 +316,17 @@ export function FinancePageContent() {
       </div>
 
       {/* Payments Table */}
-      <DataTable
-        data={payments}
-        columns={columns}
-        onEdit={openEdit}
-        onDelete={setDeleteId}
-        isLoading={isLoading}
-      />
+      {error && !isLoading ? (
+        <QueryErrorState error={error} onRetry={() => refetch()} title="To'lovlar yuklanmadi" />
+      ) : (
+        <DataTable
+          data={payments}
+          columns={columns}
+          onEdit={openEdit}
+          onDelete={setDeleteId}
+          isLoading={isLoading}
+        />
+      )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card rounded-b-xl border-x">

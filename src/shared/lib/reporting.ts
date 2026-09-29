@@ -1,4 +1,4 @@
-import type { Booking, Patient, Payment } from '@/shared/types';
+import type { Booking, MonthlyAnalyticsRow, Patient, Payment, SourceAnalyticsRow } from '@/shared/types';
 import { BOOKING_SOURCE_LABELS } from '@/shared/constants';
 
 /** Grafik segmentlari uchun palitra (UI konstanta, ma'lumot emas) */
@@ -179,4 +179,58 @@ export function monthOverMonthHint(current: number, previous: number): { text: s
     text: `${pct >= 0 ? '+' : ''}${Math.round(pct)}% o'tgan oyga`,
     up: pct >= 0,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Backend-aggregated analytics (/analytics/monthly, /analytics/sources) */
+/* ------------------------------------------------------------------ */
+
+/** `YYYY-MM` → short Uzbek month label */
+export function monthLabel(key: string): string {
+  const m = Number(key.slice(5, 7));
+  return MONTHS_UZ[m - 1] ?? key;
+}
+
+export function monthlyPatientSeries(rows: MonthlyAnalyticsRow[]): { month: string; patients: number }[] {
+  return rows.map((r) => ({ month: monthLabel(r.month), patients: r.newPatients }));
+}
+
+/** Revenue per month in so'm (`unit: 'som'`) or millions rounded to 0.1 (`unit: 'mln'`); null (non-admin) → 0 */
+export function monthlyRevenueSeries(
+  rows: MonthlyAnalyticsRow[],
+  unit: 'som' | 'mln' = 'som',
+): { month: string; revenue: number }[] {
+  return rows.map((r) => {
+    const som = r.revenue ?? 0;
+    return {
+      month: monthLabel(r.month),
+      revenue: unit === 'mln' ? Math.round((som / 1_000_000) * 10) / 10 : som,
+    };
+  });
+}
+
+export function monthlyConversionSeries(
+  rows: MonthlyAnalyticsRow[],
+): { month: string; booked: number; completed: number }[] {
+  return rows.map((r) => ({ month: monthLabel(r.month), booked: r.bookings, completed: r.completedBookings }));
+}
+
+/** Current vs previous month of a monthly series (last two rows). */
+export function lastTwoMonths(
+  rows: MonthlyAnalyticsRow[],
+  field: 'newPatients' | 'revenue' | 'bookings',
+): { current: number; previous: number } {
+  const cur = rows.at(-1);
+  const prev = rows.at(-2);
+  return { current: Number(cur?.[field] ?? 0), previous: Number(prev?.[field] ?? 0) };
+}
+
+export function sourceChartData(rows: SourceAnalyticsRow[]): { name: string; value: number; color: string }[] {
+  return rows
+    .filter((r) => r.count > 0)
+    .map((r, i) => ({
+      name: BOOKING_SOURCE_LABELS[r.source as keyof typeof BOOKING_SOURCE_LABELS] || r.source,
+      value: r.count,
+      color: REPORT_CHART_COLORS[i % REPORT_CHART_COLORS.length],
+    }));
 }

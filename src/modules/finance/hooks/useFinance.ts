@@ -8,10 +8,11 @@ import { useServerTable } from '@/shared/hooks/useServerTable';
 import { FinanceService } from '../services/finance.service';
 import { PaymentSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
-import { paymentsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
+import { paymentsApi, patientsApi, doctorsApi, analyticsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
-import { getMonthToDateRange } from '@/shared/lib/date-utils';
+import { clinicToday, getMonthToDateRange } from '@/shared/lib/date-utils';
 
 type PaymentFormValues = z.infer<typeof PaymentSchema>;
 
@@ -39,38 +40,54 @@ export const useFinance = () => {
     perPage: 10,
   });
 
+  // lookups: every page (the backend caps limit at 100)
   const { data: patientsData, isLoading: patientsLoading } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list({ limit: 1000 }),
+    queryKey: queryKeys.patientsLookup(),
+    queryFn: () => fetchAllPages(patientsApi.list),
     enabled: authed,
   });
   const patients = patientsData?.data ?? [];
 
   const { data: doctorsData } = useQuery({
-    queryKey: queryKeys.doctors,
-    queryFn: () => doctorsApi.list({ limit: 1000 }),
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
     enabled: authed,
   });
   const doctors = doctorsData?.data ?? [];
 
   const { data: stats } = useQuery({
-    queryKey: ['payments', 'stats'],
+    queryKey: queryKeys.paymentsStats,
     queryFn: () => paymentsApi.stats(),
     enabled: authed,
   });
 
+  // month revenue + unpaid count are not in /payments/stats — use the dashboard aggregate
+  const today = clinicToday();
+  const { data: summary } = useQuery({
+    queryKey: queryKeys.analyticsDashboard(today),
+    queryFn: () => analyticsApi.dashboard({ date: today }),
+    enabled: authed,
+  });
+
   const { data: doctorStatsData } = useQuery({
-    queryKey: ['payments', 'doctor-stats'],
+    queryKey: queryKeys.paymentsDoctorStats,
     queryFn: () => paymentsApi.doctorStats(),
     enabled: authed,
   });
 
+  const invalidateMoney = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+    queryClient.invalidateQueries({ queryKey: queryKeys.paymentsStats });
+    queryClient.invalidateQueries({ queryKey: queryKeys.paymentsDoctorStats });
+    queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+    // patient balance / debt depends on payments
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+  };
+
   const createMut = useMutation({
-    mutationFn: (body: PaymentFormValues) => paymentsApi.create(body as any),
+    mutationFn: (body: PaymentFormValues) => paymentsApi.create(body as Omit<Payment, 'id'>),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments });
-      queryClient.invalidateQueries({ queryKey: ['payments', 'stats'] });
-      queryClient.invalidateQueries({ queryKey: ['payments', 'doctor-stats'] });
+      invalidateMoney();
       toast.success("To'lov qayd etildi");
     },
   });
@@ -79,9 +96,7 @@ export const useFinance = () => {
     mutationFn: ({ id, body }: { id: string; body: Partial<Payment> }) =>
       paymentsApi.update(id, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments });
-      queryClient.invalidateQueries({ queryKey: ['payments', 'stats'] });
-      queryClient.invalidateQueries({ queryKey: ['payments', 'doctor-stats'] });
+      invalidateMoney();
       toast.success("To'lov yangilandi");
     },
   });
@@ -89,9 +104,7 @@ export const useFinance = () => {
   const deleteMut = useMutation({
     mutationFn: paymentsApi.remove,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments });
-      queryClient.invalidateQueries({ queryKey: ['payments', 'stats'] });
-      queryClient.invalidateQueries({ queryKey: ['payments', 'doctor-stats'] });
+      invalidateMoney();
       toast.success("To'lov o'chirildi");
     },
   });
@@ -102,11 +115,11 @@ export const useFinance = () => {
     (data: PaymentFormValues) => {
       if (dialog.editingItem) {
         updateMut.mutate(
-          { id: dialog.editingItem.id, body: data as any },
+          { id: dialog.editingItem.id, body: data as Partial<Payment> },
           { onSettled: () => dialog.closeDialog() },
         );
       } else {
-        createMut.mutate(data as any, { onSettled: () => dialog.closeDialog() });
+        createMut.mutate(data, { onSettled: () => dialog.closeDialog() });
       }
     },
     [dialog, createMut, updateMut],
@@ -143,9 +156,12 @@ export const useFinance = () => {
     doctors,
     doctorRevenue,
     totalRevenue,
-    thisMonth: stats?.todayRevenue ?? 0,
+    /** paid revenue in the current clinic month (backend aggregate) */
+    thisMonth: summary?.monthRevenue ?? 0,
+    todayRevenue: stats?.todayRevenue ?? summary?.todayRevenue ?? 0,
     totalDebt: stats?.pendingAmount ?? 0,
-    unpaidCount: 0,
+    /** number of unpaid/partial payments (backend aggregate) */
+    unpaidCount: summary?.unpaidCount ?? 0,
     search: table.search,
     setSearch: table.setSearch,
     filters: table.filters,
@@ -160,5 +176,7 @@ export const useFinance = () => {
     handleSave,
     handleDelete,
     isLoading: table.isLoading || patientsLoading,
+    error: table.error,
+    refetch: table.refetch,
   };
 };

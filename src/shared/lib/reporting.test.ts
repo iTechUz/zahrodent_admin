@@ -1,4 +1,4 @@
-import type { Booking, Patient, Payment } from '@/shared/types';
+import type { Booking, MonthlyAnalyticsRow, Patient, Payment } from '@/shared/types';
 import {
   REPORT_CHART_COLORS,
   aggregateBookingConversionByMonth,
@@ -10,7 +10,13 @@ import {
   aggregatePaidRevenueMillions,
   countNewPatientsInMonthKeys,
   getLastNCalendarMonths,
+  lastTwoMonths,
+  monthLabel,
+  monthlyConversionSeries,
+  monthlyPatientSeries,
+  monthlyRevenueSeries,
   monthOverMonthHint,
+  sourceChartData,
   paidRevenueInMonthKeys,
 } from './reporting';
 
@@ -177,5 +183,57 @@ describe('month-over-month helpers', () => {
       expect(monthOverMonthHint(2, 3)).toEqual({ text: "-33% o'tgan oyga", up: false });
       expect(monthOverMonthHint(0, 4)).toEqual({ text: "-100% o'tgan oyga", up: false });
     });
+  });
+});
+
+describe('backend analytics adapters', () => {
+  const rows: MonthlyAnalyticsRow[] = [
+    { month: '2025-12', newPatients: 3, bookings: 10, completedBookings: 7, revenue: 1_250_000, expenses: 100 },
+    { month: '2026-01', newPatients: 5, bookings: 12, completedBookings: 9, revenue: 2_340_000, expenses: null },
+  ];
+
+  it('monthLabel maps YYYY-MM to the Uzbek short month', () => {
+    expect(monthLabel('2026-01')).toBe('Yan');
+    expect(monthLabel('2026-12')).toBe('Dek');
+    expect(monthLabel('bad')).toBe('bad');
+  });
+
+  it('patient / conversion series', () => {
+    expect(monthlyPatientSeries(rows)).toEqual([
+      { month: 'Dek', patients: 3 },
+      { month: 'Yan', patients: 5 },
+    ]);
+    expect(monthlyConversionSeries(rows)).toEqual([
+      { month: 'Dek', booked: 10, completed: 7 },
+      { month: 'Yan', booked: 12, completed: 9 },
+    ]);
+  });
+
+  it("revenue series in so'm and in millions; null (non-admin) → 0", () => {
+    expect(monthlyRevenueSeries(rows)).toEqual([
+      { month: 'Dek', revenue: 1_250_000 },
+      { month: 'Yan', revenue: 2_340_000 },
+    ]);
+    expect(monthlyRevenueSeries(rows, 'mln').map((r) => r.revenue)).toEqual([1.3, 2.3]);
+    expect(monthlyRevenueSeries([{ ...rows[0], revenue: null }])[0].revenue).toBe(0);
+  });
+
+  it('lastTwoMonths compares the two newest rows', () => {
+    expect(lastTwoMonths(rows, 'newPatients')).toEqual({ current: 5, previous: 3 });
+    expect(lastTwoMonths(rows, 'revenue')).toEqual({ current: 2_340_000, previous: 1_250_000 });
+    expect(lastTwoMonths([], 'revenue')).toEqual({ current: 0, previous: 0 });
+  });
+
+  it('sourceChartData labels sources, colours them and drops zero rows', () => {
+    expect(
+      sourceChartData([
+        { source: 'telegram', count: 4 },
+        { source: 'phone', count: 0 },
+        { source: 'instagram', count: 1 },
+      ]),
+    ).toEqual([
+      { name: 'Telegram', value: 4, color: REPORT_CHART_COLORS[0] },
+      { name: 'instagram', value: 1, color: REPORT_CHART_COLORS[1] },
+    ]);
   });
 });

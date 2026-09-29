@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { doctorsApi, patientsApi, paymentsApi } from '@/lib/api/endpoints';
+import { analyticsApi, doctorsApi, patientsApi, paymentsApi } from '@/lib/api/endpoints';
 import { resetApiMock, toastMock } from '@/test/api-mock';
 import { createWrapper, loginAs, paginated } from '@/test/utils';
 import type { PaymentFormValues } from '@/shared/lib/validation';
@@ -44,7 +44,7 @@ beforeEach(() => {
   resetApiMock();
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date(2026, 5, 17, 12, 0));
+  vi.setSystemTime(new Date('2026-06-17T07:00:00Z')); // 12:00 in Tashkent
   loginAs('admin');
 });
 
@@ -76,10 +76,16 @@ describe('useFinance', () => {
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'EXPENSE' })));
   });
 
-  it('loads patients and doctors (limit 1000) for lookups', async () => {
-    setup();
-    await waitFor(() => expect(doctorsApi.list).toHaveBeenCalledWith({ limit: 1000 }));
-    expect(patientsApi.list).toHaveBeenCalledWith({ limit: 1000 });
+  it('loads every page of patients and doctors for lookups, never more than 100 per request', async () => {
+    vi.mocked(patientsApi.list).mockImplementation(async (p) => paginated([{ id: `p${p?.page}` }] as never, 250));
+    const { result } = setup();
+    await waitFor(() => expect(result.current.patients).toHaveLength(3));
+    expect(vi.mocked(patientsApi.list).mock.calls.map(([p]) => p)).toEqual([
+      { page: 0, limit: 100 },
+      { page: 1, limit: 100 },
+      { page: 2, limit: 100 },
+    ]);
+    expect(doctorsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
   });
 
   describe('derived totals', () => {
@@ -121,13 +127,20 @@ describe('useFinance', () => {
       expect(result.current.doctorRevenue[0].percent).toBe(0);
     });
 
-    it.todo(
-      'BUG: src/modules/finance/hooks/useFinance.ts:146 — `thisMonth` is stats.todayRevenue (today only), so the ' +
-        '"this month" card shows today\'s revenue; backend /payments/stats has no month figure',
-    );
-    it.todo(
-      'BUG: src/modules/finance/hooks/useFinance.ts:148 — `unpaidCount` is hardcoded 0 instead of the number of unpaid/partial payments',
-    );
+    it('thisMonth is the current month revenue (not today) and unpaidCount comes from the backend', async () => {
+      api.stats.mockResolvedValue({ totalRevenue: 9_000_000, pendingAmount: 400_000, todayRevenue: 120_000 });
+      vi.mocked(analyticsApi.dashboard).mockResolvedValue({
+        monthRevenue: 3_500_000,
+        todayRevenue: 120_000,
+        unpaidCount: 4,
+        unpaidTotal: 400_000,
+      } as never);
+      const { result } = setup();
+      await waitFor(() => expect(result.current.thisMonth).toBe(3_500_000));
+      expect(result.current.todayRevenue).toBe(120_000);
+      expect(result.current.unpaidCount).toBe(4);
+      expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17' });
+    });
   });
 
   describe('mutations invalidate list + stats + doctor-stats', () => {
@@ -135,6 +148,8 @@ describe('useFinance', () => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['payments'] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['payments', 'stats'] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['payments', 'doctor-stats'] });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['analytics'] });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
     };
 
     it('create', async () => {

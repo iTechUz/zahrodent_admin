@@ -1,152 +1,156 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, UserPlus, Stethoscope, CreditCard } from 'lucide-react';
-import { patientsApi, bookingsApi, paymentsApi, doctorsApi, visitsApi } from '@/lib/api/endpoints';
+import { analyticsApi, bookingsApi, doctorsApi, patientsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
-import { canAccessPayments } from '@/shared/config/roles';
+import { can, canAccessPayments, roleAccess } from '@/shared/config/roles';
+import { clinicToday } from '@/shared/lib/date-utils';
 import {
-  aggregateBookingsBySourceWithColors,
-  aggregateNewPatientsByMonthForDashboard,
-  aggregatePaidRevenueByMonthSom,
-  countNewPatientsInMonthKeys,
-  getLastNCalendarMonths,
+  lastTwoMonths,
+  monthlyPatientSeries,
+  monthlyRevenueSeries,
   monthOverMonthHint,
-  paidRevenueInMonthKeys,
+  sourceChartData,
 } from '@/shared/lib/reporting';
+import type { Doctor, Patient } from '@/shared/types';
 
-function startOfCurrentMonth(): string {
-  const d = new Date();
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
-}
+export const DASHBOARD_MONTHS = 6;
+export const RECENT_BOOKINGS_LIMIT = 5;
 
-function currentAndPrevMonthKeys() {
-  const now = new Date();
-  const keyCurrent = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const keyPrev = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
-  return { keyCurrent, keyPrev };
-}
-
+/**
+ * Dashboard figures come from the backend aggregates (/analytics/*) — nothing is
+ * computed from a truncated client-side list any more.
+ */
 export const useDashboard = () => {
   const authed = useStore((s) => s.isAuthenticated);
   const role = useStore((s) => s.currentUser?.role);
   const canViewPayments = canAccessPayments(role);
   const navigate = useNavigate();
-  const today = new Date().toISOString().slice(0, 10);
-  const monthStart = startOfCurrentMonth();
+  const today = clinicToday();
 
-  const { data: patientsRes, isLoading: patientsLoading } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list({ limit: 300 }),
+  const dashboardQuery = useQuery({
+    queryKey: queryKeys.analyticsDashboard(today),
+    queryFn: () => analyticsApi.dashboard({ date: today }),
     enabled: authed,
   });
-  const patients = patientsRes?.data ?? [];
 
-  const { data: bookingsRes, isLoading: bookingsLoading } = useQuery({
-    queryKey: queryKeys.bookings,
-    queryFn: () => bookingsApi.list({ limit: 300 }),
+  const monthlyQuery = useQuery({
+    queryKey: queryKeys.analyticsMonthly(DASHBOARD_MONTHS),
+    queryFn: () => analyticsApi.monthly({ months: DASHBOARD_MONTHS }),
     enabled: authed,
   });
-  const bookings = bookingsRes?.data ?? [];
 
-  const { data: paymentsRes, isLoading: paymentsLoading } = useQuery({
-    queryKey: queryKeys.payments,
-    queryFn: () => paymentsApi.list({ limit: 300 }),
-    enabled: authed && canViewPayments,
-  });
-  const payments = paymentsRes?.data ?? [];
-
-  const { data: doctorsRes, isLoading: doctorsLoading } = useQuery({
-    queryKey: queryKeys.doctors,
-    queryFn: () => doctorsApi.list({ limit: 100 }),
+  const sourcesQuery = useQuery({
+    queryKey: queryKeys.analyticsSources,
+    queryFn: () => analyticsApi.sources(),
     enabled: authed,
   });
-  const doctors = doctorsRes?.data ?? [];
 
-  const { data: visitsRes, isLoading: visitsLoading } = useQuery({
-    queryKey: queryKeys.visits,
-    queryFn: () => visitsApi.list({ limit: 300 }),
+  const recentParams = { limit: RECENT_BOOKINGS_LIMIT };
+  const recentQuery = useQuery({
+    queryKey: queryKeys.bookingsList(recentParams),
+    queryFn: () => bookingsApi.list(recentParams),
     enabled: authed,
   });
-  const visits = visitsRes?.data ?? [];
+  const recentBookings = recentQuery.data?.data ?? [];
 
-  const todayBookings = bookings.filter((b) => b.date === today);
-  const totalRevenue = payments.filter((p) => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const newPatients = patients.filter((p) => p.createdAt >= monthStart).length;
-  const completedToday = todayBookings.filter((b) => b.status === 'completed').length;
-  const pendingBookings = bookings.filter((b) => b.status === 'pending').length;
-  const unpaidPayments = payments.filter((p) => p.status !== 'paid');
-  const totalDebt = unpaidPayments.reduce((s, p) => s + p.amount, 0);
-  const activeDoctors = doctors.filter((d) =>
-    visits.some((v) => v.doctorId === d.id && v.status === 'in-progress'),
-  ).length;
+  // names for the recent-bookings list: doctors lookup (small) + the few patients by id
+  const doctorsQuery = useQuery({
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
+    enabled: authed && recentBookings.length > 0,
+  });
 
-  const buckets6 = useMemo(() => getLastNCalendarMonths(6), []);
-
-  const patientGrowth = useMemo(
-    () => aggregateNewPatientsByMonthForDashboard(patients, buckets6),
-    [patients, buckets6],
+  const patientIds = useMemo(
+    () => [...new Set(recentBookings.map((b) => b.patientId).filter(Boolean))],
+    [recentBookings],
   );
+  const patientsById = useQueries({
+    queries: patientIds.map((id) => ({
+      queryKey: queryKeys.patient(id),
+      queryFn: () => patientsApi.get(id),
+      enabled: authed,
+      meta: { silentError: true },
+    })),
+    combine: (results) => {
+      const map = new Map<string, Patient>();
+      results.forEach((q) => q.data && map.set(q.data.id, q.data));
+      return map;
+    },
+  });
 
-  const revenueData = useMemo(
-    () => aggregatePaidRevenueByMonthSom(payments, buckets6),
-    [payments, buckets6],
-  );
+  const doctorsById = useMemo(() => {
+    const map = new Map<string, Doctor>();
+    (doctorsQuery.data?.data ?? []).forEach((d) => map.set(d.id, d));
+    return map;
+  }, [doctorsQuery.data]);
 
-  const sourceData = useMemo(() => aggregateBookingsBySourceWithColors(bookings), [bookings]);
+  const stats = dashboardQuery.data;
+  const monthly = useMemo(() => monthlyQuery.data ?? [], [monthlyQuery.data]);
 
-  const { keyCurrent, keyPrev } = useMemo(() => currentAndPrevMonthKeys(), []);
-  const newMom = useMemo(
-    () => countNewPatientsInMonthKeys(patients, keyCurrent, keyPrev),
-    [patients, keyCurrent, keyPrev],
-  );
-  const revMom = useMemo(
-    () => paidRevenueInMonthKeys(payments, keyCurrent, keyPrev),
-    [payments, keyCurrent, keyPrev],
-  );
+  const patientGrowth = useMemo(() => monthlyPatientSeries(monthly), [monthly]);
+  const revenueData = useMemo(() => monthlyRevenueSeries(monthly), [monthly]);
+  const sourceData = useMemo(() => sourceChartData(sourcesQuery.data ?? []), [sourcesQuery.data]);
 
+  const newMom = lastTwoMonths(monthly, 'newPatients');
+  const revMom = lastTwoMonths(monthly, 'revenue');
   const newPatientsTrend = monthOverMonthHint(newMom.current, newMom.previous);
-  const revenueTrend = monthOverMonthHint(revMom.current, revMom.previous);
+  const revenueTrend = canViewPayments ? monthOverMonthHint(revMom.current, revMom.previous) : null;
 
   const quickActions = useMemo(() => {
+    const routes = role ? roleAccess[role] : [];
     const all = [
-      { label: 'Yangi qabul', icon: CalendarDays, path: '/bookings', color: 'bg-primary/10 text-primary' },
-      { label: "Bemor qo'shish", icon: UserPlus, path: '/patients', color: 'bg-info/10 text-info' },
-      { label: "To'lov qayd etish", icon: CreditCard, path: '/finance', color: 'bg-success/10 text-success' },
-      { label: 'Shifokorlar', icon: Stethoscope, path: '/doctors', color: 'bg-warning/10 text-warning' },
+      { label: 'Yangi qabul', icon: CalendarDays, path: '/bookings', color: 'bg-primary/10 text-primary', allowed: can(role, 'bookings.create') },
+      { label: "Bemor qo'shish", icon: UserPlus, path: '/patients', color: 'bg-info/10 text-info', allowed: can(role, 'patients.create') },
+      { label: "To'lov qayd etish", icon: CreditCard, path: '/finance', color: 'bg-success/10 text-success', allowed: can(role, 'payments.create') },
+      { label: 'Shifokorlar', icon: Stethoscope, path: '/doctors', color: 'bg-warning/10 text-warning', allowed: true },
     ];
-    if (!canViewPayments) {
-      return all.filter((a) => a.path !== '/finance');
-    }
-    return all;
-  }, [canViewPayments]);
+    return all
+      .filter((a) => a.allowed && routes.includes(a.path))
+      .map(({ allowed: _allowed, ...a }) => a);
+  }, [role]);
 
-  const isLoading = patientsLoading || bookingsLoading || paymentsLoading || doctorsLoading || visitsLoading;
+  const isLoading = dashboardQuery.isLoading || monthlyQuery.isLoading || sourcesQuery.isLoading;
 
   return {
-    patients,
-    bookings,
-    payments,
-    doctors,
-    todayBookings,
-    totalRevenue,
-    newPatients,
-    completedToday,
-    pendingBookings,
-    totalDebt,
-    unpaidCount: unpaidPayments.length,
-    activeDoctors,
-    quickActions,
-    navigate,
+    // headline figures (backend aggregates)
+    totalPatients: stats?.totalPatients ?? 0,
+    newPatients: stats?.newPatientsThisMonth ?? 0,
+    todayBookings: stats?.todayBookings ?? 0,
+    completedToday: stats?.todayCompleted ?? 0,
+    pendingBookings: stats?.pendingBookings ?? 0,
+    activeDoctors: stats?.activeDoctors ?? 0,
+    totalDoctors: stats?.totalDoctors ?? 0,
+    todayRevenue: stats?.todayRevenue ?? 0,
+    monthRevenue: stats?.monthRevenue ?? 0,
+    monthExpenses: stats?.monthExpenses ?? 0,
+    totalDebt: stats?.unpaidTotal ?? 0,
+    unpaidCount: stats?.unpaidCount ?? 0,
+    // lists
+    recentBookings,
+    patientsById,
+    doctorsById,
+    // charts
     patientGrowth,
     revenueData,
     sourceData,
     newPatientsTrend,
     revenueTrend,
+    quickActions,
+    navigate,
     canViewPayments,
     isLoading,
+    /** the headline request failed — show an error state instead of zeros */
+    isError: dashboardQuery.isError,
+    error: dashboardQuery.error,
+    refetch: () => {
+      dashboardQuery.refetch();
+      monthlyQuery.refetch();
+      sourcesQuery.refetch();
+      recentQuery.refetch();
+    },
   };
 };

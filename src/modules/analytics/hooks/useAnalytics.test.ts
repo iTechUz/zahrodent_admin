@@ -1,23 +1,22 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { bookingsApi, doctorsApi, patientsApi, paymentsApi, servicesApi } from '@/lib/api/endpoints';
+import { analyticsApi, bookingsApi, doctorsApi, patientsApi, paymentsApi, servicesApi } from '@/lib/api/endpoints';
+import { ApiError } from '@/lib/api/client';
 import { REPORT_CHART_COLORS } from '@/shared/lib/reporting';
 import { resetApiMock } from '@/test/api-mock';
 import { createWrapper, loginAs, paginated } from '@/test/utils';
-import type { Booking, DoctorEfficiencyStats, Patient, Payment, Service } from '@/shared/types';
+import type { DoctorEfficiencyStats, MonthlyAnalyticsRow, Service } from '@/shared/types';
 import { useAnalytics } from './useAnalytics';
 
 vi.mock('@/lib/api/endpoints', async () => (await import('@/test/api-mock')).apiMock);
 
-const bookings = [
-  { id: 'b1', date: '2026-06-01', status: 'completed', source: 'website' },
-  { id: 'b2', date: '2026-06-02', status: 'pending', source: 'website' },
-  { id: 'b3', date: '2026-05-02', status: 'completed', source: 'phone' },
-] as Booking[];
-const patients = [{ id: 'p1', createdAt: '2026-06-03' }, { id: 'p2', createdAt: '2026-04-03' }] as Patient[];
-const payments = [
-  { id: 'x1', date: '2026-06-03', amount: 2_340_000, status: 'paid' },
-  { id: 'x2', date: '2026-06-04', amount: 9_000_000, status: 'unpaid' },
-] as Payment[];
+const monthly: MonthlyAnalyticsRow[] = [
+  { month: '2026-01', newPatients: 0, bookings: 0, completedBookings: 0, revenue: 0, expenses: 0 },
+  { month: '2026-02', newPatients: 0, bookings: 0, completedBookings: 0, revenue: 0, expenses: 0 },
+  { month: '2026-03', newPatients: 0, bookings: 0, completedBookings: 0, revenue: 0, expenses: 0 },
+  { month: '2026-04', newPatients: 1, bookings: 0, completedBookings: 0, revenue: 0, expenses: 0 },
+  { month: '2026-05', newPatients: 0, bookings: 1, completedBookings: 1, revenue: 0, expenses: 0 },
+  { month: '2026-06', newPatients: 1, bookings: 2, completedBookings: 1, revenue: 2_340_000, expenses: 0 },
+];
 const services = [{ id: 's1', name: 'Plomba' }] as Service[];
 const efficiency: DoctorEfficiencyStats[] = [
   {
@@ -43,9 +42,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 5, 17, 12, 0));
-  vi.mocked(bookingsApi.list).mockResolvedValue(paginated(bookings));
-  vi.mocked(patientsApi.list).mockResolvedValue(paginated(patients));
-  vi.mocked(paymentsApi.list).mockResolvedValue(paginated(payments));
+  vi.mocked(analyticsApi.monthly).mockResolvedValue(monthly);
+  vi.mocked(analyticsApi.sources).mockResolvedValue([
+    { source: 'website', count: 2 },
+    { source: 'phone', count: 1 },
+  ]);
   vi.mocked(servicesApi.list).mockResolvedValue(paginated(services));
   vi.mocked(servicesApi.stats).mockResolvedValue({
     totalCount: 1,
@@ -64,15 +65,24 @@ afterEach(() => vi.useRealTimers());
 describe('useAnalytics (admin)', () => {
   beforeEach(() => loginAs('admin'));
 
-  it('requests lists, service stats and doctor efficiency', async () => {
+  it('uses the backend aggregates instead of listing (and truncating) raw rows', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.doctorEfficiency).toHaveLength(1));
-    expect(bookingsApi.list).toHaveBeenCalledWith();
-    expect(patientsApi.list).toHaveBeenCalledWith();
-    expect(paymentsApi.list).toHaveBeenCalledWith();
-    expect(servicesApi.list).toHaveBeenCalledWith({ limit: 1000 });
+    expect(analyticsApi.monthly).toHaveBeenCalledWith({ months: 6 });
+    expect(analyticsApi.sources).toHaveBeenCalled();
+    expect(bookingsApi.list).not.toHaveBeenCalled();
+    expect(patientsApi.list).not.toHaveBeenCalled();
+    expect(paymentsApi.list).not.toHaveBeenCalled();
+    // service names: every page, max 100 per request
+    expect(servicesApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
     expect(servicesApi.stats).toHaveBeenCalled();
     expect(result.current.canViewPayments).toBe(true);
+  });
+
+  it('exposes an error state when /analytics/monthly fails', async () => {
+    vi.mocked(analyticsApi.monthly).mockRejectedValue(new ApiError(500, 'x'));
+    const { result } = setup();
+    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
   it('builds monthly series over the last 6 months', async () => {
@@ -124,21 +134,19 @@ describe('useAnalytics (admin)', () => {
     expect(result.current.serviceStats).toEqual([]);
   });
 
-  it.todo(
-    'BUG: src/modules/analytics/hooks/useAnalytics.ts:24,38,45 — bookings/patients/payments are listed without a limit, ' +
-      'so the backend default (limit=10, PaginationQueryDto) applies and every analytics chart is built from the 10 newest rows',
-  );
-  it.todo(
-    'BUG: src/lib/api/endpoints.ts:113 — servicesApi.stats() is typed without `detailed`, which the backend returns ' +
-      '(services.service.ts:83-89); useAnalytics.ts:74 reads it through `any`',
-  );
+  it('servicesApi.stats() is typed with `detailed` (no `any` needed)', async () => {
+    const stats = await servicesApi.stats();
+    const detailed: { serviceId: string; revenue: number; patients: number }[] | undefined = stats.detailed;
+    expect(detailed?.[0]).toEqual({ serviceId: 's1', revenue: 500, patients: 3 });
+  });
 });
 
 describe('useAnalytics (non-admin)', () => {
   it('does not request payments, service stats or efficiency', async () => {
     loginAs('receptionist');
+    vi.mocked(analyticsApi.monthly).mockResolvedValue(monthly.map((r) => ({ ...r, revenue: null, expenses: null })));
     const { result } = setup();
-    await waitFor(() => expect(bookingsApi.list).toHaveBeenCalled());
+    await waitFor(() => expect(analyticsApi.monthly).toHaveBeenCalled());
     expect(paymentsApi.list).not.toHaveBeenCalled();
     expect(servicesApi.stats).not.toHaveBeenCalled();
     expect(doctorsApi.efficiency).not.toHaveBeenCalled();

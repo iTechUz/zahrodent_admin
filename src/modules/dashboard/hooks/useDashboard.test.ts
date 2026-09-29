@@ -1,57 +1,70 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { bookingsApi, doctorsApi, patientsApi, paymentsApi, visitsApi } from '@/lib/api/endpoints';
+import { analyticsApi, bookingsApi, doctorsApi, patientsApi, paymentsApi, visitsApi } from '@/lib/api/endpoints';
+import { ApiError } from '@/lib/api/client';
 import { resetApiMock } from '@/test/api-mock';
 import { createWrapper, loginAs, paginated } from '@/test/utils';
-import type { Booking, Doctor, Patient, Payment, Visit } from '@/shared/types';
+import type { Booking, DashboardAnalytics, Doctor, MonthlyAnalyticsRow, Patient } from '@/shared/types';
 import { useDashboard } from './useDashboard';
 
 vi.mock('@/lib/api/endpoints', async () => (await import('@/test/api-mock')).apiMock);
 vi.mock('sonner', async () => ({ toast: (await import('@/test/api-mock')).toastMock }));
 
-const patients = [
-  { id: 'p1', createdAt: '2026-06-05' },
-  { id: 'p2', createdAt: '2026-06-01' },
-  { id: 'p3', createdAt: '2026-05-20' },
-  { id: 'p4', createdAt: '2026-01-10' },
-] as Patient[];
+const dashboard: DashboardAnalytics = {
+  totalPatients: 1234,
+  newPatientsThisMonth: 42,
+  todayBookings: 17,
+  todayCompleted: 5,
+  pendingBookings: 9,
+  activeDoctors: 3,
+  totalDoctors: 7,
+  todayRevenue: 1_500_000,
+  monthRevenue: 48_000_000,
+  monthExpenses: 12_000_000,
+  unpaidTotal: 3_200_000,
+  unpaidCount: 11,
+};
 
-const bookings = [
-  { id: 'b1', date: '2026-06-17', status: 'completed', source: 'telegram' },
-  { id: 'b2', date: '2026-06-17', status: 'pending', source: 'telegram' },
-  { id: 'b3', date: '2026-06-16', status: 'pending', source: 'walk-in' },
-  { id: 'b4', date: '2026-05-01', status: 'cancelled', source: 'phone' },
+const monthly: MonthlyAnalyticsRow[] = [
+  { month: '2026-01', newPatients: 10, bookings: 50, completedBookings: 40, revenue: 10_000_000, expenses: 1 },
+  { month: '2026-02', newPatients: 0, bookings: 0, completedBookings: 0, revenue: 0, expenses: 0 },
+  { month: '2026-03', newPatients: 5, bookings: 20, completedBookings: 10, revenue: 5_000_000, expenses: 0 },
+  { month: '2026-04', newPatients: 7, bookings: 30, completedBookings: 20, revenue: 7_000_000, expenses: 0 },
+  { month: '2026-05', newPatients: 20, bookings: 60, completedBookings: 50, revenue: 24_000_000, expenses: 0 },
+  { month: '2026-06', newPatients: 40, bookings: 80, completedBookings: 70, revenue: 48_000_000, expenses: 0 },
+];
+
+const recent = [
+  { id: 'b1', patientId: 'p1', doctorId: 'd1', date: '2026-06-17', time: '10:00', status: 'pending', source: 'telegram' },
+  { id: 'b2', patientId: 'p2', doctorId: 'd2', date: '2026-06-17', time: '09:00', status: 'completed', source: 'phone' },
 ] as Booking[];
 
-const payments = [
-  { id: 'x1', date: '2026-06-10', amount: 100, status: 'paid' },
-  { id: 'x2', date: '2026-05-10', amount: 50, status: 'paid' },
-  { id: 'x3', date: '2026-06-11', amount: 30, status: 'unpaid' },
-  { id: 'x4', date: '2026-06-12', amount: 20, status: 'partial' },
-] as Payment[];
-
-const doctors = [{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }] as Doctor[];
-
-const visits = [
-  { id: 'v1', doctorId: 'd1', status: 'in-progress' },
-  { id: 'v2', doctorId: 'd1', status: 'in-progress' },
-  { id: 'v3', doctorId: 'd2', status: 'completed' },
-] as Visit[];
-
 function setup() {
-  const { wrapper } = createWrapper(undefined, { router: true });
-  return renderHook(() => useDashboard(), { wrapper });
+  const { wrapper, queryClient } = createWrapper(undefined, { router: true });
+  return { ...renderHook(() => useDashboard(), { wrapper }), queryClient };
 }
 
 beforeEach(() => {
   resetApiMock();
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date('2026-06-17T12:00:00.000Z')); // midday UTC keeps monthStart/today stable from UTC-11 to UTC+14
-  vi.mocked(patientsApi.list).mockResolvedValue(paginated(patients));
-  vi.mocked(bookingsApi.list).mockResolvedValue(paginated(bookings));
-  vi.mocked(paymentsApi.list).mockResolvedValue(paginated(payments));
-  vi.mocked(doctorsApi.list).mockResolvedValue(paginated(doctors));
-  vi.mocked(visitsApi.list).mockResolvedValue(paginated(visits));
+  vi.setSystemTime(new Date('2026-06-17T12:00:00.000Z'));
+  vi.mocked(analyticsApi.dashboard).mockResolvedValue(dashboard);
+  vi.mocked(analyticsApi.monthly).mockResolvedValue(monthly);
+  vi.mocked(analyticsApi.sources).mockResolvedValue([
+    { source: 'telegram', count: 2 },
+    { source: 'walk-in', count: 1 },
+    { source: 'phone', count: 1 },
+  ]);
+  vi.mocked(bookingsApi.list).mockResolvedValue(paginated(recent, 120));
+  vi.mocked(doctorsApi.list).mockResolvedValue(
+    paginated([
+      { id: 'd1', firstName: 'Aziz', lastName: 'Karimov' },
+      { id: 'd2', firstName: 'Olim', lastName: 'Sobirov' },
+    ] as Doctor[]),
+  );
+  vi.mocked(patientsApi.get).mockImplementation(
+    async (id: string) => ({ id, firstName: `F-${id}`, lastName: `L-${id}` }) as Patient,
+  );
 });
 
 afterEach(() => vi.useRealTimers());
@@ -59,55 +72,83 @@ afterEach(() => vi.useRealTimers());
 describe('useDashboard (admin)', () => {
   beforeEach(() => loginAs('admin'));
 
-  it('fetches every list with its limit', async () => {
+  it('uses the backend aggregates — no client-side aggregation over truncated lists', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(patientsApi.list).toHaveBeenCalledWith({ limit: 300 });
-    expect(bookingsApi.list).toHaveBeenCalledWith({ limit: 300 });
-    expect(paymentsApi.list).toHaveBeenCalledWith({ limit: 300 });
-    expect(doctorsApi.list).toHaveBeenCalledWith({ limit: 100 });
-    expect(visitsApi.list).toHaveBeenCalledWith({ limit: 300 });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17' });
+    expect(analyticsApi.monthly).toHaveBeenCalledWith({ months: 6 });
+    expect(analyticsApi.sources).toHaveBeenCalled();
+    // no bulk list scans any more
+    expect(paymentsApi.list).not.toHaveBeenCalled();
+    expect(visitsApi.list).not.toHaveBeenCalled();
+    expect(patientsApi.list).not.toHaveBeenCalled();
+    expect(bookingsApi.list).toHaveBeenCalledWith({ limit: 5 });
   });
 
-  it('computes the headline figures', async () => {
+  it('exposes the headline figures from /analytics/dashboard', async () => {
     const { result } = setup();
-    await waitFor(() => expect(result.current.payments).toHaveLength(4));
+    await waitFor(() => expect(result.current.totalPatients).toBe(1234));
+    expect(result.current).toMatchObject({
+      totalPatients: 1234,
+      newPatients: 42,
+      todayBookings: 17,
+      completedToday: 5,
+      pendingBookings: 9,
+      activeDoctors: 3,
+      totalDoctors: 7,
+      monthRevenue: 48_000_000,
+      totalDebt: 3_200_000,
+      unpaidCount: 11,
+      canViewPayments: true,
+      isError: false,
+    });
+  });
+
+  it("asks for the Tashkent date, not UTC, right after local midnight", async () => {
+    vi.setSystemTime(new Date('2026-06-16T19:30:00.000Z')); // 00:30 on 06-17 in Tashkent
+    const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    const r = result.current;
-    expect(r.todayBookings.map((b) => b.id)).toEqual(['b1', 'b2']);
-    expect(r.completedToday).toBe(1);
-    expect(r.pendingBookings).toBe(2);
-    expect(r.newPatients).toBe(2);
-    expect(r.totalRevenue).toBe(150); // paid only
-    expect(r.totalDebt).toBe(50); // unpaid + partial
-    expect(r.unpaidCount).toBe(2);
-    expect(r.activeDoctors).toBe(1); // distinct doctors with an in-progress visit
-    expect(r.canViewPayments).toBe(true);
-    expect(typeof r.navigate).toBe('function');
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17' });
   });
 
-  it('builds 6-month chart series ending with the current month', async () => {
+  it('builds the 6-month chart series from /analytics/monthly', async () => {
     const { result } = setup();
-    await waitFor(() => expect(result.current.payments).toHaveLength(4));
-    const r = result.current;
-    expect(r.patientGrowth.map((p) => p.month)).toEqual(['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn']);
-    expect(r.patientGrowth.map((p) => p.patients)).toEqual([1, 0, 0, 0, 1, 2]);
-    expect(r.revenueData.slice(-2)).toEqual([
-      { month: 'May', revenue: 50 },
-      { month: 'Iyn', revenue: 100 },
+    await waitFor(() => expect(result.current.patientGrowth).toHaveLength(6));
+    expect(result.current.patientGrowth.map((p) => p.month)).toEqual(['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn']);
+    expect(result.current.patientGrowth.map((p) => p.patients)).toEqual([10, 0, 5, 7, 20, 40]);
+    expect(result.current.revenueData.slice(-2)).toEqual([
+      { month: 'May', revenue: 24_000_000 },
+      { month: 'Iyn', revenue: 48_000_000 },
     ]);
-    expect(r.sourceData.map(({ name, value }) => ({ name, value }))).toEqual([
+  });
+
+  it('source pie from /analytics/sources', async () => {
+    const { result } = setup();
+    await waitFor(() => expect(result.current.sourceData).toHaveLength(3));
+    expect(result.current.sourceData.map(({ name, value }) => ({ name, value }))).toEqual([
       { name: 'Telegram', value: 2 },
       { name: 'Shaxsan', value: 1 },
       { name: 'Telefon', value: 1 },
     ]);
   });
 
-  it('month-over-month trends', async () => {
+  it('month-over-month trends from the last two monthly rows', async () => {
     const { result } = setup();
-    await waitFor(() => expect(result.current.payments).toHaveLength(4));
+    await waitFor(() => expect(result.current.newPatientsTrend).not.toBeNull());
     expect(result.current.newPatientsTrend).toEqual({ text: "+100% o'tgan oyga", up: true });
     expect(result.current.revenueTrend).toEqual({ text: "+100% o'tgan oyga", up: true });
+  });
+
+  it('recent bookings resolve patient and doctor names', async () => {
+    const { result } = setup();
+    await waitFor(() => expect(result.current.patientsById.size).toBe(2));
+    await waitFor(() => expect(result.current.doctorsById.size).toBe(2));
+    expect(result.current.recentBookings.map((b) => b.id)).toEqual(['b1', 'b2']);
+    expect(result.current.patientsById.get('p1')?.firstName).toBe('F-p1');
+    expect(result.current.doctorsById.get('d2')?.lastName).toBe('Sobirov');
+    expect(patientsApi.get).toHaveBeenCalledTimes(2);
+    // doctor lookup never asks for more than 100 rows
+    expect(doctorsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
   });
 
   it('shows all four quick actions including finance', async () => {
@@ -115,60 +156,91 @@ describe('useDashboard (admin)', () => {
     expect(result.current.quickActions.map((a) => a.path)).toEqual(['/bookings', '/patients', '/finance', '/doctors']);
   });
 
-  it('returns zeroed figures with empty data', async () => {
-    resetApiMock();
+  it('zero figures when the backend has no data', async () => {
+    vi.mocked(analyticsApi.monthly).mockResolvedValue([]);
+    vi.mocked(analyticsApi.dashboard).mockResolvedValue({
+      ...dashboard,
+      totalPatients: 0,
+      newPatientsThisMonth: 0,
+      unpaidTotal: 0,
+      unpaidCount: 0,
+    });
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current).toMatchObject({
-      totalRevenue: 0,
+      totalPatients: 0,
       totalDebt: 0,
       unpaidCount: 0,
       newPatients: 0,
-      activeDoctors: 0,
       newPatientsTrend: null,
       revenueTrend: null,
     });
   });
+
+  it('a failed /analytics/dashboard is an error state, not silent zeros', async () => {
+    vi.mocked(analyticsApi.dashboard).mockRejectedValue(new ApiError(500, 'Server xatosi'));
+    const { result } = setup();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(ApiError);
+  });
+
+  it('query keys include their params (no shared bare ["patients"]/["bookings"] keys)', async () => {
+    const { result, queryClient } = setup();
+    await waitFor(() => expect(result.current.patientsById.size).toBe(2));
+    const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        ['analytics', 'dashboard', '2026-06-17'],
+        ['analytics', 'monthly', 6],
+        ['analytics', 'sources'],
+        ['bookings', 'list', { limit: 5 }],
+        ['doctors', 'lookup', {}],
+        ['patients', 'p1'],
+      ]),
+    );
+    for (const k of keys) {
+      expect(k).not.toEqual(['patients']);
+      expect(k).not.toEqual(['bookings']);
+      expect(k).not.toEqual(['doctors']);
+    }
+  });
 });
 
 describe('useDashboard (non-admin)', () => {
-  it.each(['receptionist', 'doctor'] as const)('%s: payments are not requested and finance action is hidden', async (role) => {
-    loginAs(role);
+  it('receptionist: money fields are null → shown as unavailable, finance action hidden', async () => {
+    loginAs('receptionist');
+    vi.mocked(analyticsApi.dashboard).mockResolvedValue({
+      ...dashboard,
+      todayRevenue: null,
+      monthRevenue: null,
+      monthExpenses: null,
+      unpaidTotal: null,
+      unpaidCount: null,
+    });
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(paymentsApi.list).not.toHaveBeenCalled();
     expect(result.current.canViewPayments).toBe(false);
-    expect(result.current.totalRevenue).toBe(0);
-    expect(result.current.quickActions.map((a) => a.path)).not.toContain('/finance');
-    expect(result.current.quickActions).toHaveLength(3);
+    expect(result.current.monthRevenue).toBe(0);
+    expect(result.current.revenueTrend).toBeNull();
+    expect(result.current.quickActions.map((a) => a.path)).toEqual(['/bookings', '/patients']);
+  });
+
+  it('doctor: dashboard works via /analytics (no 403 from /doctors) and only allowed actions show', async () => {
+    loginAs('doctor');
+    const { result } = setup();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.activeDoctors).toBe(3);
+    expect(result.current.totalDoctors).toBe(7);
+    // doctors cannot create bookings/patients/payments nor open /doctors
+    expect(result.current.quickActions).toEqual([]);
   });
 
   it('logged out: nothing is fetched', async () => {
     loginAs(null);
     setup();
     await Promise.resolve();
-    expect(patientsApi.list).not.toHaveBeenCalled();
+    expect(analyticsApi.dashboard).not.toHaveBeenCalled();
     expect(bookingsApi.list).not.toHaveBeenCalled();
   });
-});
-
-describe('useDashboard known bugs', () => {
-  it.todo(
-    'BUG: src/modules/dashboard/hooks/useDashboard.ts:22,38 — `today`/`monthStart` come from toISOString() (UTC); in ' +
-      'Asia/Tashkent 00:00–04:59 "today" is yesterday, so todayBookings/completedToday are wrong for the first 5 hours',
-  );
-  it.todo(
-    'BUG: src/modules/dashboard/hooks/useDashboard.ts:41-75 — lists use the bare queryKeys.patients/bookings/payments/doctors ' +
-      '(["patients"] …) which are shared with useBookings/useFinance/useDoctors/useAnalytics/usePatientProfile that fetch ' +
-      'with other limits (1000, 100, none=10); whichever mounts first fills the cache, so dashboard figures depend on navigation order. ' +
-      'Include the params in the key',
-  );
-  it.todo(
-    'BUG: src/modules/dashboard/hooks/useDashboard.ts:76-85 — revenue/debt/new-patient totals are computed client-side from ' +
-      'the first 300 rows only; use the /payments/stats, /patients/stats, /bookings/stats endpoints instead',
-  );
-  it.todo(
-    'BUG: src/modules/dashboard/hooks/useDashboard.ts:62-66 — GET /doctors is admin/receptionist only (backend ' +
-      'doctors.controller.ts:31); for the doctor role it 403s and activeDoctors is always 0',
-  );
 });
