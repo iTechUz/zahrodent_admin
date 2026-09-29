@@ -71,6 +71,18 @@ describe('query-string building (qs)', () => {
     expect(lastCall().path).toContain('search=%2B998+90');
   });
 
+  it('strips undefined / null / empty-string params (backend forbids unknown or empty query params)', async () => {
+    await bookingsApi.list({
+      page: 0,
+      search: '',
+      status: undefined,
+      startDate: '',
+      endDate: null as unknown as string,
+      patientId: 'p1',
+    });
+    expect(lastCall().path).toBe('/bookings?page=0&patientId=p1');
+  });
+
   it('never sends limit > 100 (backend PaginationQueryDto max) and keeps it >= 1', async () => {
     await patientsApi.list({ limit: 10000 });
     expect(lastCall().path).toBe('/patients?limit=100');

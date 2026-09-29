@@ -19,7 +19,7 @@ export const permissions = {
   'patients.read': STAFF,
   'patients.create': FRONT_DESK,
   'patients.update': STAFF, // doctor: only own patients (backend scopes)
-  'patients.delete': FRONT_DESK,
+  'patients.delete': ADMIN, // 409 when the patient has visits/payments
   'patients.comment': STAFF,
   'patients.stats': STAFF,
 

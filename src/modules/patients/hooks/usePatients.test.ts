@@ -2,6 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { patientsApi } from '@/lib/api/endpoints';
 import { resetApiMock, toastMock } from '@/test/api-mock';
 import { createWrapper, loginAs, paginated } from '@/test/utils';
+import { ApiError } from '@/lib/api/client';
+import { createQueryClient } from '@/lib/api/query-client';
 import type { Patient } from '@/shared/types';
 import type { PatientFormValues } from '@/shared/lib/validation';
 import { usePatients } from './usePatients';
@@ -224,6 +226,21 @@ describe('usePatients', () => {
       expect(api.remove.mock.calls[0][0]).toBe('p1');
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
       expect(toastMock.success).toHaveBeenCalledWith("Bemor o'chirildi");
+    });
+  });
+  describe('delete conflict (409)', () => {
+    it('shows the backend message when the patient has visits/payments and keeps the list', async () => {
+      const msg = "Bemorda tashriflar yoki to'lovlar bor — o'chirib bo'lmaydi";
+      api.remove.mockRejectedValue(new ApiError(409, msg));
+      const { wrapper, queryClient } = createWrapper(createQueryClient());
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+      const { result } = renderHook(() => usePatients(), { wrapper });
+      act(() => result.current.setDeleteId('p1'));
+      act(() => result.current.handleDelete());
+      await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(msg));
+      expect(toastMock.success).not.toHaveBeenCalledWith("Bemor o'chirildi");
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(result.current.deleteId).toBeNull();
     });
   });
 });

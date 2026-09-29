@@ -91,6 +91,7 @@ describe('usePatientProfile', () => {
     });
 
     it('loads the full history (every page) so >10 visits/payments give correct totals', async () => {
+      pApi.get.mockResolvedValue({ ...patient, balance: -70_000 });
       const visits = Array.from({ length: 130 }, (_, i) => visit(`v${i}`, 1000));
       const payments = Array.from({ length: 120 }, (_, i) => pay(`x${i}`, 500, 'paid'));
       vApi.list.mockImplementation(async (p) => paginated(visits.slice(p!.page! * 100, p!.page! * 100 + 100), 130));
@@ -125,7 +126,8 @@ describe('usePatientProfile', () => {
   });
 
   describe('balance', () => {
-    it('totalDue = Σ visit prices, totalPaid = Σ paid+partial, totalDebt = max(0, due − paid)', async () => {
+    it('totalDue = Σ visit prices, totalPaid = Σ paid+partial (display only); debt comes from balance', async () => {
+      pApi.get.mockResolvedValue({ ...patient, balance: -350000 });
       vApi.list.mockResolvedValue(paginated([visit('v1', 300000), visit('v2', '200000')]));
       payApi.list.mockResolvedValue(
         paginated([pay('a', 100000, 'paid'), pay('b', '50000', 'partial'), pay('c', 999999, 'unpaid')]),
@@ -134,6 +136,24 @@ describe('usePatientProfile', () => {
       await waitFor(() => expect(result.current.totalPaid).toBe(150000));
       expect(result.current.totalDue).toBe(500000);
       expect(result.current.totalDebt).toBe(350000);
+      expect(result.current.credit).toBe(0);
+    });
+
+    it('debt is never recomputed client-side: a discount on the backend is respected', async () => {
+      // visits 500k, paid 150k, but a 100k discount → backend balance −250k
+      pApi.get.mockResolvedValue({ ...patient, balance: -250000 });
+      vApi.list.mockResolvedValue(paginated([visit('v1', 500000)]));
+      payApi.list.mockResolvedValue(paginated([pay('a', 150000, 'paid')]));
+      const { result } = setup();
+      await waitFor(() => expect(result.current.totalPaid).toBe(150000));
+      expect(result.current.totalDebt).toBe(250000);
+    });
+
+    it('missing balance → no debt shown (not a client-side guess)', async () => {
+      vApi.list.mockResolvedValue(paginated([visit('v1', 500000)]));
+      const { result } = setup();
+      await waitFor(() => expect(result.current.patientVisits).toHaveLength(1));
+      expect(result.current.totalDebt).toBe(0);
     });
 
     it('prefers the backend balance for debt (negative balance = debt)', async () => {
@@ -152,13 +172,15 @@ describe('usePatientProfile', () => {
       expect(result.current.totalDebt).toBe(0);
     });
 
-    it('overpayment never yields negative debt; bad numbers count as 0', async () => {
+    it('overpayment (positive balance) is credit, not negative debt; bad numbers count as 0', async () => {
+      pApi.get.mockResolvedValue({ ...patient, balance: 400 });
       vApi.list.mockResolvedValue(paginated([visit('v1', 100), visit('v2', 'abc')]));
       payApi.list.mockResolvedValue(paginated([pay('a', 500, 'paid'), pay('b', 'x', 'paid')]));
       const { result } = setup();
       await waitFor(() => expect(result.current.totalPaid).toBe(500));
       expect(result.current.totalDue).toBe(100);
       expect(result.current.totalDebt).toBe(0);
+      expect(result.current.credit).toBe(400);
     });
 
     it('getVisitBalance subtracts paid/partial payments linked to that visit', async () => {
@@ -444,6 +466,24 @@ describe('usePatientProfile', () => {
       // balance/debt is served by GET /patients/:id → refresh it too
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
       expect(toastMock.success).toHaveBeenCalledWith("To'lov qayd etildi");
+    });
+  });
+
+  describe('payment visit link', () => {
+    it("only this patient's visits can be linked; an unknown visitId is dropped", async () => {
+      vApi.list.mockResolvedValue(paginated([visit('v1', 1000)]));
+      payApi.create.mockResolvedValue(pay('np', 1, 'paid'));
+      const { result } = setup();
+      await waitFor(() => expect(result.current.patientVisits).toHaveLength(1));
+      act(() => result.current.setPayForm({ amount: '5', method: 'cash', status: 'paid', description: 'x', visitId: 'other-patients-visit' }));
+      act(() => result.current.handlePaymentSave());
+      await waitFor(() => expect(payApi.create).toHaveBeenCalledTimes(1));
+      expect(payApi.create.mock.calls[0][0]).toMatchObject({ visitId: undefined });
+
+      act(() => result.current.setPayForm({ amount: '5', method: 'cash', status: 'paid', description: 'x', visitId: 'v1' }));
+      act(() => result.current.handlePaymentSave());
+      await waitFor(() => expect(payApi.create).toHaveBeenCalledTimes(2));
+      expect(payApi.create.mock.calls[1][0]).toMatchObject({ visitId: 'v1' });
     });
   });
 

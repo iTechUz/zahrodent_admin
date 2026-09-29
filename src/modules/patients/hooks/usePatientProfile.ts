@@ -164,9 +164,11 @@ export const usePatientProfile = (patientId: string | undefined) => {
 
   const totalPaid = patientPayments.filter((p) => p.status === 'paid' || p.status === 'partial').reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const totalDue = patientVisits.reduce((s, v) => s + (Number(v.price) || 0), 0);
-  // prefer the backend balance (paid − owed over *all* rows; also correct for roles that can't list payments)
-  const backendBalance = typeof patient?.balance === 'number' ? patient.balance : null;
-  const totalDebt = backendBalance !== null ? Math.max(0, -backendBalance) : Math.max(0, totalDue - totalPaid);
+  // Debt/credit come only from the backend balance (INCOME paid+partial − (completed visit price − discount));
+  // it covers every row and is also correct for roles that cannot list payments. Never recomputed here.
+  const balance = typeof patient?.balance === 'number' ? patient.balance : 0;
+  const totalDebt = Math.max(0, -balance);
+  const credit = Math.max(0, balance);
 
   const handleEditSave = () => {
     if (!patient) return;
@@ -281,7 +283,8 @@ export const usePatientProfile = (patientId: string | undefined) => {
         type: 'INCOME',
         date: today,
         description: payForm.description,
-        visitId: payForm.visitId || undefined,
+        // only this patient's visits may be linked (backend rejects foreign visitId with 400)
+        visitId: payForm.visitId && patientVisits.some((v) => v.id === payForm.visitId) ? payForm.visitId : undefined,
       },
       {
         onSettled: () => {
@@ -340,6 +343,8 @@ export const usePatientProfile = (patientId: string | undefined) => {
     totalPaid,
     totalDue,
     totalDebt,
+    credit,
+    balance,
     doctors,
     editOpen,
     setEditOpen,

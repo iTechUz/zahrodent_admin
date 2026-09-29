@@ -53,7 +53,7 @@ describe('can() — mirrors backend @Roles guards', () => {
     // [action, admin, doctor, receptionist]
     ['patients.create', true, false, true],
     ['patients.update', true, true, true],
-    ['patients.delete', true, false, true],
+    ['patients.delete', true, false, false],
     ['bookings.create', true, false, true],
     ['bookings.update', true, false, true],
     ['bookings.delete', true, false, true],
