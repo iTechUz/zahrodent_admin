@@ -13,7 +13,8 @@ export const PatientSchema = z.object({
   lastName: requiredString('Familiya'),
   phone: phoneSchema,
   age: positiveNumber('Yosh'),
-  address: requiredString('Manzil'),
+  // backend CreatePatientDto: MinLength(3)
+  address: requiredString('Manzil').min(3, "Manzil kamida 3 ta belgidan iborat bo'lishi kerak"),
   workplace: requiredString('Ish joyi'),
   assignedDoctorId: z.string().optional(),
   source: z.enum(['walk-in', 'telegram', 'website', 'phone']).default('walk-in'),

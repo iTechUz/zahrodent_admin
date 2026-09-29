@@ -73,6 +73,13 @@ describe('PatientSchema', () => {
     expect(firstError(PatientSchema.safeParse({ ...ok, workplace: '' }))).toBe('Ish joyi kiritilishi shart');
   });
 
+  it('address needs at least 3 characters (backend MinLength(3))', () => {
+    expect(firstError(PatientSchema.safeParse({ ...ok, address: 'Tk' }))).toBe(
+      "Manzil kamida 3 ta belgidan iborat bo'lishi kerak",
+    );
+    expect(PatientSchema.safeParse({ ...ok, address: 'Tosh' }).success).toBe(true);
+  });
+
   it('rejects unknown sources', () => {
     expect(PatientSchema.safeParse({ ...ok, source: 'instagram' }).success).toBe(false);
   });

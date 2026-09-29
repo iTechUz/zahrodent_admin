@@ -8,7 +8,7 @@ import { roleAccess } from '@/shared/config/roles';
 import { doctorFullName } from '@/shared/lib/formatters';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import type { Patient } from '@/shared/types';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Search, Users, Stethoscope, CalendarDays } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
@@ -159,6 +159,8 @@ export function GlobalSearch() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="p-0 gap-0 max-w-lg overflow-hidden">
+        <DialogTitle className="sr-only">Qidiruv</DialogTitle>
+        <DialogDescription className="sr-only">Bemor, shifokor yoki qabul bo'yicha qidirish</DialogDescription>
         <div className="flex items-center border-b border-border px-4">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
           <Input
