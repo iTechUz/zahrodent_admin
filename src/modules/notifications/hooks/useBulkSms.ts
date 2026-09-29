@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '@/lib/api/endpoints';
 import { toast } from 'sonner';
-import { format, addDays, addMonths, startOfDay, endOfDay } from 'date-fns';
+import { addDaysToDate, addMonthsToDate, clinicToday } from '@/shared/lib/date-utils';
 
 export type DatePreset = 'tomorrow' | 'nextWeek' | 'nextMonth' | 'custom';
 
@@ -11,33 +11,35 @@ export const useBulkSms = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [datePreset, setDatePreset] = useState<DatePreset>('tomorrow');
   const [targetType, setTargetType] = useState<'patient' | 'doctor'>('patient');
-  const [customRange, setCustomRange] = useState<{ start: Date; end: Date }>({
-    start: startOfDay(new Date()),
-    end: endOfDay(addDays(new Date(), 1)),
+  // date-only strings (YYYY-MM-DD, clinic time zone): the backend treats them as whole days.
+  // Local-midnight ISO instants were 19:00Z of the *previous* day in Tashkent.
+  const [customRange, setCustomRange] = useState<{ start: string; end: string }>(() => {
+    const today = clinicToday();
+    return { start: today, end: addDaysToDate(today, 1) };
   });
 
   const [message, setMessage] = useState('Eslatman: Qabulingiz [sana] kuni soat [vaqt] da kutilmoqda. Zahro Dental.');
 
+  const today = clinicToday();
   const dateRange = useMemo(() => {
-    const now = new Date();
     if (datePreset === 'tomorrow') {
-      const tomorrow = addDays(now, 1);
-      return { start: startOfDay(tomorrow), end: endOfDay(tomorrow) };
+      const tomorrow = addDaysToDate(today, 1);
+      return { start: tomorrow, end: tomorrow };
     }
     if (datePreset === 'nextWeek') {
-      return { start: startOfDay(now), end: endOfDay(addDays(now, 7)) };
+      return { start: today, end: addDaysToDate(today, 7) };
     }
     if (datePreset === 'nextMonth') {
-      return { start: startOfDay(now), end: endOfDay(addMonths(now, 1)) };
+      return { start: today, end: addMonthsToDate(today, 1) };
     }
     return customRange;
-  }, [datePreset, customRange]);
+  }, [datePreset, customRange, today]);
 
   const { data: recipients = [], isLoading } = useQuery({
     queryKey: ['sms-recipients', dateRange, targetType],
     queryFn: () => notificationsApi.getRecipients({
-      startDate: targetType === 'patient' ? dateRange.start.toISOString() : undefined,
-      endDate: targetType === 'patient' ? dateRange.end.toISOString() : undefined,
+      startDate: targetType === 'patient' ? dateRange.start : undefined,
+      endDate: targetType === 'patient' ? dateRange.end : undefined,
       targetType,
     }),
   });
@@ -90,6 +92,9 @@ export const useBulkSms = () => {
     toggleSelectAll,
     datePreset,
     setDatePreset,
+    dateRange,
+    customRange,
+    setCustomRange,
     targetType,
     setTargetType: (t: 'patient' | 'doctor') => {
       setTargetType(t);

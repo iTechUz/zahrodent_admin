@@ -1,5 +1,4 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { addDays, addMonths, endOfDay, startOfDay } from 'date-fns';
 import { notificationsApi } from '@/lib/api/endpoints';
 import { resetApiMock, toastMock } from '@/test/api-mock';
 import { createWrapper, loginAs } from '@/test/utils';
@@ -10,7 +9,7 @@ vi.mock('@/lib/api/endpoints', async () => (await import('@/test/api-mock')).api
 vi.mock('sonner', async () => ({ toast: (await import('@/test/api-mock')).toastMock }));
 
 const api = vi.mocked(notificationsApi);
-const NOW = new Date(2026, 5, 17, 12, 0);
+const NOW = new Date('2026-06-17T07:00:00Z'); // 12:00 in Tashkent
 
 const recipient = (id: string): NotificationRecipient => ({
   id,
@@ -47,8 +46,8 @@ describe('useBulkSms', () => {
       expect(result.current.datePreset).toBe('tomorrow');
       expect(result.current.targetType).toBe('patient');
       expect(api.getRecipients).toHaveBeenCalledWith({
-        startDate: startOfDay(addDays(NOW, 1)).toISOString(),
-        endDate: endOfDay(addDays(NOW, 1)).toISOString(),
+        startDate: '2026-06-18',
+        endDate: '2026-06-18',
         targetType: 'patient',
       });
     });
@@ -58,8 +57,8 @@ describe('useBulkSms', () => {
       act(() => result.current.setDatePreset('nextWeek'));
       await waitFor(() =>
         expect(api.getRecipients).toHaveBeenLastCalledWith({
-          startDate: startOfDay(NOW).toISOString(),
-          endDate: endOfDay(addDays(NOW, 7)).toISOString(),
+          startDate: '2026-06-17',
+          endDate: '2026-06-24',
           targetType: 'patient',
         }),
       );
@@ -70,8 +69,8 @@ describe('useBulkSms', () => {
       act(() => result.current.setDatePreset('nextMonth'));
       await waitFor(() =>
         expect(api.getRecipients).toHaveBeenLastCalledWith({
-          startDate: startOfDay(NOW).toISOString(),
-          endDate: endOfDay(addMonths(NOW, 1)).toISOString(),
+          startDate: '2026-06-17',
+          endDate: '2026-07-17',
           targetType: 'patient',
         }),
       );
@@ -82,8 +81,8 @@ describe('useBulkSms', () => {
       act(() => result.current.setDatePreset('custom'));
       await waitFor(() =>
         expect(api.getRecipients).toHaveBeenLastCalledWith({
-          startDate: startOfDay(NOW).toISOString(),
-          endDate: endOfDay(addDays(NOW, 1)).toISOString(),
+          startDate: '2026-06-17',
+          endDate: '2026-06-18',
           targetType: 'patient',
         }),
       );
@@ -105,11 +104,29 @@ describe('useBulkSms', () => {
       );
     });
 
-    it.todo(
-      'BUG: src/modules/notifications/hooks/useBulkSms.ts:25,39-40 — sends startOfDay(local).toISOString(); in Asia/Tashkent ' +
-        '(UTC+5) "tomorrow 00:00" is today 19:00Z and the backend (notifications.service.ts:230-233) floors it with ' +
-        'setUTCHours(0), so the "tomorrow" preset also returns today\'s bookings. Send a YYYY-MM-DD date instead',
-    );
+    it('"tomorrow" right after Tashkent midnight is the next clinic day, sent as YYYY-MM-DD (not a UTC instant)', async () => {
+      vi.setSystemTime(new Date('2026-06-16T19:30:00Z')); // 00:30 on 06-17 in Tashkent
+      setup();
+      await waitFor(() => expect(api.getRecipients).toHaveBeenCalled());
+      expect(api.getRecipients).toHaveBeenCalledWith({
+        startDate: '2026-06-18',
+        endDate: '2026-06-18',
+        targetType: 'patient',
+      });
+    });
+
+    it('setCustomRange drives the "custom" preset', async () => {
+      const { result } = setup();
+      act(() => result.current.setDatePreset('custom'));
+      act(() => result.current.setCustomRange({ start: '2026-07-01', end: '2026-07-05' }));
+      await waitFor(() =>
+        expect(api.getRecipients).toHaveBeenLastCalledWith({
+          startDate: '2026-07-01',
+          endDate: '2026-07-05',
+          targetType: 'patient',
+        }),
+      );
+    });
   });
 
   describe('selection', () => {
