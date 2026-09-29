@@ -39,7 +39,7 @@ export const TransactionForm = ({
     resolver: zodResolver(PaymentSchema),
     defaultValues: {
       patientId: '',
-      amount: undefined as any,
+      amount: undefined as unknown as number,
       method: 'cash',
       status: 'paid',
       type: 'INCOME',
@@ -60,7 +60,7 @@ export const TransactionForm = ({
     } else {
       form.reset({
         patientId: '',
-        amount: undefined as any,
+        amount: undefined as unknown as number,
         method: 'cash',
         status: 'paid',
         type: 'INCOME',

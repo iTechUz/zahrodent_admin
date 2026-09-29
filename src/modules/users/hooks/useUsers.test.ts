@@ -43,7 +43,7 @@ describe('useUsers', () => {
     const { result, invalidate } = setup();
     act(() => result.current.openCreate());
     expect(result.current.modalOpen).toBe(true);
-    const body = { name: 'Ali', phone: '+998901112233', role: 'receptionist', password: 'secret1' };
+    const body = { name: 'Ali', phone: '+998901112233', role: 'receptionist' as const, password: 'secret1' };
     act(() => result.current.handleSave(body));
     await waitFor(() => expect(result.current.modalOpen).toBe(false));
     expect(api.create).toHaveBeenCalledWith(body);

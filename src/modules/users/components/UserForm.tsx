@@ -20,13 +20,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Eye, EyeOff } from 'lucide-react';
 
 const userSchema = z.object({
@@ -37,17 +30,19 @@ const userSchema = z.object({
   specialty: z.string().optional(),
 });
 
+export type UserFormValues = z.infer<typeof userSchema>;
+
 interface UserFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  editing: any;
-  onSave: (data: any) => void;
+  editing: Partial<UserFormValues> | null;
+  onSave: (data: Partial<UserFormValues>) => void;
 }
 
 export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps) {
   const [showPassword, setShowPassword] = useState(false);
 
-  const form = useForm({
+  const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
     defaultValues: {
       name: '',
@@ -55,12 +50,12 @@ export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps)
       role: 'receptionist',
       password: '',
     },
-    values: editing || undefined,
+    values: (editing as UserFormValues | null) || undefined,
   });
 
-  const handleSubmit = (values: any) => {
+  const handleSubmit = (values: UserFormValues) => {
     // If empty password on edit, remove it from payload
-    const payload = { ...values };
+    const payload: Partial<UserFormValues> = { ...values };
     if (!payload.password && editing) delete payload.password;
     onSave(payload);
   };

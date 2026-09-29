@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { roleConfig } from '@/shared/config/roles';
+import { roleAccess, roleConfig } from '@/shared/config/roles';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -23,13 +23,19 @@ export function Topbar() {
   const { darkMode, toggleDarkMode, currentUser } = useStore();
   const authed = useStore((s) => s.isAuthenticated);
   const logout = useLogout();
+  // GET /notifications is allowed for every role (doctor: own only); the page itself is admin/receptionist
   const { data: notificationsRes } = useQuery({
-    queryKey: queryKeys.notifications,
+    queryKey: queryKeys.notificationsList({}),
     queryFn: () => notificationsApi.list(),
     enabled: authed,
+    meta: { silentError: true },
   });
   const unread = (notificationsRes?.data ?? []).filter((n) => n.status === 'sent').length;
   const navigate = useNavigate();
+  const canOpenNotifications = !!currentUser && roleAccess[currentUser.role].includes('/notifications');
+  const openNotifications = () => {
+    if (canOpenNotifications) navigate('/notifications');
+  };
   const isMobile = useIsMobile();
 
   const handleLogout = () => {
@@ -48,7 +54,7 @@ export function Topbar() {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleDarkMode}>
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </Button>
-        <Button variant="ghost" size="icon" className="relative h-8 w-8" onClick={() => navigate('/notifications')}>
+        <Button variant="ghost" size="icon" className="relative h-8 w-8" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
           {unread > 0 && (
             <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">
@@ -107,7 +113,7 @@ export function Topbar() {
         <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="relative">
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </Button>
-        <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/notifications')}>
+        <Button variant="ghost" size="icon" className="relative" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
           {unread > 0 && (
             <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">

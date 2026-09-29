@@ -29,7 +29,6 @@ export function UsersPageContent() {
   } = useUsers();
 
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
@@ -142,7 +141,7 @@ export function UsersPageContent() {
           </div>
           <h3 className="text-lg font-semibold">Xodimlar topilmadi</h3>
           <p className="text-sm text-muted-foreground">Qidiruv natijasida hech qanday xodim topilmadi.</p>
-          <Button variant="outline" className="mt-4" onClick={() => {setSearch(''); setRoleFilter('all');}}>
+          <Button variant="outline" className="mt-4" onClick={() => setSearch('')}>
             Filtrlarni tozalash
           </Button>
         </div>
