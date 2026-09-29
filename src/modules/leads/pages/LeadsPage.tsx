@@ -16,7 +16,6 @@ import {
   LayoutGrid, 
   List, 
   Copy, 
-  ExternalLink,
   MessageCircle,
   Clock,
   User,
@@ -28,11 +27,13 @@ import {
   CheckCircle2,
   XCircle,
   Stethoscope,
-  Send
+  Send,
+  type LucideIcon,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { leadsApi } from '@/lib/api/endpoints';
 import { exportToExcel } from '@/shared/lib/excel';
+import { leadsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { DataTable, Column } from '@/shared/components/DataTable';
 import { formatDate } from '@/shared/lib/formatters';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -42,7 +43,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-const STATUS_COLUMNS: { id: LeadStatus; label: string; color: string; bgColor: string; icon: any }[] = [
+const STATUS_COLUMNS: { id: LeadStatus; label: string; color: string; bgColor: string; icon: LucideIcon }[] = [
   { id: 'new', label: 'Yangi', color: 'text-blue-600', bgColor: 'bg-blue-50', icon: MessageSquare },
   { id: 'contacted', label: 'Bog\'lanildi', color: 'text-orange-600', bgColor: 'bg-orange-50', icon: Phone },
   { id: 'consultation', label: 'Konsultatsiya', color: 'text-purple-600', bgColor: 'bg-purple-50', icon: Stethoscope },
@@ -62,7 +63,7 @@ export default function LeadsPage() {
     search,
     setSearch,
     filters,
-    setFilters,
+    setStatusFilter,
     page,
     setPage,
     totalPages,
@@ -87,6 +88,16 @@ export default function LeadsPage() {
   // Lead Details State
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [notes, setNotes] = useState('');
+
+  // every page with the current filters (the table/board only holds one page)
+  const handleExport = async () => {
+    try {
+      const res = await fetchAllPages(leadsApi.list, { ...filters, search });
+      await exportToExcel(res.data as unknown as Record<string, unknown>[], 'murojaatlar');
+    } catch {
+      toast.error('Eksport qilishda xatolik yuz berdi');
+    }
+  };
 
   const handleOpenForm = (lead?: Lead) => {
     if (lead) {
@@ -237,7 +248,7 @@ export default function LeadsPage() {
             <Plus className="w-4 h-4" />
             Yangi murojaat
           </Button>
-          <Button variant="outline" className="rounded-xl gap-2" onClick={() => exportToExcel(leads, 'murojaatlar')}>
+          <Button variant="outline" className="rounded-xl gap-2" onClick={handleExport}>
             <Download className="w-4 h-4" />
             Excel
           </Button>
@@ -257,7 +268,7 @@ export default function LeadsPage() {
         
         <div className="flex items-center gap-3 w-full md:w-auto">
           <div className="flex-1 md:w-48">
-            <Select value={filters.status || 'all'} onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? undefined : v })}>
+            <Select value={filters.status || 'all'} onValueChange={setStatusFilter}>
               <SelectTrigger className="rounded-xl border-none bg-background/50">
                 <SelectValue placeholder="Barcha holatlar" />
               </SelectTrigger>
@@ -270,7 +281,7 @@ export default function LeadsPage() {
             </Select>
           </div>
 
-          <Tabs value={view} onValueChange={(v: any) => setView(v)} className="w-full sm:w-[200px]">
+          <Tabs value={view} onValueChange={(v) => setView(v as 'board' | 'table')} className="w-full sm:w-[200px]">
             <TabsList className="grid w-full grid-cols-2 rounded-xl bg-background/50 p-1">
               <TabsTrigger value="board" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
                 <LayoutGrid className="w-4 h-4 mr-2"/> Doska

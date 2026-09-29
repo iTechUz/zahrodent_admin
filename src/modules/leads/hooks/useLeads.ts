@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { leadsApi } from '@/lib/api/endpoints';
 import { toast } from 'sonner';
 import { Lead } from '@/shared/types';
@@ -12,6 +13,13 @@ export const useLeads = () => {
     fetchFn: (params) => leadsApi.list(params),
     perPage: 20,
   });
+
+  const { setFilters } = table;
+  /** Status select: "all" clears the filter. (setFilters is (key, value) — never pass an object.) */
+  const setStatusFilter = useCallback(
+    (status: string) => setFilters('status', status === 'all' ? undefined : status),
+    [setFilters],
+  );
 
   // For the Kanban board, we still might need all leads or just the ones from the table depending on mode.
   // Actually, table.data will hold the paginated leads.
@@ -42,7 +50,10 @@ export const useLeads = () => {
     setSearch: table.setSearch,
     filters: table.filters,
     setFilters: table.setFilters,
+    setStatusFilter,
     isLoading: table.isLoading,
+    error: table.error,
+    refetch: table.refetch,
     updateStatus: updateStatusMut.mutate,
     isUpdating: updateStatusMut.isPending,
     createLead: useMutation({

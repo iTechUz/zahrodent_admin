@@ -51,10 +51,17 @@ describe('useLeads', () => {
     );
   });
 
-  it.todo(
-    'BUG: src/modules/leads/pages/LeadsPage.tsx:260 — calls setFilters({ ...filters, status }) with one argument, but ' +
-      'useServerTable.setFilters is (key, value); the status filter becomes filters["[object Object]"] = undefined and is never sent',
-  );
+  it('setStatusFilter (the page status select) sends status and "all" clears it', async () => {
+    const { result } = setup();
+    act(() => result.current.setStatusFilter('consultation'));
+    expect(result.current.filters).toEqual({ status: 'consultation' });
+    await waitFor(() =>
+      expect(api.list).toHaveBeenLastCalledWith({ page: 0, limit: 20, search: '', status: 'consultation' }),
+    );
+    act(() => result.current.setStatusFilter('all'));
+    expect(result.current.filters).toEqual({ status: undefined });
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ page: 0, limit: 20, search: '', status: undefined }));
+  });
 
   it('updateStatus → PATCH /leads/:id/status, invalidate ["leads"], toast', async () => {
     api.updateStatus.mockResolvedValue({ ...lead, status: 'converted' });

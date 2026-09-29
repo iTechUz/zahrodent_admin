@@ -1,9 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { patientsApi, doctorsApi, bookingsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
+import { roleAccess } from '@/shared/config/roles';
+import { doctorFullName } from '@/shared/lib/formatters';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import type { Patient } from '@/shared/types';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Search, Users, Stethoscope, CalendarDays } from 'lucide-react';
@@ -18,32 +22,73 @@ interface SearchResult {
   icon: typeof Users;
 }
 
+export const SEARCH_LIMITS = { patients: 4, doctors: 3, bookings: 3 } as const;
+export const SEARCH_DEBOUNCE_MS = 250;
+
 export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
   const authed = useStore((s) => s.isAuthenticated);
-  const { data: patientsRes } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list(),
-    enabled: authed && open,
-  });
-  const patients = patientsRes?.data ?? [];
+  const role = useStore((s) => s.currentUser?.role);
+  const routes = role ? roleAccess[role] : [];
+  const canOpenDoctors = routes.includes('/doctors');
 
-  const { data: doctorsRes } = useQuery({
-    queryKey: queryKeys.doctors,
-    queryFn: () => doctorsApi.list(),
-    enabled: authed && open,
-  });
-  const doctors = doctorsRes?.data ?? [];
+  // the backend searches the whole table (`search` param) — not just the first cached page
+  const term = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS);
+  const searching = authed && open && term.length > 0;
 
-  const { data: bookingsRes } = useQuery({
-    queryKey: queryKeys.bookings,
-    queryFn: () => bookingsApi.list(),
-    enabled: authed && open,
+  const patientParams = { search: term, limit: SEARCH_LIMITS.patients };
+  const { data: patientsRes, isFetching: patientsFetching } = useQuery({
+    queryKey: queryKeys.patientsList(patientParams),
+    queryFn: () => patientsApi.list(patientParams),
+    enabled: searching,
+    placeholderData: keepPreviousData,
   });
-  const bookings = bookingsRes?.data ?? [];
+  const patients = useMemo(() => (searching ? patientsRes?.data ?? [] : []), [searching, patientsRes]);
+
+  const doctorParams = { search: term, limit: SEARCH_LIMITS.doctors };
+  const { data: doctorsRes, isFetching: doctorsFetching } = useQuery({
+    queryKey: queryKeys.doctorsList(doctorParams),
+    queryFn: () => doctorsApi.list(doctorParams),
+    enabled: searching && canOpenDoctors,
+    placeholderData: keepPreviousData,
+  });
+  const doctors = useMemo(
+    () => (searching && canOpenDoctors ? doctorsRes?.data ?? [] : []),
+    [searching, canOpenDoctors, doctorsRes],
+  );
+
+  const bookingParams = { search: term, limit: SEARCH_LIMITS.bookings };
+  const { data: bookingsRes, isFetching: bookingsFetching } = useQuery({
+    queryKey: queryKeys.bookingsList(bookingParams),
+    queryFn: () => bookingsApi.list(bookingParams),
+    enabled: searching,
+    placeholderData: keepPreviousData,
+  });
+  const bookings = useMemo(() => (searching ? bookingsRes?.data ?? [] : []), [searching, bookingsRes]);
+
+  // booking rows carry only patientId — resolve names not already in the patient results
+  const missingPatientIds = useMemo(
+    () => [...new Set(bookings.map((b) => b.patientId))].filter((id) => !patients.some((p) => p.id === id)),
+    [bookings, patients],
+  );
+  const bookingPatients = useQueries({
+    queries: missingPatientIds.map((id) => ({
+      queryKey: queryKeys.patient(id),
+      queryFn: () => patientsApi.get(id),
+      enabled: searching,
+      meta: { silentError: true },
+    })),
+    combine: (results) => {
+      const map = new Map<string, Patient>();
+      results.forEach((r) => r.data && map.set(r.data.id, r.data));
+      return map;
+    },
+  });
+
+  const isSearching = query.trim() !== term || patientsFetching || doctorsFetching || bookingsFetching;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -59,41 +104,40 @@ export function GlobalSearch() {
   }, []);
 
   const results = useMemo<SearchResult[]>(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
+    if (!term) return [];
 
-    const patientResults: SearchResult[] = patients
-      .filter(p => `${p.firstName} ${p.lastName} ${p.phone}`.toLowerCase().includes(q))
-      .slice(0, 4)
-      .map(p => ({
-        id: p.id, title: `${p.firstName} ${p.lastName}`, subtitle: p.phone,
-        type: 'patient', path: '/patients', icon: Users,
-      }));
+    const patientResults: SearchResult[] = patients.slice(0, SEARCH_LIMITS.patients).map((p) => ({
+      id: p.id,
+      title: `${p.firstName} ${p.lastName}`,
+      subtitle: p.phone,
+      type: 'patient',
+      path: `/patients/${p.id}`,
+      icon: Users,
+    }));
 
-    const doctorResults: SearchResult[] = doctors
-      .filter(d => `${d.name} ${d.specialty}`.toLowerCase().includes(q))
-      .slice(0, 3)
-      .map(d => ({
-        id: d.id, title: d.name, subtitle: d.specialty,
-        type: 'doctor', path: '/doctors', icon: Stethoscope,
-      }));
+    const doctorResults: SearchResult[] = doctors.slice(0, SEARCH_LIMITS.doctors).map((d) => ({
+      id: d.id,
+      title: doctorFullName(d),
+      subtitle: d.specialty,
+      type: 'doctor',
+      path: `/doctors/${d.id}`,
+      icon: Stethoscope,
+    }));
 
-    const bookingResults: SearchResult[] = bookings
-      .filter(b => {
-        const patient = patients.find(p => p.id === b.patientId);
-        return `${patient?.firstName} ${patient?.lastName} ${b.date}`.toLowerCase().includes(q);
-      })
-      .slice(0, 3)
-      .map(b => {
-        const patient = patients.find(p => p.id === b.patientId);
-        return {
-          id: b.id, title: `${patient?.firstName} ${patient?.lastName}`, subtitle: `${b.date} ${b.time}`,
-          type: 'booking' as const, path: '/bookings', icon: CalendarDays,
-        };
-      });
+    const bookingResults: SearchResult[] = bookings.slice(0, SEARCH_LIMITS.bookings).map((b) => {
+      const patient = patients.find((p) => p.id === b.patientId) ?? bookingPatients.get(b.patientId);
+      return {
+        id: b.id,
+        title: patient ? `${patient.firstName} ${patient.lastName}` : 'Qabul',
+        subtitle: `${b.date} ${b.time}`,
+        type: 'booking' as const,
+        path: '/bookings',
+        icon: CalendarDays,
+      };
+    });
 
     return [...patientResults, ...doctorResults, ...bookingResults];
-  }, [query, patients, doctors, bookings]);
+  }, [term, patients, doctors, bookings, bookingPatients]);
 
   useEffect(() => { setSelectedIndex(0); }, [query]);
 
@@ -134,7 +178,7 @@ export function GlobalSearch() {
           <div className="max-h-[300px] overflow-y-auto p-2">
             {results.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                "{query}" bo'yicha natija topilmadi
+                {isSearching ? 'Qidirilmoqda...' : `"${query}" bo'yicha natija topilmadi`}
               </p>
             ) : (
               <div className="space-y-1">
