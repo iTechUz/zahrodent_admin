@@ -24,7 +24,8 @@ export interface Patient {
   phone: string;
   address: string;
   workplace: string;
-  assignedDoctorId?: string;
+  /** GET /patients/:id returns it (string | null); list rows may omit it */
+  assignedDoctorId?: string | null;
   assignedDoctor?: {
     firstName: string;
     lastName: string;
@@ -34,6 +35,7 @@ export interface Patient {
   avatar?: string;
   createdAt: string;
   toothChart?: Record<number, ToothRecord>;
+  /** paid − owed (sum of payments − sum of visit prices); negative = debt */
   balance?: number;
 }
 
@@ -62,6 +64,8 @@ export interface Doctor {
   lastName: string;
   specialty: string;
   phone: string;
+  /** login phone of the linked user account (if any) */
+  loginPhone?: string;
   avatar?: string;
   schedule?: DoctorSchedule[];
   daysOff?: string[];
@@ -126,6 +130,7 @@ export interface Payment {
 export interface Notification {
   id: string;
   patientId: string;
+  doctorId?: string;
   type: NotificationType;
   message: string;
   sentAt: string;
@@ -139,9 +144,55 @@ export interface DoctorEfficiencyStats {
   specialty: string;
   totalBookings: number;
   totalVisits: number;
+  uniquePatients?: number;
   totalRevenue: number;
   conversionRate: number;
   avgCheck: number;
+}
+
+export interface ServiceStatsDetail {
+  serviceId: string;
+  revenue: number;
+  patients: number;
+}
+
+export interface ServiceStats {
+  totalCount: number;
+  categoriesCount: number;
+  avgPrice: number;
+  detailed?: ServiceStatsDetail[];
+}
+
+/** GET /analytics/dashboard — money fields are null for non-admin roles */
+export interface DashboardAnalytics {
+  totalPatients: number;
+  newPatientsThisMonth: number;
+  todayBookings: number;
+  todayCompleted: number;
+  pendingBookings: number;
+  activeDoctors: number;
+  totalDoctors: number;
+  todayRevenue: number | null;
+  monthRevenue: number | null;
+  monthExpenses: number | null;
+  unpaidTotal: number | null;
+  unpaidCount: number | null;
+}
+
+/** GET /analytics/monthly — one row per month (`YYYY-MM`), oldest first */
+export interface MonthlyAnalyticsRow {
+  month: string;
+  newPatients: number;
+  bookings: number;
+  completedBookings: number;
+  revenue: number | null;
+  expenses: number | null;
+}
+
+/** GET /analytics/sources */
+export interface SourceAnalyticsRow {
+  source: string;
+  count: number;
 }
 
 export type LeadStatus = 'new' | 'contacted' | 'consultation' | 'proposal' | 'converted' | 'cancelled';

@@ -12,7 +12,16 @@ import type {
   Lead,
 } from '@/shared/types';
 import type { SessionUser } from '@/shared/types/auth';
+import type {
+  DashboardAnalytics,
+  MonthlyAnalyticsRow,
+  ServiceStats,
+  SourceAnalyticsRow,
+} from '@/shared/types';
 import { apiRequest } from './client';
+import { MAX_PAGE_LIMIT } from './helpers';
+
+export { MAX_PAGE_LIMIT };
 
 export async function loginRequest(body: { phone: string; password: string }) {
   return apiRequest<{ access_token: string; user: SessionUser }>('/auth/login', {
@@ -22,10 +31,15 @@ export async function loginRequest(body: { phone: string; password: string }) {
   });
 }
 
-function qs(params: Record<string, string | number | undefined>) {
+function qs(params: Record<string, string | number | boolean | undefined | null>) {
   const u = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== '') u.set(k, String(v));
+    if (v === undefined || v === null || v === '') return;
+    if (k === 'limit' && typeof v === 'number') {
+      u.set(k, String(Math.min(Math.max(1, Math.floor(v)), MAX_PAGE_LIMIT)));
+      return;
+    }
+    u.set(k, String(v));
   });
   const s = u.toString();
   return s ? `?${s}` : '';
@@ -36,20 +50,26 @@ export interface PaginatedResponse<T> {
   total: number;
 }
 
+export type SortOrder = 'asc' | 'desc';
+
 export type ListParams = {
   page?: number;
+  /** 1..100 (clamped) */
   limit?: number;
   search?: string;
+  sortBy?: string;
+  order?: SortOrder;
 };
 
 export const patientsApi = {
-  list: (params?: ListParams & { source?: string }) =>
-    apiRequest<PaginatedResponse<Patient>>(`/patients${qs(params ?? {})}`),
+  list: (
+    params?: ListParams & { source?: string; startDate?: string; endDate?: string; debtOnly?: string | boolean },
+  ) => apiRequest<PaginatedResponse<Patient>>(`/patients${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; newThisMonth: number; topSource: string }>('/patients/stats'),
   get: (id: string) => apiRequest<Patient>(`/patients/${id}`),
   create: (body: Partial<Patient> & Pick<Patient, 'firstName' | 'lastName' | 'age' | 'phone' | 'source'>) =>
     apiRequest<Patient>('/patients', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id: string, body: Partial<Patient>) =>
+  update: (id: string, body: PatientUpdatePayload) =>
     apiRequest<Patient>(`/patients/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id: string) => apiRequest<{ id: string }>(`/patients/${id}`, { method: 'DELETE' }),
   getComments: (id: string) => apiRequest<PatientComment[]>(`/patients/${id}/comments`),
@@ -57,9 +77,14 @@ export const patientsApi = {
     apiRequest<PatientComment>(`/patients/${id}/comments`, { method: 'POST', body: JSON.stringify(body) }),
 };
 
+/** PATCH /patients/:id — `assignedDoctorId: null` unassigns the doctor */
+export type PatientUpdatePayload = Omit<Partial<Patient>, 'assignedDoctorId'> & { assignedDoctorId?: string | null };
+
 /** POST /doctors — to‘rt majburiy maydon + qolgan Doctor maydonlari ixtiyoriy */
 export type DoctorCreatePayload = Pick<Doctor, 'firstName' | 'lastName' | 'specialty' | 'phone'> &
   Partial<Doctor> & { password?: string };
+
+export type DoctorUpdatePayload = Partial<Doctor> & { password?: string };
 
 export const doctorsApi = {
   list: (params?: ListParams & { specialty?: string }) =>
@@ -69,13 +94,23 @@ export const doctorsApi = {
   get: (id: string) => apiRequest<Doctor>(`/doctors/${id}`),
   create: (body: DoctorCreatePayload) =>
     apiRequest<Doctor>('/doctors', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id: string, body: Partial<Doctor>) =>
+  update: (id: string, body: DoctorUpdatePayload) =>
     apiRequest<Doctor>(`/doctors/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id: string) => apiRequest<{ id: string }>(`/doctors/${id}`, { method: 'DELETE' }),
 };
 
 export const bookingsApi = {
-  list: (params?: ListParams & { status?: string; source?: string; patientId?: string; dateRange?: string }) =>
+  list: (
+    params?: ListParams & {
+      status?: string;
+      source?: string;
+      patientId?: string;
+      doctorId?: string;
+      dateRange?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ) =>
     apiRequest<PaginatedResponse<Booking>>(`/bookings${qs(params ?? {})}`),
   stats: () => apiRequest<{ today: number; pending: number; completedToday: number }>('/bookings/stats'),
   get: (id: string) => apiRequest<Booking>(`/bookings/${id}`),
@@ -99,7 +134,7 @@ export const visitsApi = {
 export const servicesApi = {
   list: (params?: ListParams & { category?: string }) =>
     apiRequest<PaginatedResponse<Service>>(`/services${qs(params ?? {})}`),
-  stats: () => apiRequest<{ totalCount: number; categoriesCount: number; avgPrice: number }>('/services/stats'),
+  stats: () => apiRequest<ServiceStats>('/services/stats'),
   get: (id: string) => apiRequest<Service>(`/services/${id}`),
   create: (body: Omit<Service, 'id'>) =>
     apiRequest<Service>('/services', { method: 'POST', body: JSON.stringify(body) }),
@@ -109,7 +144,17 @@ export const servicesApi = {
 };
 
 export const paymentsApi = {
-  list: (params?: ListParams & { status?: string; patientId?: string; method?: string; dateRange?: string }) =>
+  list: (
+    params?: ListParams & {
+      status?: string;
+      patientId?: string;
+      method?: string;
+      type?: string;
+      dateRange?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ) =>
     apiRequest<PaginatedResponse<Payment>>(`/payments${qs(params ?? {})}`),
   stats: () => apiRequest<{ totalRevenue: number; pendingAmount: number; todayRevenue: number }>('/payments/stats'),
   doctorStats: () => apiRequest<{ doctorId: string; total: number }[]>('/payments/doctor-stats'),
@@ -119,6 +164,16 @@ export const paymentsApi = {
   update: (id: string, body: Partial<Payment>) =>
     apiRequest<Payment>(`/payments/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id: string) => apiRequest<{ id: string }>(`/payments/${id}`, { method: 'DELETE' }),
+};
+
+export const analyticsApi = {
+  /** Headline figures; `date` = clinic "today" (YYYY-MM-DD). Money fields are null for non-admins. */
+  dashboard: (params?: { date?: string }) =>
+    apiRequest<DashboardAnalytics>(`/analytics/dashboard${qs(params ?? {})}`),
+  /** Oldest → newest month buckets. Money fields are null for non-admins. */
+  monthly: (params?: { months?: number }) =>
+    apiRequest<MonthlyAnalyticsRow[]>(`/analytics/monthly${qs(params ?? {})}`),
+  sources: () => apiRequest<SourceAnalyticsRow[]>('/analytics/sources'),
 };
 
 export const notificationsApi = {
@@ -169,14 +224,14 @@ export const usersApi = {
 };
 
 export const leadsApi = {
-  list: (params?: ListParams & { startDate?: string; endDate?: string; status?: string }) => 
+  list: (params?: ListParams & { startDate?: string; endDate?: string; status?: string }) =>
     apiRequest<PaginatedResponse<Lead>>(`/leads${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Lead>(`/leads/${id}`),
   create: (body: Partial<Lead>) =>
     apiRequest<Lead>('/leads', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: Partial<Lead>) =>
     apiRequest<Lead>(`/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  updateStatus: (id: string, status: Lead['status']) => 
+  updateStatus: (id: string, status: Lead['status']) =>
     apiRequest<Lead>(`/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   remove: (id: string) => apiRequest<{ id: string }>(`/leads/${id}`, { method: 'DELETE' }),
 };

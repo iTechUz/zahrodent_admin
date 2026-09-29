@@ -3,7 +3,10 @@ import {
   MoreHorizontal, 
   Pencil, 
   Trash2, 
-  Eye 
+  Eye,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -19,6 +22,13 @@ export interface Column<T> {
   header: string;
   accessor: keyof T | ((item: T) => React.ReactNode);
   className?: string;
+  /** backend `sortBy` field — makes the header clickable */
+  sortKey?: string;
+}
+
+export interface DataTableSort {
+  sortBy?: string;
+  order?: 'asc' | 'desc';
 }
 
 interface DataTableRowProps<T> {
@@ -98,6 +108,8 @@ interface DataTableProps<T> {
   onView?: (item: T) => void;
   idAccessor?: keyof T;
   isLoading?: boolean;
+  sort?: DataTableSort;
+  onSortChange?: (sortBy: string) => void;
 }
 
 export const DataTable = memo(<T extends { id?: string | number }>({ 
@@ -107,7 +119,9 @@ export const DataTable = memo(<T extends { id?: string | number }>({
   onDelete, 
   onView,
   idAccessor = 'id' as keyof T,
-  isLoading 
+  isLoading,
+  sort,
+  onSortChange,
 }: DataTableProps<T>) => {
   if (!isLoading && data.length === 0) {
     return <EmptyState />;
@@ -119,14 +133,31 @@ export const DataTable = memo(<T extends { id?: string | number }>({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              {columns.map((column, i) => (
-                <th 
-                  key={i} 
-                  className={`text-left px-4 py-3 font-medium text-muted-foreground ${column.className || ''}`}
-                >
-                  {column.header}
-                </th>
-              ))}
+              {columns.map((column, i) => {
+                const sortable = !!(column.sortKey && onSortChange);
+                const active = sortable && sort?.sortBy === column.sortKey;
+                const Icon = active ? (sort?.order === 'desc' ? ArrowDown : ArrowUp) : ArrowUpDown;
+                return (
+                  <th
+                    key={i}
+                    className={`text-left px-4 py-3 font-medium text-muted-foreground ${column.className || ''}`}
+                    aria-sort={active ? (sort?.order === 'desc' ? 'descending' : 'ascending') : undefined}
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}
+                        onClick={() => onSortChange!(column.sortKey!)}
+                      >
+                        {column.header}
+                        <Icon className={`w-3.5 h-3.5 ${active ? '' : 'opacity-40'}`} />
+                      </button>
+                    ) : (
+                      column.header
+                    )}
+                  </th>
+                );
+              })}
               {(onEdit || onDelete || onView) && (
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Amallar</th>
               )}

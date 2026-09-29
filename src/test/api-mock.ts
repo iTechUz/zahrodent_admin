@@ -74,6 +74,11 @@ function make() {
       update: vi.fn(),
       remove: vi.fn(),
     },
+    analyticsApi: {
+      dashboard: vi.fn(),
+      monthly: vi.fn(() => Promise.resolve([])),
+      sources: vi.fn(() => Promise.resolve([])),
+    },
     leadsApi: {
       list: vi.fn(page),
       get: vi.fn(),
@@ -88,7 +93,7 @@ function make() {
 export const apiMock = make();
 
 /** Endpoints whose real response is an array. */
-const ARRAY_ENDPOINTS = new Set(['usersApi.list', 'doctorsApi.efficiency', 'paymentsApi.doctorStats', 'notificationsApi.getRecipients', 'patientsApi.getComments']);
+const ARRAY_ENDPOINTS = new Set(['analyticsApi.monthly', 'analyticsApi.sources', 'usersApi.list', 'doctorsApi.efficiency', 'paymentsApi.doctorStats', 'notificationsApi.getRecipients', 'patientsApi.getComments']);
 
 /** Reset every mock: paginated lists → empty page, array endpoints → [], everything else → resolves {}. */
 export function resetApiMock() {

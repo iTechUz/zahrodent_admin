@@ -1,4 +1,5 @@
 import {
+  analyticsApi,
   bookingsApi,
   doctorsApi,
   leadsApi,
@@ -68,6 +69,27 @@ describe('query-string building (qs)', () => {
     expect(url.searchParams.get('search')).toBe('+998 90');
     expect(url.searchParams.get('source')).toBe('walk-in');
     expect(lastCall().path).toContain('search=%2B998+90');
+  });
+
+  it('never sends limit > 100 (backend PaginationQueryDto max) and keeps it >= 1', async () => {
+    await patientsApi.list({ limit: 10000 });
+    expect(lastCall().path).toBe('/patients?limit=100');
+    apiRequestMock.mockClear();
+    await patientsApi.list({ limit: 0 });
+    expect(lastCall().path).toBe('/patients?limit=1');
+    apiRequestMock.mockClear();
+    await patientsApi.list({ limit: 25 });
+    expect(lastCall().path).toBe('/patients?limit=25');
+  });
+
+  it('sends sortBy + order', async () => {
+    await patientsApi.list({ sortBy: 'createdAt', order: 'desc' });
+    expect(lastCall().path).toBe('/patients?sortBy=createdAt&order=desc');
+  });
+
+  it('passes debtOnly through', async () => {
+    await patientsApi.list({ debtOnly: 'true' });
+    expect(lastCall().path).toBe('/patients?debtOnly=true');
   });
 
   it('passes "all" filter values through (backend treats "all" as no filter)', async () => {
@@ -343,6 +365,30 @@ describe('notificationsApi (backend: notifications.controller.ts)', () => {
     const body = { targetIds: ['a', 'b'], targetType: 'patient' as const, message: 'Eslatma' };
     await notificationsApi.bulkSend(body);
     expect(lastCall()).toMatchObject({ path: '/notifications/bulk-send', method: 'POST', body });
+  });
+});
+
+describe('analyticsApi (backend: /analytics/*)', () => {
+  it('dashboard → GET /analytics/dashboard?date=', async () => {
+    await analyticsApi.dashboard({ date: '2026-06-17' });
+    expect(lastCall()).toMatchObject({ path: '/analytics/dashboard?date=2026-06-17', method: 'GET' });
+  });
+
+  it('monthly → GET /analytics/monthly?months=', async () => {
+    await analyticsApi.monthly({ months: 6 });
+    expect(lastCall().path).toBe('/analytics/monthly?months=6');
+  });
+
+  it('sources → GET /analytics/sources', async () => {
+    await analyticsApi.sources();
+    expect(lastCall().path).toBe('/analytics/sources');
+  });
+});
+
+describe('patientsApi.update — assignedDoctorId: null unassigns', () => {
+  it('serialises null (not dropped)', async () => {
+    await patientsApi.update('p1', { assignedDoctorId: null });
+    expect(lastCall()).toMatchObject({ path: '/patients/p1', method: 'PATCH', body: { assignedDoctorId: null } });
   });
 });
 

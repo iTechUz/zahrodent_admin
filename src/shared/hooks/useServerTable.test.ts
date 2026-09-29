@@ -45,11 +45,56 @@ describe('useServerTable', () => {
     expect(result.current.totalPages).toBe(3);
   });
 
-  it('keys the query by [...queryKey, params] so list invalidation by prefix works', async () => {
+  it("keys the query by [...queryKey, 'list', params] so list invalidation by prefix works", async () => {
     const { result, queryClient } = setup({ initialFilters: { source: 'phone' } });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
-    expect(keys).toEqual([['things', { page: 0, limit: 10, search: '', source: 'phone' }]]);
+    expect(keys).toEqual([['things', 'list', { page: 0, limit: 10, search: '', source: 'phone' }]]);
+  });
+
+  it('setSort sends sortBy + order, toggles on the same column and resets to page 0', async () => {
+    const { result, fetchFn } = setup();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.setPage(2));
+    act(() => result.current.setSort('createdAt'));
+    expect(result.current.sort).toEqual({ sortBy: 'createdAt', order: 'asc' });
+    expect(result.current.page).toBe(0);
+    await waitFor(() =>
+      expect(fetchFn).toHaveBeenLastCalledWith({ page: 0, limit: 10, search: '', sortBy: 'createdAt', order: 'asc' }),
+    );
+    act(() => result.current.setSort('createdAt'));
+    expect(result.current.sort).toEqual({ sortBy: 'createdAt', order: 'desc' });
+    act(() => result.current.setSort('firstName'));
+    expect(result.current.sort).toEqual({ sortBy: 'firstName', order: 'asc' });
+    act(() => result.current.setSort('firstName', 'desc'));
+    expect(result.current.sort).toEqual({ sortBy: 'firstName', order: 'desc' });
+    act(() => result.current.setSort(undefined));
+    expect(result.current.sort).toEqual({});
+    await waitFor(() => expect(fetchFn).toHaveBeenLastCalledWith({ page: 0, limit: 10, search: '' }));
+  });
+
+  it('initialSort is applied to the first request', async () => {
+    const fetchFn = vi.fn(async () => ({ data: [], total: 0 }));
+    const { wrapper } = createWrapper();
+    renderHook(
+      () => useServerTable<Row, Filters>({ queryKey: ['s'], fetchFn, initialSort: { sortBy: 'date', order: 'desc' } }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(fetchFn).toHaveBeenCalledWith({ page: 0, limit: 10, search: '', sortBy: 'date', order: 'desc' }),
+    );
+  });
+
+  it('enabled=false does not fetch and is not loading', async () => {
+    const fetchFn = vi.fn(async () => ({ data: [], total: 0 }));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useServerTable<Row, Filters>({ queryKey: ['off'], fetchFn, enabled: false }),
+      { wrapper },
+    );
+    await Promise.resolve();
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('setPage refetches with the new page and keeps previous data while loading', async () => {
