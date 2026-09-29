@@ -64,10 +64,22 @@ describe('useServices', () => {
     await waitFor(() => expect(result.current.stats).toEqual({ totalCount: 3, categoriesCount: 2, avgPrice: 5 }));
   });
 
-  it.todo(
-    'BUG: src/modules/services/hooks/useServices.ts:30-34 — GET /services/stats is admin-only (backend services.controller.ts:36) ' +
-      'but receptionists can open /services, so the stats request always 403s for them',
-  );
+  it('receptionist: the page works and loads stats (backend allows admin + receptionist)', async () => {
+    loginAs('receptionist');
+    api.list.mockResolvedValue(paginated([svc('a', 'Davolash')]));
+    api.stats.mockResolvedValue({ totalCount: 1, categoriesCount: 1, avgPrice: 1000 });
+    const { result } = setup();
+    await waitFor(() => expect(result.current.services).toHaveLength(1));
+    await waitFor(() => expect(result.current.stats).toMatchObject({ totalCount: 1 }));
+    expect(api.stats).toHaveBeenCalled();
+  });
+
+  it('doctor: stats are not requested (would 403)', async () => {
+    loginAs('doctor');
+    const { result } = setup();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(api.stats).not.toHaveBeenCalled();
+  });
 
   it('create / update / delete invalidate ["services"] and toast', async () => {
     api.create.mockResolvedValue(svc('n', 'Davolash'));

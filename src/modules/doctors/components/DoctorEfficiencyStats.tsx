@@ -1,23 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { doctorsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/button'; // Using basics if shadcn cards aren't separate
 import { formatCurrency } from '@/shared/lib/formatters';
 import type { ReactNode } from 'react';
 import { 
-  TrendingUp, 
   Users, 
   Target, 
   CreditCard, 
   Award,
-  BarChart3,
   CalendarCheck
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
 export function DoctorEfficiencyStats() {
   const { data: stats, isLoading } = useQuery({
-    queryKey: [...queryKeys.doctors, 'efficiency'],
+    queryKey: queryKeys.doctorsEfficiency,
     queryFn: () => doctorsApi.efficiency(),
   });
 

@@ -78,14 +78,12 @@ describe('useDoctors', () => {
       );
     });
 
-    it('loads lookups: patients (limit 1000) and visits (limit 100)', async () => {
+    it('loads the patient lookup (every page, max 100 per request); no unused visits list', async () => {
       patients.list.mockResolvedValue(paginated([{ id: 'p1' }]) as never);
-      visits.list.mockResolvedValue(paginated([visit]));
       const { result } = setup();
-      await waitFor(() => expect(result.current.visits).toEqual([visit]));
-      expect(patients.list).toHaveBeenCalledWith({ limit: 1000 });
-      expect(visits.list).toHaveBeenCalledWith({ limit: 100 });
-      expect(result.current.patients).toEqual([{ id: 'p1' }]);
+      await waitFor(() => expect(result.current.patients).toEqual([{ id: 'p1' }]));
+      expect(patients.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
+      expect(visits.list).not.toHaveBeenCalled();
     });
 
     it('admin gets stats and efficiency', async () => {
@@ -96,11 +94,12 @@ describe('useDoctors', () => {
       expect(result.current.stats).toEqual({ total: 3, activeToday: 1, totalVisits: 9 });
     });
 
-    it('non-admin does not request /doctors/efficiency (backend: admin only)', async () => {
+    it('non-admin does not request /doctors/efficiency or /doctors/stats (backend: admin only)', async () => {
       loginAs('receptionist');
       const { result } = setup();
       await waitFor(() => expect(result.current.isLoading).toBe(false));
       expect(doctors.efficiency).not.toHaveBeenCalled();
+      expect(doctors.stats).not.toHaveBeenCalled();
       expect(result.current.efficiency).toEqual([]);
     });
 
@@ -166,11 +165,29 @@ describe('useDoctors', () => {
       expect(doctors.create).not.toHaveBeenCalled();
     });
 
-    it.todo(
-      'BUG: src/modules/doctors/hooks/useDoctors.ts:89-98 — `password: ""` from DoctorForm is forwarded unchanged on create and ' +
-        'edit; backend CreateDoctorDto/UpdateDoctorDto require MinLength(6) when present → 400 whenever the password field is ' +
-        'left blank. Empty password should be omitted from the body',
-    );
+    it('an empty password is omitted on create and on edit (backend MinLength(6) when present)', async () => {
+      doctors.create.mockResolvedValue(doctor);
+      doctors.update.mockResolvedValue(doctor);
+      const { result } = setup();
+      act(() => result.current.openCreate());
+      act(() => result.current.handleSaveDoctor({ ...baseForm, password: '' }));
+      await waitFor(() => expect(doctors.create).toHaveBeenCalled());
+      expect(doctors.create.mock.calls[0][0]).not.toHaveProperty('password');
+
+      act(() => result.current.openEdit(doctor));
+      act(() => result.current.handleSaveDoctor({ ...baseForm, password: '   ' }));
+      await waitFor(() => expect(doctors.update).toHaveBeenCalled());
+      expect(doctors.update.mock.calls[0][1]).not.toHaveProperty('password');
+    });
+
+    it('a non-empty password is still sent on edit (password change)', async () => {
+      doctors.update.mockResolvedValue(doctor);
+      const { result } = setup();
+      act(() => result.current.openEdit(doctor));
+      act(() => result.current.handleSaveDoctor({ ...baseForm, password: 'newpass1' }));
+      await waitFor(() => expect(doctors.update).toHaveBeenCalled());
+      expect(doctors.update.mock.calls[0][1]).toMatchObject({ password: 'newpass1' });
+    });
   });
 
   describe('handleDeleteDoctor', () => {
@@ -240,10 +257,15 @@ describe('useDoctors', () => {
       expect(visits.create).not.toHaveBeenCalled();
     });
 
-    it.todo(
-      'BUG: src/modules/doctors/hooks/useDoctors.ts:126 — visit date is new Date().toISOString() (UTC); in Asia/Tashkent ' +
-        '00:00–04:59 it records yesterday. Use a local YYYY-MM-DD',
-    );
+    it('visit date is the Tashkent date right after local midnight (not UTC yesterday)', async () => {
+      vi.setSystemTime(new Date('2026-06-16T19:10:00.000Z')); // 00:10 on 06-17 in Tashkent
+      visits.create.mockResolvedValue(visit);
+      const { result } = setup();
+      act(() => result.current.openVisitForm(doctor));
+      act(() => result.current.handleSaveVisit({ patientId: 'p1', status: 'completed' }));
+      await waitFor(() => expect(visits.create).toHaveBeenCalled());
+      expect(visits.create.mock.calls[0][0]).toMatchObject({ date: '2026-06-17' });
+    });
   });
 });
 

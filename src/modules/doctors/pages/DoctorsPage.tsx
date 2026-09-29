@@ -13,7 +13,6 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { useDoctors } from '../hooks/useDoctors';
-import { DoctorCard } from '../components/DoctorCard';
 import { DoctorForm, DoctorVisitForm } from '../components/DoctorForm';
 import { Users, HeartPulse, ClipboardCheck, BarChart3, List, MoreVertical, Edit2, Trash2, Calendar } from 'lucide-react';
 import { 
@@ -35,7 +34,8 @@ import { DOCTOR_WEEKDAY_LABELS } from '@/shared/lib/doctor-schedule';
 import { Badge } from '@/components/ui/badge';
 import { DoctorEfficiencyStats } from '../components/DoctorEfficiencyStats';
 import { useState } from 'react';
-import { useStore } from '@/store/useStore';
+import { useCan } from '@/shared/hooks/usePermissions';
+import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { cn } from '@/shared/lib/utils';
 import { StatCard } from '@/shared/components/StatCard';
 
@@ -51,7 +51,6 @@ function DoctorsPageContent() {
     filters,
     setFilters,
     patients,
-    visits,
     modalOpen,
     setModalOpen,
     editing,
@@ -70,11 +69,13 @@ function DoctorsPageContent() {
     stats,
     efficiency,
     isLoading,
+    error,
+    refetch,
   } = useDoctors();
 
   const [activeTab, setActiveTab] = useState<'list' | 'efficiency'>('list');
-  const role = useStore(s => s.currentUser?.role);
-  const isAdmin = role === 'admin';
+  const can = useCan();
+  const isAdmin = can('doctors.efficiency');
 
   return (
     <div className="space-y-4">
@@ -82,10 +83,12 @@ function DoctorsPageContent() {
         title="Shifokorlar" 
         description="Shifokorlar va tashriflarni boshqarish" 
         action={
-          <Button onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-2" />
-            Shifokor qo'shish
-          </Button>
+          can('doctors.create') && (
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Shifokor qo'shish
+            </Button>
+          )
         } 
       />
 
@@ -176,7 +179,9 @@ function DoctorsPageContent() {
         <DoctorEfficiencyStats />
       ) : (
         <div className="bg-card rounded-xl border border-border overflow-hidden">
-          {isLoading ? (
+          {error && !isLoading ? (
+            <QueryErrorState error={error} onRetry={() => refetch()} title="Shifokorlar yuklanmadi" className="border-0" />
+          ) : isLoading ? (
             <div className="p-8 text-center animate-pulse text-muted-foreground">Yuklanmoqda...</div>
           ) : (
             <Table>
@@ -238,18 +243,24 @@ function DoctorsPageContent() {
                                 <Eye className="w-4 h-4 mr-2" /> Ko'rish
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEdit(d)}>
-                              <Edit2 className="w-4 h-4 mr-2" /> Tahrirlash
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openVisitForm(d)}>
-                              <Calendar className="w-4 h-4 mr-2" /> Tashrif qo'shish
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={() => setDeleteId(d.id)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" /> O'chirish
-                            </DropdownMenuItem>
+                            {can('doctors.update') && (
+                              <DropdownMenuItem onClick={() => openEdit(d)}>
+                                <Edit2 className="w-4 h-4 mr-2" /> Tahrirlash
+                              </DropdownMenuItem>
+                            )}
+                            {can('visits.create') && (
+                              <DropdownMenuItem onClick={() => openVisitForm(d)}>
+                                <Calendar className="w-4 h-4 mr-2" /> Tashrif qo'shish
+                              </DropdownMenuItem>
+                            )}
+                            {can('doctors.delete') && (
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => setDeleteId(d.id)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" /> O'chirish
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

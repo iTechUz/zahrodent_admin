@@ -9,13 +9,17 @@ import { DoctorService } from '../services/doctor.service';
 import { DoctorSchema, VisitSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
 import { doctorsApi, type DoctorCreatePayload, visitsApi, patientsApi } from '@/lib/api/endpoints';
+import { fetchAllPages, withoutEmptyPassword } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
+import { can } from '@/shared/config/roles';
+import { clinicToday } from '@/shared/lib/date-utils';
 
 type DoctorFormValues = z.infer<typeof DoctorSchema>;
 type VisitFormValues = z.infer<typeof VisitSchema>;
 
 export const useDoctors = () => {
   const authed = useStore((s) => s.isAuthenticated);
+  const role = useStore((s) => s.currentUser?.role);
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
@@ -29,38 +33,34 @@ export const useDoctors = () => {
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['doctors', 'stats'],
+    queryKey: queryKeys.doctorsStats,
     queryFn: () => doctorsApi.stats(),
-    enabled: authed,
+    enabled: authed && can(role, 'doctors.stats'),
   });
 
   const { data: efficiencyData } = useQuery({
-    queryKey: ['doctors', 'efficiency'],
+    queryKey: queryKeys.doctorsEfficiency,
     queryFn: () => doctorsApi.efficiency(),
-    enabled: authed && useStore.getState().currentUser?.role === 'admin',
+    enabled: authed && can(role, 'doctors.efficiency'),
   });
 
+  // patient picker for the visit form: every page (the backend caps limit at 100)
   const { data: patientsData } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list({ limit: 1000 }),
+    queryKey: queryKeys.patientsLookup(),
+    queryFn: () => fetchAllPages(patientsApi.list),
     enabled: authed,
   });
   const patients = patientsData?.data ?? [];
 
-  const { data: visitsData, isLoading: visitsLoading } = useQuery({
-    queryKey: queryKeys.visits,
-    queryFn: () => visitsApi.list({ limit: 100 }),
-    enabled: authed,
-  });
-  const visits = visitsData?.data ?? [];
-
   const saveDoctorMut = useMutation({
+    // password is optional — an empty field must not be sent (backend MinLength(6) → 400)
     mutationFn: (args: { id?: string; body: DoctorCreatePayload }) =>
       args.id != null
-        ? doctorsApi.update(args.id, args.body)
-        : doctorsApi.create(args.body),
+        ? doctorsApi.update(args.id, withoutEmptyPassword(args.body))
+        : doctorsApi.create(withoutEmptyPassword(args.body)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.doctors });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success("Shifokor saqlandi");
     },
   });
@@ -69,6 +69,7 @@ export const useDoctors = () => {
     mutationFn: doctorsApi.remove,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.doctors });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success("Shifokor o'chirildi");
     },
   });
@@ -78,6 +79,8 @@ export const useDoctors = () => {
       args.id ? visitsApi.update(args.id, args.body as Partial<Visit>) : visitsApi.create(args.body as Omit<Visit, 'id'>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.visits });
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients }); // balance
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success('Tashrif saqlandi');
     },
   });
@@ -91,16 +94,13 @@ export const useDoctors = () => {
         ?.split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const body: any = {
+      const body = {
         ...rest,
-        schedule: schedule as any,
+        schedule: schedule as Doctor['schedule'],
         ...(daysOff != null && daysOff.length > 0 ? { daysOff } : {}),
-      };
+      } as DoctorCreatePayload;
       const id = dialog.editingItem?.id;
-      saveDoctorMut.mutate(
-        (id ? { id, body } : { body }) as any,
-        { onSettled: () => dialog.closeDialog() },
-      );
+      saveDoctorMut.mutate(id ? { id, body } : { body }, { onSettled: () => dialog.closeDialog() });
     },
     [dialog, saveDoctorMut],
   );
@@ -123,10 +123,10 @@ export const useDoctors = () => {
         toast.error('Iltimos, shifokorni tanlang');
         return;
       }
-      const today = new Date().toISOString().split('T')[0];
+      const today = clinicToday();
       if (editingVisit) {
         saveVisitMut.mutate(
-          { id: editingVisit.id, body: data as any },
+          { id: editingVisit.id, body: data as Partial<Visit> },
           { onSettled: () => setVisitModal(false) },
         );
       } else {
@@ -140,7 +140,7 @@ export const useDoctors = () => {
               diagnosis: data.diagnosis ?? '',
               treatment: data.treatment ?? '',
               notes: data.notes ?? '',
-            },
+            } as Omit<Visit, 'id'>,
           },
           { onSettled: () => setVisitModal(false) },
         );
@@ -160,7 +160,6 @@ export const useDoctors = () => {
     filters: table.filters,
     setFilters: table.setFilters,
     patients,
-    visits,
     modalOpen: dialog.isOpen,
     setModalOpen: dialog.setIsOpen,
     editing: dialog.editingItem,
@@ -176,7 +175,9 @@ export const useDoctors = () => {
     handleDeleteDoctor,
     openVisitForm,
     handleSaveVisit,
-    isLoading: table.isLoading || visitsLoading,
+    isLoading: table.isLoading,
+    error: table.error,
+    refetch: table.refetch,
     stats,
     efficiency: efficiencyData ?? [],
   };
