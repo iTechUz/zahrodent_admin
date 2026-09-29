@@ -2,7 +2,10 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { bookingsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
+import { doctorFullName } from '@/shared/lib/formatters';
+import { clinicToday } from '@/shared/lib/date-utils';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
@@ -18,23 +21,17 @@ const MONTHS = [
 
 export function BookingCalendar() {
   const authed = useStore((s) => s.isAuthenticated);
-  const { data: bookingsRes } = useQuery({
-    queryKey: queryKeys.bookings,
-    queryFn: () => bookingsApi.list(),
-    enabled: authed,
-  });
-  const bookings = bookingsRes?.data ?? [];
 
   const { data: patientsRes } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list(),
+    queryKey: queryKeys.patientsLookup(),
+    queryFn: () => fetchAllPages(patientsApi.list),
     enabled: authed,
   });
   const patients = patientsRes?.data ?? [];
 
   const { data: doctorsRes } = useQuery({
-    queryKey: queryKeys.doctors,
-    queryFn: () => doctorsApi.list(),
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
     enabled: authed,
   });
   const doctors = doctorsRes?.data ?? [];
@@ -70,6 +67,23 @@ export function BookingCalendar() {
     return days;
   }, [year, month]);
 
+  const formatDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // only the visible 6-week grid, every page (the backend caps limit at 100)
+  const rangeStart = formatDate(calendarDays[0].date);
+  const rangeEnd = formatDate(calendarDays[calendarDays.length - 1].date);
+  const { data: bookingsRes } = useQuery({
+    queryKey: queryKeys.bookingsLookup({ startDate: rangeStart, endDate: rangeEnd }),
+    queryFn: () => fetchAllPages(bookingsApi.list, { startDate: rangeStart, endDate: rangeEnd }),
+    enabled: authed,
+  });
+  const bookings = useMemo(() => bookingsRes?.data ?? [], [bookingsRes]);
+
   const bookingsByDate = useMemo(() => {
     const map: Record<string, Booking[]> = {};
     bookings.forEach((b) => {
@@ -79,14 +93,7 @@ export function BookingCalendar() {
     return map;
   }, [bookings]);
 
-  const formatDate = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
-  const today = formatDate(new Date());
+  const today = clinicToday();
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
@@ -185,7 +192,7 @@ export function BookingCalendar() {
             return (
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Bemor</span><span className="font-medium">{patient?.firstName} {patient?.lastName}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Shifokor</span><span className="font-medium">{doctor?.name}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Shifokor</span><span className="font-medium">{doctor ? `Dr. ${doctorFullName(doctor)}` : '—'}</span></div>
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Vaqt</span><span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{selectedBooking.date} — {selectedBooking.time}</span></div>
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Manba</span><SourceBadge source={selectedBooking.source} /></div>
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Holat</span><StatusBadge status={selectedBooking.status} /></div>

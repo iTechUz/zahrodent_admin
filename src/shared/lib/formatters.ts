@@ -23,3 +23,7 @@ export const formatDate = (dateString: string): string => {
 export const formatUzS = (amount: number): string => {
   return `${formatCurrency(amount)} so'm`;
 };
+
+/** "Firstname Lastname" of a doctor (the Doctor type has no `name` field). */
+export const doctorFullName = (d: { firstName?: string; lastName?: string } | null | undefined): string =>
+  d ? `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim() : '';

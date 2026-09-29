@@ -79,15 +79,15 @@ describe('useBookings', () => {
       );
     });
 
-    it('loads patients (1000), doctors (100) and services (100) for lookups', async () => {
+    it('loads every page of patients, doctors and services for lookups (max 100 per request)', async () => {
       vi.mocked(patientsApi.list).mockResolvedValue(paginated([{ id: 'p1' }]) as never);
       vi.mocked(doctorsApi.list).mockResolvedValue(paginated([{ id: 'd1' }]) as never);
       vi.mocked(servicesApi.list).mockResolvedValue(paginated([{ id: 's1' }]) as never);
       const { result } = setup();
       await waitFor(() => expect(result.current.isLoading).toBe(false));
-      expect(patientsApi.list).toHaveBeenCalledWith({ limit: 1000 });
-      expect(doctorsApi.list).toHaveBeenCalledWith({ limit: 100 });
-      expect(servicesApi.list).toHaveBeenCalledWith({ limit: 100 });
+      expect(patientsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
+      expect(doctorsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
+      expect(servicesApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
       expect(result.current.patients).toEqual([{ id: 'p1' }]);
       expect(result.current.doctors).toEqual([{ id: 'd1' }]);
       expect(result.current.services).toEqual([{ id: 's1' }]);
@@ -111,10 +111,29 @@ describe('useBookings', () => {
       await waitFor(() => expect(result.current.stats).toEqual({ today: 4, pending: 2, completedToday: 1 }));
     });
 
-    it.todo(
-      'BUG: src/modules/bookings/hooks/useBookings.ts:56-60 — doctor role can open /bookings (roles.ts) but GET /doctors is ' +
-        'admin/receptionist only (backend doctors.controller.ts:31) → 403, so doctors see an empty doctor lookup',
-    );
+    it('doctor role loads the doctor lookup (GET /doctors is allowed for doctors)', async () => {
+      loginAs('doctor', { doctorId: 'd1' });
+      vi.mocked(doctorsApi.list).mockResolvedValue(paginated([{ id: 'd1', firstName: 'Aziz', lastName: 'K' }]) as never);
+      const { result } = setup();
+      await waitFor(() => expect(result.current.doctors).toHaveLength(1));
+      expect(doctorsApi.list).toHaveBeenCalled();
+    });
+
+    it('lookup keys are distinct from list keys (no cache sharing with other limits)', async () => {
+      const { wrapper, queryClient } = createWrapper();
+      renderHook(() => useBookings(), { wrapper });
+      await waitFor(() => expect(servicesApi.list).toHaveBeenCalled());
+      const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
+      expect(keys).toEqual(
+        expect.arrayContaining([
+          ['patients', 'lookup', {}],
+          ['doctors', 'lookup', {}],
+          ['services', 'lookup', {}],
+          ['bookings', 'stats'],
+        ]),
+      );
+      expect(keys).not.toContainEqual(['patients']);
+    });
   });
 
   describe('mutations', () => {

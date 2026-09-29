@@ -2,7 +2,10 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { bookingsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
+import { can } from '@/shared/config/roles';
+import { clinicToday } from '@/shared/lib/date-utils';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Clock, GripVertical } from 'lucide-react';
@@ -41,15 +44,18 @@ function DraggableBookingChip({
   patientName,
   onClick,
   isOverlay = false,
+  draggable = true,
 }: {
   booking: Booking;
   patientName: string;
   onClick: () => void;
   isOverlay?: boolean;
+  draggable?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: booking.id,
     data: { booking },
+    disabled: !draggable,
   });
 
   return (
@@ -66,17 +72,19 @@ function DraggableBookingChip({
         booking.status === 'no-show' && 'bg-muted text-muted-foreground',
         isDragging && !isOverlay && 'opacity-30',
         isOverlay && 'opacity-90 shadow-lg cursor-grabbing',
-        !isOverlay && 'cursor-grab',
+        !isOverlay && draggable && 'cursor-grab',
       )}
     >
       {/* drag handle */}
-      <span
-        {...listeners}
-        className="opacity-0 group-hover/chip:opacity-60 cursor-grab shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="w-2.5 h-2.5" />
-      </span>
+      {draggable && (
+        <span
+          {...listeners}
+          className="opacity-0 group-hover/chip:opacity-60 cursor-grab shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="w-2.5 h-2.5" />
+        </span>
+      )}
       <button onClick={onClick} className="truncate flex-1 text-left">
         <span className="hidden md:inline">{booking.time} </span>
         {patientName}
@@ -94,6 +102,7 @@ function DroppableDayCell({
   dayBookings,
   patients,
   onBookingClick,
+  draggable,
 }: {
   dateStr: string;
   date: Date;
@@ -102,8 +111,9 @@ function DroppableDayCell({
   dayBookings: Booking[];
   patients: { id: string; firstName: string; lastName: string }[];
   onBookingClick: (b: Booking) => void;
+  draggable: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: dateStr });
+  const { setNodeRef, isOver } = useDroppable({ id: dateStr, disabled: !draggable });
 
   return (
     <div
@@ -133,6 +143,7 @@ function DroppableDayCell({
               booking={b}
               patientName={p?.firstName ?? '?'}
               onClick={() => onBookingClick(b)}
+              draggable={draggable}
             />
           );
         })}
@@ -147,28 +158,9 @@ function DroppableDayCell({
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function DraggableBookingCalendar() {
   const authed = useStore((s) => s.isAuthenticated);
+  const role = useStore((s) => s.currentUser?.role);
+  const canReschedule = can(role, 'bookings.update');
   const queryClient = useQueryClient();
-
-  const { data: bookingsRes } = useQuery({
-    queryKey: queryKeys.bookings,
-    queryFn: () => bookingsApi.list({ limit: 1000 }),
-    enabled: authed,
-  });
-  const bookings = bookingsRes?.data ?? [];
-
-  const { data: patientsRes } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list({ limit: 2000 }),
-    enabled: authed,
-  });
-  const patients = patientsRes?.data ?? [];
-
-  const { data: doctorsRes } = useQuery({
-    queryKey: queryKeys.doctors,
-    queryFn: () => doctorsApi.list({ limit: 200 }),
-    enabled: authed,
-  });
-  const doctors = doctorsRes?.data ?? [];
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -197,6 +189,36 @@ export function DraggableBookingCalendar() {
     return days;
   }, [year, month]);
 
+  // only the visible 6-week grid, every page (the backend caps limit at 100)
+  const range = useMemo(
+    () => ({
+      startDate: formatDateStr(calendarDays[0].date),
+      endDate: formatDateStr(calendarDays[calendarDays.length - 1].date),
+    }),
+    [calendarDays],
+  );
+
+  const { data: bookingsRes } = useQuery({
+    queryKey: queryKeys.bookingsLookup(range),
+    queryFn: () => fetchAllPages(bookingsApi.list, range),
+    enabled: authed,
+  });
+  const bookings = useMemo(() => bookingsRes?.data ?? [], [bookingsRes]);
+
+  const { data: patientsRes } = useQuery({
+    queryKey: queryKeys.patientsLookup(),
+    queryFn: () => fetchAllPages(patientsApi.list),
+    enabled: authed,
+  });
+  const patients = patientsRes?.data ?? [];
+
+  const { data: doctorsRes } = useQuery({
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
+    enabled: authed,
+  });
+  const doctors = doctorsRes?.data ?? [];
+
   const bookingsByDate = useMemo(() => {
     const map: Record<string, Booking[]> = {};
     bookings.forEach((b) => {
@@ -206,7 +228,7 @@ export function DraggableBookingCalendar() {
     return map;
   }, [bookings]);
 
-  const today = formatDateStr(new Date());
+  const today = clinicToday();
 
   // DnD sensors — pointer with 8px activation distance to avoid accidental drags
   const sensors = useSensors(
@@ -240,7 +262,7 @@ export function DraggableBookingCalendar() {
     const booking = active.data.current?.booking as Booking;
     const newDate = over.id as string;
 
-    if (!booking || booking.date === newDate) return;
+    if (!canReschedule || !booking || booking.date === newDate) return;
 
     // Optimistic UI update — invalidate query after success/error
     updateBookingMut.mutate({ id: booking.id, date: newDate });
@@ -263,9 +285,11 @@ export function DraggableBookingCalendar() {
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground hidden sm:block">
-              Qabullarni boshqa kunga surgab o'tkazing
-            </p>
+            {canReschedule && (
+              <p className="text-xs text-muted-foreground hidden sm:block">
+                Qabullarni boshqa kunga surgab o'tkazing
+              </p>
+            )}
             <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="text-xs">
               Bugun
             </Button>
@@ -296,6 +320,7 @@ export function DraggableBookingCalendar() {
                 dayBookings={dayBookings}
                 patients={patients}
                 onBookingClick={setSelectedBooking}
+                draggable={canReschedule}
               />
             );
           })}
