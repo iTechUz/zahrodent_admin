@@ -107,12 +107,16 @@ export const useBookings = () => {
         updateMut.mutate(
           { id: dialog.editingItem.id, body: data as Partial<Booking> },
           {
-            onSuccess: () => toast.success('Qabul muvaffaqiyatli yangilandi'),
-            onSettled: () => dialog.closeDialog(),
+            onSuccess: () => {
+              toast.success('Qabul muvaffaqiyatli yangilandi');
+              dialog.closeDialog();
+            },
           },
         );
       } else {
-        createMut.mutate(data, { onSettled: () => dialog.closeDialog() });
+        // keep the form open on errors (time conflict, past date, outside the doctor's schedule)
+        // so the user can fix it; the backend message is shown by the global mutation toast
+        createMut.mutate(data, { onSuccess: () => dialog.closeDialog() });
       }
     },
     [dialog, createMut, updateMut],

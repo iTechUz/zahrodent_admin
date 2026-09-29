@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { bookingsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
+import { ApiError } from '@/lib/api/client';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can } from '@/shared/config/roles';
@@ -243,9 +244,14 @@ export function DraggableBookingCalendar() {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
       toast.success('Qabul sanasi yangilandi');
     },
-    onError: () => {
+    onError: (err) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
-      toast.error("Xatolik yuz berdi, qabul sanasi o'zgartirilmadi");
+      // backend explains why (time conflict, doctor's day off, outside working hours, …)
+      toast.error(
+        err instanceof ApiError && err.message
+          ? `Qabul sanasi o'zgartirilmadi: ${err.message}`
+          : "Xatolik yuz berdi, qabul sanasi o'zgartirilmadi",
+      );
     },
   });
 

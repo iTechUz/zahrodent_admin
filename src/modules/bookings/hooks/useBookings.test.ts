@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { bookingsApi, doctorsApi, patientsApi, servicesApi } from '@/lib/api/endpoints';
 import { resetApiMock, toastMock } from '@/test/api-mock';
 import { createWrapper, loginAs, paginated } from '@/test/utils';
+import { ApiError } from '@/lib/api/client';
 import type { BookingFormValues } from '@/shared/lib/validation';
 import type { Booking } from '@/shared/types';
 import { useBookings } from './useBookings';
@@ -158,6 +159,28 @@ describe('useBookings', () => {
       expect(bookings.create).not.toHaveBeenCalled();
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['bookings'] });
       expect(toastMock.success).toHaveBeenCalledWith('Qabul muvaffaqiyatli yangilandi');
+    });
+
+    it('a rejected create (conflict / past date / outside schedule) keeps the form open and shows no success toast', async () => {
+      bookings.create.mockRejectedValue(new ApiError(409, "Shifokor bu vaqtda band"));
+      const { result, invalidate } = setup();
+      act(() => result.current.openCreate());
+      act(() => result.current.handleSave(form));
+      await waitFor(() => expect(bookings.create).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(result.current.modalOpen).toBe(true);
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(toastMock.success).not.toHaveBeenCalled();
+    });
+
+    it('a rejected edit keeps the form open', async () => {
+      bookings.update.mockRejectedValue(new ApiError(400, "Shifokorning dam olish kuni"));
+      const { result } = setup();
+      act(() => result.current.openEdit(booking));
+      act(() => result.current.handleSave({ ...form, date: '2026-06-20' }));
+      await waitFor(() => expect(bookings.update).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(result.current.modalOpen).toBe(true);
     });
 
     it('handleStatusChange PATCHes only the status and toasts the Uzbek label', async () => {
