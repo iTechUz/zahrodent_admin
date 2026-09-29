@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { toast } from 'sonner';
 import { io } from 'socket.io-client';
 import { createWrapper } from '@/test/utils';
@@ -26,6 +26,10 @@ function makeFakeSocket() {
 }
 
 let fake: ReturnType<typeof makeFakeSocket>;
+
+function authed(token = 'jwt-1', role: 'admin' | 'doctor' | 'receptionist' = 'admin') {
+  return { isAuthenticated: true, token, currentUser: { id: 'u', name: 'U', phone: '+998900000000', role } };
+}
 
 async function loadHook() {
   // the hook keeps the socket in module scope — reload it per test
@@ -60,27 +64,29 @@ describe('useSocket', () => {
   it('connects to VITE_API_URL over websocket when authenticated', async () => {
     vi.stubEnv('VITE_API_URL', 'https://api.zahro.test');
     const { useSocket, useStore } = await loadHook();
-    useStore.setState({ isAuthenticated: true });
+    useStore.setState(authed());
     const { wrapper } = createWrapper();
     renderHook(() => useSocket(), { wrapper });
     expect(io).toHaveBeenCalledTimes(1);
-    expect(io).toHaveBeenCalledWith('https://api.zahro.test', { transports: ['websocket'] });
-    expect(fake.on).toHaveBeenCalledWith('connect', expect.any(Function));
-    expect(fake.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
+    expect(io).toHaveBeenCalledWith('https://api.zahro.test', {
+      transports: ['websocket'],
+      auth: { token: 'jwt-1' },
+    });
+    expect(fake.on).toHaveBeenCalledWith('connect_error', expect.any(Function));
     expect(fake.on).toHaveBeenCalledWith('newLead', expect.any(Function));
   });
 
   it('falls back to http://localhost:3000', async () => {
     vi.stubEnv('VITE_API_URL', '');
     const { useSocket, useStore } = await loadHook();
-    useStore.setState({ isAuthenticated: true });
+    useStore.setState(authed());
     renderHook(() => useSocket(), { wrapper: createWrapper().wrapper });
-    expect(io).toHaveBeenCalledWith('http://localhost:3000', { transports: ['websocket'] });
+    expect(io).toHaveBeenCalledWith('http://localhost:3000', { transports: ['websocket'], auth: { token: 'jwt-1' } });
   });
 
   it('reuses one socket across multiple consumers', async () => {
     const { useSocket, useStore } = await loadHook();
-    useStore.setState({ isAuthenticated: true });
+    useStore.setState(authed());
     const { wrapper } = createWrapper();
     renderHook(() => useSocket(), { wrapper });
     renderHook(() => useSocket(), { wrapper });
@@ -89,7 +95,7 @@ describe('useSocket', () => {
 
   it('on "newLead" invalidates the leads query and shows a toast', async () => {
     const { useSocket, useStore } = await loadHook();
-    useStore.setState({ isAuthenticated: true });
+    useStore.setState(authed());
     const { wrapper, queryClient } = createWrapper();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useSocket(), { wrapper });
@@ -103,9 +109,28 @@ describe('useSocket', () => {
     );
   });
 
+  it('"Ko\'rish" on the lead toast calls onOpenLead', async () => {
+    const { useSocket, useStore } = await loadHook();
+    useStore.setState(authed());
+    const onOpenLead = vi.fn();
+    renderHook(() => useSocket({ onOpenLead }), { wrapper: createWrapper().wrapper });
+    fake.emit('newLead', { id: 'l1', name: 'Ali', phone: '+998901112233' });
+    const opts = vi.mocked(toast.info).mock.calls[0][1] as unknown as { action: { onClick: () => void } };
+    opts.action.onClick();
+    expect(onOpenLead).toHaveBeenCalledWith(expect.objectContaining({ id: 'l1' }));
+  });
+
+  it('doctors (no access to leads) get no lead toast', async () => {
+    const { useSocket, useStore } = await loadHook();
+    useStore.setState(authed('jwt-d', 'doctor'));
+    renderHook(() => useSocket(), { wrapper: createWrapper().wrapper });
+    fake.emit('newLead', { id: 'l1', name: 'Ali', phone: '+998901112233' });
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
   it('removes its newLead listener on unmount', async () => {
     const { useSocket, useStore } = await loadHook();
-    useStore.setState({ isAuthenticated: true });
+    useStore.setState(authed());
     const { unmount } = renderHook(() => useSocket(), { wrapper: createWrapper().wrapper });
     const handler = fake.handlers.get('newLead')![0];
     unmount();
@@ -115,7 +140,7 @@ describe('useSocket', () => {
 
   it('disconnects an existing socket when mounted while logged out', async () => {
     const { useSocket, useStore } = await loadHook();
-    useStore.setState({ isAuthenticated: true });
+    useStore.setState(authed());
     const { wrapper } = createWrapper();
     const first = renderHook(() => useSocket(), { wrapper });
     first.unmount();
@@ -124,8 +149,31 @@ describe('useSocket', () => {
     expect(fake.disconnect).toHaveBeenCalledTimes(1);
   });
 
-  it.todo(
-    'BUG: src/shared/hooks/useSocket.ts:57 — effect deps are only [queryClient], so logging out (isAuthenticated → false) ' +
-      'does not disconnect the socket and logging in after mount never connects until remount; deps should include isAuthenticated',
-  );
+  it('connects after a login that happens while mounted, and disconnects on logout', async () => {
+    const { useSocket, useStore } = await loadHook();
+    useStore.setState({ isAuthenticated: false, currentUser: null, token: null });
+    const { result } = renderHook(() => useSocket(), { wrapper: createWrapper().wrapper });
+    expect(io).not.toHaveBeenCalled();
+
+    act(() => useStore.setState(authed('jwt-login')));
+    expect(io).toHaveBeenCalledTimes(1);
+    expect(io).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ auth: { token: 'jwt-login' } }));
+    expect(result.current).toBe(fake);
+
+    act(() => useStore.setState({ isAuthenticated: false, currentUser: null, token: null }));
+    expect(fake.disconnect).toHaveBeenCalledTimes(1);
+    expect(result.current).toBeNull();
+  });
+
+  it('reconnects with the new token when a different user logs in', async () => {
+    const { useSocket, useStore } = await loadHook();
+    useStore.setState(authed('jwt-a'));
+    renderHook(() => useSocket(), { wrapper: createWrapper().wrapper });
+    const first = fake;
+    fake = makeFakeSocket();
+    vi.mocked(io).mockReturnValue(fake as never);
+    act(() => useStore.setState(authed('jwt-b')));
+    expect(first.disconnect).toHaveBeenCalledTimes(1);
+    expect(io).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ auth: { token: 'jwt-b' } }));
+  });
 });

@@ -1,17 +1,23 @@
 import { clearAuthStorage, getAuthToken } from './auth-token';
+import { resolveApiUrl } from './runtime-config';
 
-let baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
-if (baseUrl && !baseUrl.startsWith('http')) {
-  baseUrl = `https://${baseUrl}`;
-}
+const baseUrl = resolveApiUrl();
+
+/** Shown when the request never reached the server (offline, DNS, CORS, server down). */
+export const NETWORK_ERROR_MESSAGE = "Serverga ulanib bo'lmadi. Internet aloqasini tekshiring va qayta urinib ko'ring";
 
 export class ApiError extends Error {
   constructor(
+    /** HTTP status; 0 = network error (no response) */
     public status: number,
     message: string,
   ) {
     super(message);
     this.name = 'ApiError';
+  }
+
+  get isNetworkError() {
+    return this.status === 0;
   }
 }
 
@@ -23,7 +29,7 @@ function clearSessionStorage() {
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { skipAuth, ...init } = options;
-  const url = path.startsWith('http') ? path : `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+  const url = path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = new Headers(init.headers);
   if (!headers.has('Content-Type') && init.body && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
@@ -33,7 +39,13 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (token) headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const res = await fetch(url, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, headers });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    throw new ApiError(0, NETWORK_ERROR_MESSAGE);
+  }
   const text = await res.text();
   let data: unknown = null;
   if (text) {

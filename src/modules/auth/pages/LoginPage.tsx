@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { loginRequest } from '@/lib/api/endpoints';
-import { ApiError } from '@/lib/api/client';
+import { ApiError, NETWORK_ERROR_MESSAGE } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -39,7 +39,16 @@ export default function LoginPage() {
       setSession(res.access_token, res.user, rememberMe);
       toast.success(`Xush kelibsiz, ${res.user.name}!`);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Telefon raqami yoki parol noto'g'ri";
+      // ApiError: backend message (wrong phone / password, 429 …) or the network message (status 0).
+      // Anything else never reached the server — don't claim the password is wrong.
+      const msg =
+        err instanceof ApiError
+          ? err.isNetworkError
+            ? NETWORK_ERROR_MESSAGE
+            : err.message
+          : err instanceof TypeError
+            ? NETWORK_ERROR_MESSAGE
+            : "Kutilmagan xatolik yuz berdi. Qayta urinib ko'ring";
       setError(msg);
     } finally {
       setLoading(false);

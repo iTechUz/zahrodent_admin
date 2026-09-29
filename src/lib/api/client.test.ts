@@ -273,14 +273,51 @@ describe('apiRequest', () => {
   });
 
   describe('network errors', () => {
-    it('propagates fetch rejections (offline / CORS) unchanged', async () => {
+    it('wraps fetch rejections (offline / CORS / server down) in ApiError(0) with a network message', async () => {
+      const { apiRequest, ApiError, NETWORK_ERROR_MESSAGE } = await loadClient('https://api.test');
+      fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+      const err = (await apiRequest('/x').catch((e) => e)) as InstanceType<typeof ApiError>;
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err.status).toBe(0);
+      expect(err.isNetworkError).toBe(true);
+      expect(err.message).toBe(NETWORK_ERROR_MESSAGE);
+      expect(assignMock).not.toHaveBeenCalled();
+    });
+
+    it('rethrows aborts unchanged (React Query cancellation)', async () => {
       const { apiRequest, ApiError } = await loadClient('https://api.test');
-      const netErr = new TypeError('Failed to fetch');
-      fetchMock.mockRejectedValue(netErr);
+      const abort = new DOMException('aborted', 'AbortError');
+      fetchMock.mockRejectedValue(abort);
       const err = await apiRequest('/x').catch((e) => e);
-      expect(err).toBe(netErr);
+      expect(err).toBe(abort);
       expect(err).not.toBeInstanceOf(ApiError);
     });
+  });
+});
+
+describe('runtime config (window.__ENV__)', () => {
+  afterEach(() => {
+    delete window.__ENV__;
+  });
+
+  it('prefers window.__ENV__.VITE_API_URL over the build-time value', async () => {
+    window.__ENV__ = { VITE_API_URL: 'https://runtime.api/' };
+    const { apiBaseUrl } = await loadClient('https://build.api');
+    expect(apiBaseUrl).toBe('https://runtime.api');
+  });
+
+  it('ignores an empty runtime value and falls back to the build-time one', async () => {
+    window.__ENV__ = { VITE_API_URL: '  ' };
+    const { apiBaseUrl } = await loadClient('https://build.api');
+    expect(apiBaseUrl).toBe('https://build.api');
+  });
+
+  it('requests go to the runtime URL', async () => {
+    window.__ENV__ = { VITE_API_URL: 'runtime.api' };
+    const { apiRequest } = await loadClient('https://build.api');
+    fetchMock.mockResolvedValue(jsonResponse({ ok: 1 }));
+    await apiRequest('/patients');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://runtime.api/patients');
   });
 });
 

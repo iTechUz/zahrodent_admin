@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { loginRequest } from '@/lib/api/endpoints';
-import { ApiError } from '@/lib/api/client';
+import { ApiError, NETWORK_ERROR_MESSAGE } from '@/lib/api/client';
 import { AUTH_TOKEN_KEY } from '@/lib/api/auth-token';
 import { useStore } from '@/store/useStore';
 import { resetApiMock, toastMock } from '@/test/api-mock';
@@ -93,12 +93,29 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: 'Kirish' })).toBeEnabled();
   });
 
-  it('shows a generic Uzbek message for network errors', async () => {
+  it('shows a network message (not "wrong password") when the server is unreachable', async () => {
+    login.mockRejectedValue(new ApiError(0, NETWORK_ERROR_MESSAGE));
+    const { form, fill } = renderPage();
+    fill('+998 90 123 45 67', 'x');
+    fireEvent.submit(form);
+    expect(await screen.findByText(NETWORK_ERROR_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByText(/parol noto'g'ri/)).not.toBeInTheDocument();
+  });
+
+  it('a raw fetch TypeError is also reported as a network problem', async () => {
     login.mockRejectedValue(new TypeError('Failed to fetch'));
     const { form, fill } = renderPage();
     fill('+998 90 123 45 67', 'x');
     fireEvent.submit(form);
-    expect(await screen.findByText("Telefon raqami yoki parol noto'g'ri")).toBeInTheDocument();
+    expect(await screen.findByText(NETWORK_ERROR_MESSAGE)).toBeInTheDocument();
+  });
+
+  it('an unexpected error shows a generic message', async () => {
+    login.mockRejectedValue(new Error('weird'));
+    const { form, fill } = renderPage();
+    fill('+998 90 123 45 67', 'x');
+    fireEvent.submit(form);
+    expect(await screen.findByText("Kutilmagan xatolik yuz berdi. Qayta urinib ko'ring")).toBeInTheDocument();
   });
 
   it('disables the button while the request is pending', async () => {
