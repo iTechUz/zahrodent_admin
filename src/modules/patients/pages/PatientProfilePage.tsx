@@ -8,10 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusBadge, SourceBadge, PaymentStatusBadge } from '@/shared/components/StatusBadge';
-import { ArrowLeft, Phone, Calendar, Droplets, AlertTriangle, FileText, Pencil, Plus, CreditCard } from 'lucide-react';
+import { ArrowLeft, Phone, Calendar, Pencil, Plus, CreditCard } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, Wallet, Receipt, ArrowRight } from 'lucide-react';
 import { ToothChart, CONDITION_KEYS, CONDITION_LABELS } from '../components/ToothChart';
 import { usePatientProfile } from '../hooks/usePatientProfile';
@@ -21,16 +20,15 @@ import { Send, MessageSquare } from 'lucide-react';
 import { 
   VISIT_STATUS_LABELS, 
   BOOKING_SOURCE_LABELS, 
-  PAYMENT_STATUS_LABELS 
 } from '@/shared/constants';
 import { 
   ToothRecord, 
   VisitStatus, 
   PaymentMethod, 
-  PaymentStatus, 
   BookingSource,
-  Visit
+  PatientComment,
 } from '@/shared/types';
+import { LoadingScreen } from '@/shared/components/LoadingScreen';
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", insurance: 'Sug\'urta',
@@ -78,12 +76,15 @@ export default function PatientProfilePage() {
     getVisitBalance,
     openPaymentForVisit,
     canManagePayments,
+    canAddVisit,
+    canEditPatient,
     isAddingComment,
     handleAddComment,
     isLoading,
     comments,
   } = usePatientProfile(id);
 
+  if (!patient && isLoading) return <LoadingScreen />;
   if (!patient) return <div className="p-6 text-center text-muted-foreground">Bemor topilmadi</div>;
 
   return (
@@ -92,9 +93,11 @@ export default function PatientProfilePage() {
         <Button variant="ghost" size="sm" onClick={() => navigate('/patients')} className="gap-2">
           <ArrowLeft className="w-4 h-4" /> Bemorlar ro'yxatiga qaytish
         </Button>
-        <Button variant="outline" size="sm" onClick={openEdit} className="gap-2">
-          <Pencil className="w-4 h-4" /> Tahrirlash
-        </Button>
+        {canEditPatient && (
+          <Button variant="outline" size="sm" onClick={openEdit} className="gap-2">
+            <Pencil className="w-4 h-4" /> Tahrirlash
+          </Button>
+        )}
       </div>
 
       {/* Header */}
@@ -189,11 +192,13 @@ export default function PatientProfilePage() {
         </TabsList>
 
         <TabsContent value="visits" className="space-y-3 mt-4">
-          <div className="flex justify-end">
-            <Button size="sm" variant="outline" onClick={() => setVisitModal(true)} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> Tashrif qo'shish
-            </Button>
-          </div>
+          {canAddVisit && (
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => setVisitModal(true)} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Tashrif qo'shish
+              </Button>
+            </div>
+          )}
           {patientVisits.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Hali tashriflar yo'q</p>
           ) : patientVisits.map(v => {
@@ -354,7 +359,7 @@ export default function PatientProfilePage() {
               <div className="space-y-4 pt-2">
                 {!comments || comments.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4 italic">Hali hech qanday izoh yo'q</p>
-                ) : comments.map((c: any) => (
+                ) : comments.map((c: PatientComment) => (
                   <div key={c.id} className="flex gap-3 group animate-in fade-in slide-in-from-top-2 duration-300">
                     <Avatar className="w-8 h-8 border">
                       <AvatarImage src={c.author.avatar} />

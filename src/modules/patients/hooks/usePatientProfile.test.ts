@@ -64,10 +64,10 @@ describe('usePatientProfile', () => {
       await ready(result);
       await waitFor(() => expect(result.current.isLoading).toBe(false));
       expect(pApi.get).toHaveBeenCalledWith('p1');
-      expect(vApi.list).toHaveBeenCalledWith({ patientId: 'p1' });
-      expect(bookingsApi.list).toHaveBeenCalledWith({ patientId: 'p1' });
-      expect(payApi.list).toHaveBeenCalledWith({ patientId: 'p1' });
-      expect(doctorsApi.list).toHaveBeenCalledWith({ limit: 100 });
+      expect(vApi.list).toHaveBeenCalledWith({ patientId: 'p1', page: 0, limit: 100 });
+      expect(bookingsApi.list).toHaveBeenCalledWith({ patientId: 'p1', page: 0, limit: 100 });
+      expect(payApi.list).toHaveBeenCalledWith({ patientId: 'p1', page: 0, limit: 100 });
+      expect(doctorsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
       expect(pApi.getComments).toHaveBeenCalledWith('p1');
       expect(result.current.canManagePayments).toBe(true);
       await waitFor(() => expect(result.current.doctors).toEqual([doctor]));
@@ -90,14 +90,38 @@ describe('usePatientProfile', () => {
       expect(result.current.patientPayments).toEqual([]);
     });
 
-    it.todo(
-      'BUG: src/modules/patients/hooks/usePatientProfile.ts:30,37,44 — visits/bookings/payments are listed by patientId ' +
-        'without a limit; the backend default is 10, so patients with >10 visits/payments get wrong totals and missing history',
-    );
-    it.todo(
-      'BUG: src/modules/patients/hooks/usePatientProfile.ts:49-53 — GET /doctors is admin/receptionist only; for the doctor role ' +
-        '(who can open /patients/:id) it 403s, so the visit form has no doctors to pick',
-    );
+    it('loads the full history (every page) so >10 visits/payments give correct totals', async () => {
+      const visits = Array.from({ length: 130 }, (_, i) => visit(`v${i}`, 1000));
+      const payments = Array.from({ length: 120 }, (_, i) => pay(`x${i}`, 500, 'paid'));
+      vApi.list.mockImplementation(async (p) => paginated(visits.slice(p!.page! * 100, p!.page! * 100 + 100), 130));
+      payApi.list.mockImplementation(async (p) =>
+        paginated(payments.slice(p!.page! * 100, p!.page! * 100 + 100), 120),
+      );
+      const { result } = setup();
+      await waitFor(() => expect(result.current.patientVisits).toHaveLength(130));
+      await waitFor(() => expect(result.current.patientPayments).toHaveLength(120));
+      expect(result.current.totalDue).toBe(130_000);
+      expect(result.current.totalPaid).toBe(60_000);
+      expect(result.current.totalDebt).toBe(70_000);
+      expect(vApi.list).toHaveBeenCalledWith({ patientId: 'p1', page: 1, limit: 100 });
+      for (const [p] of vApi.list.mock.calls) expect(p!.limit).toBeLessThanOrEqual(100);
+    });
+
+    it('doctor role gets the doctor list (GET /doctors allowed) and the visit form pre-selects their own doctorId', async () => {
+      loginAs('doctor', { doctorId: 'd1' });
+      const { result } = setup();
+      await waitFor(() => expect(result.current.doctors).toEqual([doctor]));
+      expect(result.current.visitForm.doctorId).toBe('d1');
+      expect(result.current.canAddVisit).toBe(true);
+    });
+
+    it('receptionist cannot add visits (backend visits.create = admin+doctor)', async () => {
+      loginAs('receptionist');
+      const { result } = setup();
+      await ready(result);
+      expect(result.current.canAddVisit).toBe(false);
+      expect(result.current.canEditPatient).toBe(true);
+    });
   });
 
   describe('balance', () => {
@@ -110,6 +134,22 @@ describe('usePatientProfile', () => {
       await waitFor(() => expect(result.current.totalPaid).toBe(150000));
       expect(result.current.totalDue).toBe(500000);
       expect(result.current.totalDebt).toBe(350000);
+    });
+
+    it('prefers the backend balance for debt (negative balance = debt)', async () => {
+      pApi.get.mockResolvedValue({ ...patient, balance: -420_000 });
+      vApi.list.mockResolvedValue(paginated([visit('v1', 100)]));
+      const { result } = setup();
+      await waitFor(() => expect(result.current.totalDebt).toBe(420_000));
+    });
+
+    it('positive backend balance (prepaid) → no debt, also for roles without payment access', async () => {
+      loginAs('doctor');
+      pApi.get.mockResolvedValue({ ...patient, balance: 50_000 });
+      vApi.list.mockResolvedValue(paginated([visit('v1', 100_000)]));
+      const { result } = setup();
+      await waitFor(() => expect(result.current.patientVisits).toHaveLength(1));
+      expect(result.current.totalDebt).toBe(0);
     });
 
     it('overpayment never yields negative debt; bad numbers count as 0', async () => {
@@ -175,11 +215,24 @@ describe('usePatientProfile', () => {
       });
     });
 
-    it.todo(
-      'BUG: src/modules/patients/hooks/usePatientProfile.ts:284 — reads patient.assignedDoctorId, but GET /patients/:id returns ' +
-        'only `assignedDoctor { firstName, lastName }` (patients.service.ts:229); the doctor select is always empty on edit and ' +
-        'saving sends assignedDoctorId: "" (clearing the intent)',
-    );
+    it('edit form uses assignedDoctorId from GET /patients/:id; clearing it sends null (unassign)', async () => {
+      pApi.get.mockResolvedValue({ ...patient, assignedDoctorId: 'd1', assignedDoctor: { firstName: 'Aziz', lastName: 'Karimov' } });
+      pApi.update.mockResolvedValue(patient);
+      const { result } = setup();
+      await ready(result);
+      act(() => result.current.openEdit());
+      expect(result.current.editForm.assignedDoctorId).toBe('d1');
+
+      act(() => result.current.handleEditSave());
+      await waitFor(() => expect(pApi.update).toHaveBeenCalledTimes(1));
+      expect(pApi.update.mock.calls[0][1]).toMatchObject({ assignedDoctorId: 'd1' });
+
+      act(() => result.current.openEdit());
+      act(() => result.current.setEditForm({ ...result.current.editForm, assignedDoctorId: '' }));
+      act(() => result.current.handleEditSave());
+      await waitFor(() => expect(pApi.update).toHaveBeenCalledTimes(2));
+      expect(pApi.update.mock.calls[1][1]).toMatchObject({ assignedDoctorId: null });
+    });
 
     it('handleEditSave validates required fields', async () => {
       const { result } = setup();
@@ -324,10 +377,37 @@ describe('usePatientProfile', () => {
       await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['payments'] }));
     });
 
-    it.todo(
-      'BUG: src/modules/patients/hooks/usePatientProfile.ts:178,197,254 — dates use new Date().toISOString() (UTC); in ' +
-        'Asia/Tashkent 00:00–04:59 visits, payments and tooth records are stamped with yesterday',
-    );
+    it('visit, payment and tooth dates use the Tashkent date right after local midnight', async () => {
+      vi.setSystemTime(new Date('2026-06-16T19:30:00.000Z')); // 00:30 on 06-17 in Tashkent; UTC is still 06-16
+      vApi.create.mockResolvedValue(visit('v-new', 1));
+      payApi.create.mockResolvedValue(pay('np', 1, 'paid'));
+      pApi.update.mockResolvedValue(patient);
+      const { result } = setup();
+      await ready(result);
+
+      act(() =>
+        result.current.setVisitForm({
+          ...result.current.visitForm,
+          doctorId: 'd1',
+          shouldPayNow: true,
+          payAmount: '10',
+        }),
+      );
+      act(() => result.current.handleVisitSave());
+      await waitFor(() => expect(payApi.create).toHaveBeenCalled());
+      expect(vApi.create.mock.calls[0][0]).toMatchObject({ date: '2026-06-17' });
+      expect(payApi.create.mock.calls[0][0]).toMatchObject({ date: '2026-06-17' });
+
+      act(() => result.current.setPayForm({ amount: '5', method: 'cash', status: 'paid', description: 'x', visitId: '' }));
+      act(() => result.current.handlePaymentSave());
+      await waitFor(() => expect(payApi.create).toHaveBeenCalledTimes(2));
+      expect(payApi.create.mock.calls[1][0]).toMatchObject({ date: '2026-06-17' });
+
+      act(() => result.current.openToothEdit(21));
+      act(() => result.current.handleToothSave());
+      await waitFor(() => expect(pApi.update).toHaveBeenCalled());
+      expect(pApi.update.mock.calls[0][1].toothChart![21]).toMatchObject({ date: '2026-06-17' });
+    });
   });
 
   describe('payments', () => {
@@ -361,6 +441,8 @@ describe('usePatientProfile', () => {
       });
       expect(result.current.payForm).toEqual({ amount: '', method: 'cash', status: 'paid', description: '', visitId: '' });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['payments'] });
+      // balance/debt is served by GET /patients/:id → refresh it too
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
       expect(toastMock.success).toHaveBeenCalledWith("To'lov qayd etildi");
     });
   });

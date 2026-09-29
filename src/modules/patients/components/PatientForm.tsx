@@ -13,7 +13,9 @@ import { Patient, BookingSource } from '@/shared/types';
 import { PatientSchema } from '@/shared/lib/validation';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useQuery } from '@tanstack/react-query';
-import { doctorsApi } from '@/lib/api/endpoints';
+import { doctorsApi, patientsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
+import { queryKeys } from '@/lib/api/query-keys';
 import * as z from 'zod';
 
 type PatientFormValues = z.infer<typeof PatientSchema>;
@@ -43,10 +45,19 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
   });
 
   const { data: doctorsData } = useQuery({
-    queryKey: ['doctors', 'list', 'all'],
-    queryFn: () => doctorsApi.list({ limit: 100 }),
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
+    enabled: open,
     staleTime: 5 * 60 * 1000,
   });
+
+  // list rows may not carry assignedDoctorId — the detail endpoint does
+  const { data: detail } = useQuery({
+    queryKey: queryKeys.patient(editing?.id ?? ''),
+    queryFn: () => patientsApi.get(editing!.id),
+    enabled: open && !!editing?.id && editing.assignedDoctorId === undefined,
+  });
+  const assignedDoctorId = editing?.assignedDoctorId ?? detail?.assignedDoctorId ?? '';
 
   const doctorOptions = (doctorsData?.data || []).map((d) => ({
     value: d.id,
@@ -62,7 +73,7 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
         phone: editing.phone,
         address: editing.address || '',
         workplace: editing.workplace || '',
-        assignedDoctorId: editing.assignedDoctorId || '',
+        assignedDoctorId: assignedDoctorId || '',
         source: editing.source,
         notes: editing.notes || '',
       });
@@ -79,7 +90,7 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
         notes: '',
       });
     }
-  }, [editing, form, open]);
+  }, [editing, form, open, assignedDoctorId]);
 
   const handleSubmit = (values: PatientFormValues) => {
     onSave(values);

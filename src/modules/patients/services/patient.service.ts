@@ -10,10 +10,11 @@ export const PatientService = {
     lastName: '',
     age: '',
     phone: '',
+    address: '',
+    workplace: '',
+    assignedDoctorId: '',
     source: 'walk-in',
     notes: '',
-    allergies: '',
-    bloodType: 'none',
   }),
 
   /**
@@ -24,10 +25,11 @@ export const PatientService = {
     lastName: p.lastName,
     age: p.age,
     phone: p.phone,
+    address: p.address || '',
+    workplace: p.workplace || '',
+    assignedDoctorId: p.assignedDoctorId || '',
     source: p.source,
     notes: p.notes || '',
-    allergies: p.allergies || '',
-    bloodType: p.bloodType || 'none',
   }),
 
   /**

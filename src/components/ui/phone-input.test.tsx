@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { PhoneInput } from './phone-input';
+import { PhoneInput, normalizePhoneChunk } from './phone-input';
 
 function type(input: HTMLInputElement, value: string) {
   fireEvent.input(input, { target: { value } });
@@ -62,8 +62,22 @@ describe('PhoneInput', () => {
     expect(onValue).toHaveBeenLastCalledWith('+998901234567');
   });
 
-  it.todo(
-    'BUG: src/components/ui/phone-input.tsx:9 — pasting a number that starts with "998" but has no "+" (e.g. "998331112233") ' +
-      'is treated as local digits and silently becomes +998998331112 (a valid-looking wrong number)',
+  it.each(['998331112233', '998 33 111 22 33', '+998331112233'])(
+    'a pasted full number with the country code (%s) is not doubled',
+    (pasted) => {
+      const onValue = vi.fn();
+      render(<Controlled onValue={onValue} />);
+      const input = screen.getByLabelText('phone') as HTMLInputElement;
+      type(input, pasted);
+      expect(onValue).toHaveBeenLastCalledWith('+998331112233');
+      expect(input.value).toBe('+998 33 111 22 33');
+    },
   );
+
+  it('normalizePhoneChunk strips a leading 998 only from full-length chunks', () => {
+    expect(normalizePhoneChunk('998331112233')).toBe('331112233');
+    expect(normalizePhoneChunk('+998 33 111 22 33')).toBe('331112233');
+    expect(normalizePhoneChunk('99833')).toBe('99833');
+    expect(normalizePhoneChunk('9')).toBe('9');
+  });
 });

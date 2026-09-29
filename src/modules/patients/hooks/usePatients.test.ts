@@ -89,10 +89,28 @@ describe('usePatients', () => {
       await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 })));
     });
 
-    it.todo(
-      'BUG: backend src/patients/patients.service.ts:47-51 ignores debtOnly=true, so the "Qarzdorlar" toggle ' +
-        '(PatientsPage.tsx:223 → usePatients filters.debtOnly) sends the param but never filters anything',
-    );
+    it('"Qarzdorlar" sends debtOnly=true without the month-to-date range; toggling again removes it', async () => {
+      const { result } = setup();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.toggleDebtOnly());
+      expect(result.current.filters).toMatchObject({ debtOnly: 'true', startDate: undefined, endDate: undefined });
+      await waitFor(() =>
+        expect(api.list).toHaveBeenLastCalledWith(
+          expect.objectContaining({ debtOnly: 'true', startDate: undefined, endDate: undefined, page: 0 }),
+        ),
+      );
+      act(() => result.current.toggleDebtOnly());
+      await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ debtOnly: undefined })));
+    });
+
+    it('sorting is sent to the backend as sortBy + order', async () => {
+      const { result } = setup();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.setSort('firstName'));
+      await waitFor(() =>
+        expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: 'firstName', order: 'asc' })),
+      );
+    });
   });
 
   describe('stats', () => {
@@ -121,7 +139,7 @@ describe('usePatients', () => {
       act(() => result.current.handleSave(form));
 
       await waitFor(() => expect(result.current.modalOpen).toBe(false));
-      expect(api.create.mock.calls[0][0]).toEqual(form);
+      expect(api.create.mock.calls[0][0]).toEqual({ ...form, notes: '' });
       expect(api.update).not.toHaveBeenCalled();
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
       expect(toastMock.success).toHaveBeenCalledWith("Yangi bemor qo'shildi");
@@ -136,10 +154,36 @@ describe('usePatients', () => {
       act(() => result.current.handleSave({ ...form, firstName: 'Vali' }));
 
       await waitFor(() => expect(result.current.modalOpen).toBe(false));
-      expect(api.update).toHaveBeenCalledWith('p1', { ...form, firstName: 'Vali' });
+      expect(api.update).toHaveBeenCalledWith('p1', { ...form, firstName: 'Vali', assignedDoctorId: null });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients', 'p1'] });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['analytics'] });
       expect(toastMock.success).toHaveBeenCalledWith("Bemor ma'lumotlari yangilandi");
+    });
+
+    it('assignedDoctorId: selected id is sent on create/update; cleared select sends null (unassign) on update', async () => {
+      api.create.mockResolvedValue(patient);
+      api.update.mockResolvedValue(patient);
+      const { result } = setup();
+      act(() => result.current.openCreate());
+      act(() => result.current.handleSave({ ...form, assignedDoctorId: 'd1' }));
+      await waitFor(() => expect(api.create).toHaveBeenCalled());
+      expect(api.create.mock.calls[0][0]).toMatchObject({ assignedDoctorId: 'd1' });
+
+      act(() => result.current.openCreate());
+      act(() => result.current.handleSave({ ...form, assignedDoctorId: '' }));
+      await waitFor(() => expect(api.create).toHaveBeenCalledTimes(2));
+      expect(api.create.mock.calls[1][0]).not.toHaveProperty('assignedDoctorId');
+
+      act(() => result.current.openEdit(patient));
+      act(() => result.current.handleSave({ ...form, assignedDoctorId: 'd2' }));
+      await waitFor(() => expect(api.update).toHaveBeenCalledTimes(1));
+      expect(api.update.mock.calls[0][1]).toMatchObject({ assignedDoctorId: 'd2' });
+
+      act(() => result.current.openEdit(patient));
+      act(() => result.current.handleSave({ ...form, assignedDoctorId: '' }));
+      await waitFor(() => expect(api.update).toHaveBeenCalledTimes(2));
+      expect(api.update.mock.calls[1][1]).toMatchObject({ assignedDoctorId: null });
     });
 
     it('reports isSaving while the request is in flight', async () => {
