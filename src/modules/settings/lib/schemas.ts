@@ -6,13 +6,13 @@ import {
   TEMPLATE_MAX_LENGTH,
 } from '@/lib/api/endpoints';
 
-/** Settings page form schemas (limits mirror the backend DTOs). */
+/** Settings page form schemas (limits mirror the backend UpdateSettingsDto / ChangePasswordDto). */
 
 export const clinicInfoSchema = z.object({
   clinicName: z.string().trim().min(1, 'Klinika nomini kiriting').max(100, "Klinika nomi 100 ta belgidan oshmasin"),
-  address: z.string().trim().max(255, "Manzil 255 ta belgidan oshmasin"),
-  phone: z.string().trim().max(32, "Telefon 32 ta belgidan oshmasin"),
-  workingHours: z.string().trim().max(100, "Ish vaqti 100 ta belgidan oshmasin"),
+  address: z.string().trim().max(300, "Manzil 300 ta belgidan oshmasin"),
+  phone: z.string().trim().max(50, "Telefon 50 ta belgidan oshmasin"),
+  workingHours: z.string().trim().max(200, "Ish vaqti 200 ta belgidan oshmasin"),
 });
 
 export type ClinicInfoValues = z.infer<typeof clinicInfoSchema>;

@@ -116,7 +116,7 @@ describe('SettingsPage — reminder templates', () => {
     await screen.findByDisplayValue('Zahro Dental');
     openTab(/Eslatmalar/);
     const preview = await screen.findByTestId('smsReminderTemplate-preview');
-    expect(preview.textContent).toMatch(/^Hurmatli Dilnoza Karimova, \S+ 10:30 da Dr\. Kamila Aliyeva qabulida kutamiz\. Zahro Dental$/);
+    expect(preview.textContent).toMatch(/^Hurmatli Dilnoza Karimova, \d{2}\.\d{2}\.\d{4} 10:30 da Dr\. Kamila Aliyeva qabulida kutamiz\. Zahro Dental$/);
     expect(preview.textContent).not.toContain('{');
   });
 

@@ -1,6 +1,5 @@
 import { TEMPLATE_PLACEHOLDERS } from '@/lib/api/endpoints';
 import { addDaysToDate, clinicToday } from '@/shared/lib/date-utils';
-import { formatDate } from '@/shared/lib/formatters';
 
 export type TemplatePlaceholder = (typeof TEMPLATE_PLACEHOLDERS)[number];
 
@@ -36,11 +35,17 @@ export function insertAt(value: string, text: string, start?: number | null, end
   return { value: next, caret: s + text.length };
 }
 
+/** `YYYY-MM-DD` → `DD.MM.YYYY` (the format the backend uses for {date}). */
+export function toReminderDate(ymd: string): string {
+  const [y, m, d] = ymd.split('-');
+  return y && m && d ? `${d}.${m}.${y}` : ymd;
+}
+
 /** Sample values for the live preview. */
 export function previewValues(clinicName: string, daysAhead: number, today = clinicToday()): TemplateValues {
   return {
     '{name}': 'Dilnoza Karimova',
-    '{date}': formatDate(addDaysToDate(today, Number.isFinite(daysAhead) ? daysAhead : 0)),
+    '{date}': toReminderDate(addDaysToDate(today, Number.isFinite(daysAhead) ? daysAhead : 0)),
     '{time}': '10:30',
     '{doctor}': 'Dr. Kamila Aliyeva',
     '{clinic}': clinicName || 'Zahro Dental',

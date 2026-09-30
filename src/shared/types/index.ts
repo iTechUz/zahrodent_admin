@@ -121,6 +121,7 @@ export interface Visit {
   diagnosis: string;
   treatment: string;
   notes: string;
+  patient?: PatientRef;
 }
 
 export interface Payment {

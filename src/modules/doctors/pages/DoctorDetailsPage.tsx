@@ -30,6 +30,8 @@ import { DOCTOR_WEEKDAY_LABELS, normalizeDoctorSchedule } from '@/shared/lib/doc
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DoctorForm, DoctorVisitForm } from '../components/DoctorForm';
 import { SortableTableHead } from '@/shared/components/SortableHeader';
+import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { sortBy, type SortField } from '@/lib/api/sort-fields';
 import type { SortOrder } from '@/lib/api/endpoints';
 
@@ -78,10 +80,7 @@ function DoctorDetailsContent() {
     placeholderData: keepPreviousData,
   });
   const recentVisits = visitsRes?.data ?? [];
-  const patientName = (patientId: string) => {
-    const p = patients.find((pt) => pt.id === patientId);
-    return p ? `${p.firstName} ${p.lastName}` : `#${patientId.slice(-4)}`;
-  };
+  const visitPatient = (v: (typeof recentVisits)[number]) => resolvePatientRef(v, patients);
 
   if (doctorLoading) {
     return (
@@ -292,7 +291,7 @@ function DoctorDetailsContent() {
                   <TableRow key={v.id}>
                     <TableCell className="text-xs">{v.date}</TableCell>
                     <TableCell className="font-medium text-xs">
-                      {patientName(v.patientId)}
+                      {visitPatient(v) ? <PatientNameLabel patient={visitPatient(v)} /> : `#${v.patientId.slice(-4)}`}
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-[200px]">{v.diagnosis}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">{formatUzS(Number(v.price) || 0)}</TableCell>

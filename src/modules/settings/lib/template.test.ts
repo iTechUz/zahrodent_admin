@@ -1,4 +1,4 @@
-import { findUnknownPlaceholders, insertAt, renderTemplate, type TemplateValues } from './template';
+import { findUnknownPlaceholders, insertAt, previewValues, renderTemplate, toReminderDate, type TemplateValues } from './template';
 
 const values: TemplateValues = {
   '{name}': 'Ali',
@@ -36,5 +36,13 @@ describe('insertAt', () => {
   });
   it('appends without a selection', () => {
     expect(insertAt('Salom ', '{name}')).toEqual({ value: 'Salom {name}', caret: 12 });
+  });
+});
+
+describe('previewValues', () => {
+  it('uses the backend date format DD.MM.YYYY, shifted by reminderDaysAhead', () => {
+    expect(toReminderDate('2026-10-01')).toBe('01.10.2026');
+    expect(previewValues('Zahro', 2, '2026-09-30')['{date}']).toBe('02.10.2026');
+    expect(previewValues('', 0, '2026-09-30')['{clinic}']).toBe('Zahro Dental');
   });
 });
