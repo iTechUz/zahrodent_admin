@@ -12,7 +12,8 @@ import { BOOKING_STATUSES, BOOKING_SOURCES, BOOKING_STATUS_LABELS, BOOKING_SOURC
 import { useBookings } from '../hooks/useBookings';
 import { BookingForm, BookingDetails } from '../components/BookingForm';
 import { DataTable, Column } from '@/shared/components/DataTable';
-import { useStore } from '@/store/useStore';
+import { useCan } from '@/shared/hooks/usePermissions';
+import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { Booking } from '@/shared/types';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { formatDate } from '@/shared/lib/formatters';
@@ -45,12 +46,18 @@ function BookingsPageContent() {
     handleStatusChange,
     handleSave,
     isLoading,
+    error,
+    refetch,
+    sort,
+    setSort,
     stats,
     services,
   } = useBookings();
 
-  const role = useStore(s => s.currentUser?.role);
-  const isDoctor = role === 'doctor';
+  const can = useCan();
+  const canCreate = can('bookings.create');
+  const canUpdate = can('bookings.update');
+  const canDelete = can('bookings.delete');
 
   const columns: Column<Booking>[] = [
     { 
@@ -70,6 +77,7 @@ function BookingsPageContent() {
     },
     { 
       header: 'Sana/Vaqt', 
+      sortKey: 'date',
       accessor: (b) => <span className="text-muted-foreground">{formatDate(b.date)} {b.time}</span> 
     },
     { 
@@ -79,7 +87,7 @@ function BookingsPageContent() {
     },
     { 
       header: 'Holat', 
-      accessor: (b) => isDoctor ? (
+      accessor: (b) => !canUpdate ? (
         <StatusBadge status={b.status} />
       ) : (
         <DropdownMenu>
@@ -105,7 +113,7 @@ function BookingsPageContent() {
       <PageHeader 
         title="Qabullar" 
         description="Qabullar va uchrashuvlarni boshqarish" 
-        action={!isDoctor && (
+        action={canCreate && (
           <Button onClick={openCreate}>
             <Plus className="w-4 h-4 mr-2" />
             Yangi qabul
@@ -220,14 +228,20 @@ function BookingsPageContent() {
             </Select>
           </div>
 
-          <DataTable 
-            data={bookings} 
-            columns={columns} 
-            onView={setViewBooking}
-            onEdit={!isDoctor ? openEdit : undefined} 
-            onDelete={!isDoctor ? setDeleteId : undefined} 
-            isLoading={isLoading}
-          />
+          {error && !isLoading ? (
+            <QueryErrorState error={error} onRetry={() => refetch()} title="Qabullar yuklanmadi" />
+          ) : (
+            <DataTable
+              data={bookings}
+              columns={columns}
+              onView={setViewBooking}
+              onEdit={canUpdate ? openEdit : undefined}
+              onDelete={canDelete ? setDeleteId : undefined}
+              isLoading={isLoading}
+              sort={sort}
+              onSortChange={setSort}
+            />
+          )}
           
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card rounded-b-xl border-x">

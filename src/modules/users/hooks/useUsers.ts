@@ -6,6 +6,8 @@ import { useState, useCallback } from 'react';
 import { useDialogState } from '@/shared/hooks/useDialogState';
 import { SessionUser } from '@/shared/types/auth';
 
+type UserBody = Parameters<typeof usersApi.create>[0];
+
 export const useUsers = () => {
   const authed = useStore((s) => s.isAuthenticated);
   const queryClient = useQueryClient();
@@ -18,8 +20,8 @@ export const useUsers = () => {
   });
 
   const saveMut = useMutation({
-    mutationFn: (args: { id?: string; body: any }) =>
-      args.id ? usersApi.update(args.id, args.body) : usersApi.create(args.body),
+    mutationFn: (args: { id?: string; body: Partial<UserBody> }) =>
+      args.id ? usersApi.update(args.id, args.body) : usersApi.create(args.body as UserBody),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success("Xodim ma'lumotlari saqlandi");
@@ -34,10 +36,10 @@ export const useUsers = () => {
     },
   });
 
-  const dialog = useDialogState<SessionUser, Record<string, any>>({ name: '', phone: '', role: 'receptionist', password: '' });
+  const dialog = useDialogState<SessionUser, Record<string, unknown>>({ name: '', phone: '', role: 'receptionist', password: '' });
 
   const handleSave = useCallback(
-    (data: any) => {
+    (data: Partial<UserBody>) => {
       const id = dialog.editingItem?.id;
       saveMut.mutate(
         { id, body: data },

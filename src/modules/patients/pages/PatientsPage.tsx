@@ -21,7 +21,10 @@ import { formatDate, formatCurrency } from '@/shared/lib/formatters';
 import { StatCard } from '@/shared/components/StatCard';
 import { Users, UserPlus, Target } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
-import { useStore } from '@/store/useStore';
+import { useCan } from '@/shared/hooks/usePermissions';
+import { QueryErrorState } from '@/shared/components/QueryErrorState';
+import { fetchAllPages } from '@/lib/api/helpers';
+import { clinicToday } from '@/shared/lib/date-utils';
 import { BOOKING_SOURCE_LABELS, BOOKING_SOURCES } from '@/shared/constants';
 import { exportToExcel } from '@/shared/lib/excel';
 import { patientsApi } from '@/lib/api/endpoints';
@@ -40,6 +43,9 @@ function PatientsPageContent() {
     setSearch,
     filters,
     setFilters,
+    toggleDebtOnly,
+    sort,
+    setSort,
     modalOpen,
     setModalOpen,
     editing,
@@ -50,15 +56,17 @@ function PatientsPageContent() {
     handleSave,
     handleDelete,
     isLoading,
+    error,
+    refetch,
     stats,
   } = usePatients();
 
-  const role = useStore(s => s.currentUser?.role);
-  const isDoctor = role === 'doctor';
+  const can = useCan();
 
   const columns: Column<Patient>[] = [
     { 
       header: 'Ism familiya', 
+      sortKey: 'firstName',
       accessor: (p) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-accent-foreground">
@@ -72,7 +80,7 @@ function PatientsPageContent() {
         </div>
       )
     },
-    { header: 'Yosh', accessor: (p) => `${p.age} yosh` },
+    { header: 'Yosh', accessor: (p) => `${p.age} yosh`, sortKey: 'age' },
     { header: 'Telefon', accessor: 'phone' },
     { 
       header: 'Shifokor', 
@@ -94,7 +102,8 @@ function PatientsPageContent() {
     { 
       header: "Ro'yxatdan o'tgan", 
       accessor: (p) => <span className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</span>,
-      className: 'hidden md:table-cell'
+      className: 'hidden md:table-cell',
+      sortKey: 'createdAt',
     },
   ];
 
@@ -103,12 +112,9 @@ function PatientsPageContent() {
   const handleExport = async () => {
     try {
       setIsExporting(true);
-      const res = await patientsApi.list({ 
-        ...filters, 
-        search, 
-        limit: 10000 
-      });
-      
+      // every page (the backend caps limit at 100)
+      const res = await fetchAllPages(patientsApi.list, { ...filters, search, ...sort });
+
       const exportData = res.data.map(p => ({
         'Ism': p.firstName,
         'Familiya': p.lastName,
@@ -120,9 +126,9 @@ function PatientsPageContent() {
         "Ro'yxatdan o'tgan sana": p.createdAt
       }));
 
-      exportToExcel(exportData, `Bemorlar_Ro'yxati_${new Date().toISOString().split('T')[0]}`);
+      await exportToExcel(exportData, `Bemorlar_Ro'yxati_${clinicToday()}`);
       toast.success("Excel fayl tayyorlandi");
-    } catch (error) {
+    } catch {
       toast.error("Eksport qilishda xatolik yuz berdi");
     } finally {
       setIsExporting(false);
@@ -140,7 +146,7 @@ function PatientsPageContent() {
               <Download className="w-4 h-4 mr-2" />
               Excel Export
             </Button>
-            {!isDoctor && (
+            {can('patients.create') && (
               <Button onClick={openCreate}>
                 <Plus className="w-4 h-4 mr-2" />
                 Bemor qo'shish
@@ -220,7 +226,7 @@ function PatientsPageContent() {
           <Button 
             variant={filters.debtOnly === 'true' ? 'destructive' : 'outline'}
             className="h-10"
-            onClick={() => setFilters('debtOnly', filters.debtOnly === 'true' ? undefined : 'true')}
+            onClick={toggleDebtOnly}
           >
             <Users className="w-4 h-4 mr-2" />
             Qarzdorlar
@@ -228,14 +234,20 @@ function PatientsPageContent() {
         </div>
       </div>
 
-      <DataTable 
-        data={patients} 
-        columns={columns} 
-        onEdit={openEdit} 
-        onDelete={!isDoctor ? setDeleteId : undefined}
-        onView={(p) => navigate(`/patients/${p.id}`)}
-        isLoading={isLoading}
-      />
+      {error && !isLoading ? (
+        <QueryErrorState error={error} onRetry={() => refetch()} title="Bemorlar ro'yxati yuklanmadi" />
+      ) : (
+        <DataTable
+          data={patients}
+          columns={columns}
+          onEdit={can('patients.update') ? openEdit : undefined}
+          onDelete={can('patients.delete') ? setDeleteId : undefined}
+          onView={(p) => navigate(`/patients/${p.id}`)}
+          isLoading={isLoading}
+          sort={sort}
+          onSortChange={setSort}
+        />
+      )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card rounded-b-xl border-x">

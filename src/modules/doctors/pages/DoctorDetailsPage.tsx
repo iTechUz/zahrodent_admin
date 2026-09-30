@@ -2,7 +2,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useDoctor, useDoctors } from '../hooks/useDoctors';
 import { visitsApi } from '@/lib/api/endpoints';
-import { PageHeader } from '@/shared/components/PageHeader';
+import { queryKeys } from '@/lib/api/query-keys';
+import { useCan } from '@/shared/hooks/usePermissions';
+import { VISIT_STATUS_LABELS } from '@/shared/constants';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { 
   User, 
@@ -25,36 +27,48 @@ import { StatCard } from '@/shared/components/StatCard';
 import { formatUzS } from '@/shared/lib/formatters';
 import { DOCTOR_WEEKDAY_LABELS, normalizeDoctorSchedule } from '@/shared/lib/doctor-schedule';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { motion } from 'framer-motion';
-import { DoctorForm } from '../components/DoctorForm';
+import { DoctorForm, DoctorVisitForm } from '../components/DoctorForm';
+
+export const RECENT_VISITS_LIMIT = 10;
 
 function DoctorDetailsContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: doctor, isLoading: doctorLoading } = useDoctor(id!);
-  const { 
-    efficiency, 
-    openEdit, 
-    modalOpen, 
-    setModalOpen, 
-    editing, 
-    handleSaveDoctor 
+  const can = useCan();
+  const {
+    efficiency,
+    openEdit,
+    modalOpen,
+    setModalOpen,
+    editing,
+    handleSaveDoctor,
+    patients,
+    visitModal,
+    setVisitModal,
+    editingVisit,
+    selectedDoctor,
+    openVisitForm,
+    handleSaveVisit,
   } = useDoctors();
 
   const doctorEfficiency = efficiency.find(e => e.id === id);
+  // backend /doctors/efficiency returns `totalVisits` (there is no `visitCount`)
+  const totalVisits = doctorEfficiency?.totalVisits ?? 0;
+  const avgCheck =
+    doctorEfficiency?.avgCheck ??
+    (totalVisits > 0 ? Math.round((doctorEfficiency?.totalRevenue ?? 0) / totalVisits) : 0);
 
+  const visitParams = { doctorId: id, limit: RECENT_VISITS_LIMIT };
   const { data: visitsRes } = useQuery({
-    queryKey: ['visits', 'doctor', id],
-    queryFn: () => visitsApi.list({ doctorId: id, limit: 10 }),
+    queryKey: queryKeys.visitsList(visitParams),
+    queryFn: () => visitsApi.list(visitParams),
     enabled: !!id,
   });
   const recentVisits = visitsRes?.data ?? [];
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Noma\'lum';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Noma\'lum';
-    return date.toLocaleDateString();
+  const patientName = (patientId: string) => {
+    const p = patients.find((pt) => pt.id === patientId);
+    return p ? `${p.firstName} ${p.lastName}` : `#${patientId.slice(-4)}`;
   };
 
   if (doctorLoading) {
@@ -116,28 +130,31 @@ function DoctorDetailsContent() {
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5" /> {doctor.phone}
                   </span>
-                  <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" /> {formatDate(doctor.createdAt)}
-                  </span>
                 </div>
               </div>
             </div>
           </div>
           
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <Button 
-              onClick={() => openEdit(doctor)} 
-              variant="outline" 
-              className="flex-1 md:flex-none h-11 px-6 rounded-xl border-primary/20 hover:bg-primary/5 hover:text-primary transition-all font-semibold"
-            >
-              <Edit2 className="w-4 h-4 mr-2" />
-              Tahrirlash
-            </Button>
-            <Button className="flex-1 md:flex-none h-11 px-6 rounded-xl shadow-lg shadow-primary/20 font-semibold">
-              <Plus className="w-4 h-4 mr-2" />
-              Tashrif qo'shish
-            </Button>
+            {can('doctors.update') && (
+              <Button
+                onClick={() => openEdit(doctor)}
+                variant="outline"
+                className="flex-1 md:flex-none h-11 px-6 rounded-xl border-primary/20 hover:bg-primary/5 hover:text-primary transition-all font-semibold"
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                Tahrirlash
+              </Button>
+            )}
+            {can('visits.create') && (
+              <Button
+                onClick={() => openVisitForm(doctor)}
+                className="flex-1 md:flex-none h-11 px-6 rounded-xl shadow-lg shadow-primary/20 font-semibold"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Tashrif qo'shish
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -159,14 +176,14 @@ function DoctorDetailsContent() {
         />
         <StatCard 
           title="Tashriflar"
-          value={doctorEfficiency?.visitCount || 0}
+          value={totalVisits}
           icon={<ClipboardList className="w-5 h-5 text-info" />}
           trend="Total visits"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
           title="O'rtacha chek"
-          value={formatUzS(doctorEfficiency?.visitCount ? Math.round(doctorEfficiency.totalRevenue / doctorEfficiency.visitCount) : 0)}
+          value={formatUzS(avgCheck)}
           icon={<TrendingUp className="w-5 h-5 text-warning" />}
           trend="Avg per visit"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
@@ -194,12 +211,14 @@ function DoctorDetailsContent() {
               </span>
               <Badge variant="secondary">{doctor.specialty}</Badge>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <span className="text-sm text-muted-foreground flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> Ro'yxatdan o'tgan
-              </span>
-              <span className="font-medium">{formatDate(doctor.createdAt)}</span>
-            </div>
+            {doctor.loginPhone && (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> Login telefoni
+                </span>
+                <span className="font-medium">{doctor.loginPhone}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -254,12 +273,12 @@ function DoctorDetailsContent() {
                   <TableRow key={v.id}>
                     <TableCell className="text-xs">{v.date}</TableCell>
                     <TableCell className="font-medium text-xs">
-                      Patient ID: {v.patientId.slice(-4)}
+                      {patientName(v.patientId)}
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-[200px]">{v.diagnosis}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[10px] capitalize">
-                        {v.status}
+                        {VISIT_STATUS_LABELS[v.status] ?? v.status}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -280,7 +299,16 @@ function DoctorDetailsContent() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleSaveDoctor}
-        initialData={editing}
+        editing={editing}
+      />
+
+      <DoctorVisitForm
+        open={visitModal}
+        onOpenChange={setVisitModal}
+        editingVisit={editingVisit}
+        doctor={selectedDoctor}
+        patients={patients}
+        onSave={handleSaveVisit}
       />
     </div>
   );

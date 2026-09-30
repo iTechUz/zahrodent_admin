@@ -1,95 +1,89 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
-import { bookingsApi, patientsApi, paymentsApi, servicesApi, doctorsApi } from '@/lib/api/endpoints';
+import { analyticsApi, servicesApi, doctorsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
-import { canAccessPayments } from '@/shared/config/roles';
+import { can, canAccessPayments } from '@/shared/config/roles';
 import {
-  aggregateBookingConversionByMonth,
-  aggregateNewPatientsByMonthCounts,
-  aggregatePaidRevenueMillions,
-  aggregateBookingsBySourceLabel,
-  getLastNCalendarMonths,
+  monthlyConversionSeries,
+  monthlyRevenueSeries,
+  monthLabel,
   REPORT_CHART_COLORS,
+  sourceChartData,
 } from '@/shared/lib/reporting';
 
+export const ANALYTICS_MONTHS = 6;
+
+/** Analytics charts are built from backend aggregates (/analytics/monthly, /analytics/sources). */
 export const useAnalytics = () => {
   const authed = useStore((s) => s.isAuthenticated);
   const role = useStore((s) => s.currentUser?.role);
   const canViewPayments = canAccessPayments(role);
-  const buckets6 = useMemo(() => getLastNCalendarMonths(6), []);
 
-  const { data: bookingsRes } = useQuery({
-    queryKey: queryKeys.bookings,
-    queryFn: () => bookingsApi.list(),
+  const monthlyQuery = useQuery({
+    queryKey: queryKeys.analyticsMonthly(ANALYTICS_MONTHS),
+    queryFn: () => analyticsApi.monthly({ months: ANALYTICS_MONTHS }),
     enabled: authed,
   });
-  const bookings = bookingsRes?.data ?? [];
+  const monthly = useMemo(() => monthlyQuery.data ?? [], [monthlyQuery.data]);
+
+  const sourcesQuery = useQuery({
+    queryKey: queryKeys.analyticsSources,
+    queryFn: () => analyticsApi.sources(),
+    enabled: authed,
+  });
 
   const { data: servicesRes } = useQuery({
-    queryKey: queryKeys.services,
-    queryFn: () => servicesApi.list({ limit: 1000 }),
-    enabled: authed,
-  });
-  const services = servicesRes?.data ?? [];
-
-  const { data: patientsRes } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list(),
-    enabled: authed,
-  });
-  const patients = patientsRes?.data ?? [];
-
-  const { data: paymentsRes } = useQuery({
-    queryKey: queryKeys.payments,
-    queryFn: () => paymentsApi.list(),
+    queryKey: queryKeys.servicesLookup(),
+    queryFn: () => fetchAllPages(servicesApi.list),
     enabled: authed && canViewPayments,
   });
-  const payments = paymentsRes?.data ?? [];
+  const services = useMemo(() => servicesRes?.data ?? [], [servicesRes]);
 
   const { data: serviceStats } = useQuery({
-    queryKey: ['services', 'stats'],
+    queryKey: queryKeys.servicesStats,
     queryFn: () => servicesApi.stats(),
-    enabled: authed && canViewPayments,
+    enabled: authed && canViewPayments && can(role, 'services.stats'),
+  });
+
+  const { data: efficiencyData } = useQuery({
+    queryKey: queryKeys.doctorsEfficiency,
+    queryFn: () => doctorsApi.efficiency(),
+    enabled: authed && can(role, 'doctors.efficiency'),
   });
 
   const monthlyPatients = useMemo(
-    () => aggregateNewPatientsByMonthCounts(patients, buckets6),
-    [patients, buckets6],
+    () => monthly.map((r) => ({ month: monthLabel(r.month), count: r.newPatients })),
+    [monthly],
   );
-
+  // money is null for non-admins on the backend; never chart it client-side either
   const revenueGrowth = useMemo(
-    () => aggregatePaidRevenueMillions(payments, buckets6),
-    [payments, buckets6],
+    () => monthlyRevenueSeries(canViewPayments ? monthly : monthly.map((r) => ({ ...r, revenue: null })), 'mln'),
+    [monthly, canViewPayments],
   );
-
-  const conversionData = useMemo(
-    () => aggregateBookingConversionByMonth(bookings, buckets6),
-    [bookings, buckets6],
+  const conversionData = useMemo(() => monthlyConversionSeries(monthly), [monthly]);
+  const sourceData = useMemo(
+    () => sourceChartData(sourcesQuery.data ?? []).map(({ name, value }) => ({ name, value })),
+    [sourcesQuery.data],
   );
-
-  const sourceData = useMemo(() => aggregateBookingsBySourceLabel(bookings), [bookings]);
 
   const serviceIncomeData = useMemo(() => {
-    return serviceStats?.detailed?.map((s: any) => {
-      const service = services.find((sv) => sv.id === s.serviceId);
-      return {
-        name: service?.name || 'Noma\'lum',
-        revenue: s.revenue,
-        patients: s.patients,
-      };
-    }) || [];
+    return (
+      serviceStats?.detailed?.map((s) => {
+        const service = services.find((sv) => sv.id === s.serviceId);
+        return {
+          name: service?.name || "Noma'lum",
+          revenue: s.revenue,
+          patients: s.patients,
+        };
+      }) || []
+    );
   }, [serviceStats, services]);
-
-  const { data: efficiencyData } = useQuery({
-    queryKey: ['doctors', 'efficiency'],
-    queryFn: () => doctorsApi.efficiency(),
-    enabled: authed && canViewPayments,
-  });
 
   const doctorEfficiency = useMemo(() => {
     if (!efficiencyData) return [];
-    return efficiencyData.map(d => ({
+    return efficiencyData.map((d) => ({
       name: `${d.firstName} ${d.lastName}`,
       totalBookings: d.totalBookings,
       totalVisits: d.totalVisits,
@@ -110,5 +104,12 @@ export const useAnalytics = () => {
     canViewPayments,
     serviceStats: serviceIncomeData,
     doctorEfficiency,
+    isLoading: monthlyQuery.isLoading || sourcesQuery.isLoading,
+    isError: monthlyQuery.isError,
+    error: monthlyQuery.error,
+    refetch: () => {
+      monthlyQuery.refetch();
+      sourcesQuery.refetch();
+    },
   };
 };

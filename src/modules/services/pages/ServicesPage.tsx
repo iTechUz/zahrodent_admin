@@ -1,5 +1,5 @@
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
-import { Plus, Search, Tag } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { StatCard } from '@/shared/components/StatCard';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
@@ -8,8 +8,10 @@ import { formatUzS } from '@/shared/lib/formatters';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useServices, CATEGORIES } from '../hooks/useServices';
-import { ServiceCard, ServiceForm } from '../components/ServiceForm';
+import { useServices } from '../hooks/useServices';
+import { ServiceForm } from '../components/ServiceForm';
+import { useCan } from '@/shared/hooks/usePermissions';
+import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { 
   Table, 
   TableBody, 
@@ -33,7 +35,6 @@ function ServicesPageContent() {
     totalPages,
     page,
     setPage,
-    groupedServices,
     categories,
     search,
     setSearch,
@@ -49,8 +50,17 @@ function ServicesPageContent() {
     handleSave,
     handleDelete,
     isLoading,
+    error,
+    refetch,
     stats,
   } = useServices();
+
+  // backend: services create/update/delete are admin-only
+  const can = useCan();
+  const canCreate = can('services.create');
+  const canUpdate = can('services.update');
+  const canDelete = can('services.delete');
+  const hasRowActions = canUpdate || canDelete;
 
   return (
     <div className="space-y-4">
@@ -58,10 +68,12 @@ function ServicesPageContent() {
         title="Xizmatlar katalogi" 
         description="Klinika xizmatlarining narxlari va tafsilotlari" 
         action={
-          <Button onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-2" />
-            Xizmat qo'shish
-          </Button>
+          canCreate && (
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Xizmat qo'shish
+            </Button>
+          )
         } 
       />
 
@@ -118,7 +130,9 @@ function ServicesPageContent() {
         </div>
       </div>
 
-      {isLoading ? (
+      {error && !isLoading ? (
+        <QueryErrorState error={error} onRetry={() => refetch()} title="Xizmatlar yuklanmadi" />
+      ) : isLoading ? (
         <div className="p-8 text-center animate-pulse text-muted-foreground bg-card rounded-xl border">
           Yuklanmoqda...
         </div>
@@ -134,12 +148,12 @@ function ServicesPageContent() {
                 <TableHead className="text-right">Narxi</TableHead>
                 <TableHead className="text-right">Bemorlar</TableHead>
                 <TableHead className="text-right">Daromad</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+                {hasRowActions && <TableHead className="w-[80px]"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {services.map((s) => {
-                const detailed = stats?.detailed?.find((d: any) => d.serviceId === s.id);
+                const detailed = stats?.detailed?.find((d) => d.serviceId === s.id);
                 return (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.name}</TableCell>
@@ -152,31 +166,37 @@ function ServicesPageContent() {
                       {formatUzS(s.price)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {detailed?.patientCount || 0}
+                      {detailed?.patients || 0}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-success">
                       {formatUzS(detailed?.revenue || 0)}
                     </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(s)}>
-                            <Edit2 className="w-4 h-4 mr-2" /> Tahrirlash
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => setDeleteId(s.id)}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" /> O'chirish
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    {hasRowActions && (
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {canUpdate && (
+                              <DropdownMenuItem onClick={() => openEdit(s)}>
+                                <Edit2 className="w-4 h-4 mr-2" /> Tahrirlash
+                              </DropdownMenuItem>
+                            )}
+                            {canDelete && (
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => setDeleteId(s.id)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" /> O'chirish
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

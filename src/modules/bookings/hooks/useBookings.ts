@@ -10,6 +10,7 @@ import { BookingService } from '../services/booking.service';
 import { BookingSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
 import { bookingsApi, patientsApi, doctorsApi, servicesApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
 import { getMonthToDateRange } from '@/shared/lib/date-utils';
@@ -41,36 +42,43 @@ export const useBookings = () => {
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['bookings', 'stats'],
+    queryKey: queryKeys.bookingsStats,
     queryFn: () => bookingsApi.stats(),
     enabled: authed,
   });
 
+  // lookups (names in the table, select options): every page — the backend caps limit at 100
   const { data: patientsData, isLoading: patientsLoading } = useQuery({
-    queryKey: queryKeys.patients,
-    queryFn: () => patientsApi.list({ limit: 1000 }), // Fetching for lookups, ideally use searchable dropdown
+    queryKey: queryKeys.patientsLookup(),
+    queryFn: () => fetchAllPages(patientsApi.list),
     enabled: authed,
   });
   const patients = patientsData?.data ?? [];
 
+  // GET /doctors is allowed for every staff role (doctor included)
   const { data: doctorsData, isLoading: doctorsLoading } = useQuery({
-    queryKey: queryKeys.doctors,
-    queryFn: () => doctorsApi.list({ limit: 100 }),
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
     enabled: authed,
   });
   const doctors = doctorsData?.data ?? [];
 
   const { data: servicesData, isLoading: servicesLoading } = useQuery({
-    queryKey: queryKeys.services,
-    queryFn: () => servicesApi.list({ limit: 100 }),
+    queryKey: queryKeys.servicesLookup(),
+    queryFn: () => fetchAllPages(servicesApi.list),
     enabled: authed,
   });
   const services = servicesData?.data ?? [];
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+    queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+  };
+
   const createMut = useMutation({
-    mutationFn: (body: BookingFormValues) => bookingsApi.create(body as any),
+    mutationFn: (body: BookingFormValues) => bookingsApi.create(body as Parameters<typeof bookingsApi.create>[0]),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+      invalidate();
       toast.success('Yangi qabul yaratildi');
     },
   });
@@ -79,14 +87,14 @@ export const useBookings = () => {
     mutationFn: ({ id, body }: { id: string; body: Partial<Booking> }) =>
       bookingsApi.update(id, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+      invalidate();
     },
   });
 
   const deleteMut = useMutation({
     mutationFn: bookingsApi.remove,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+      invalidate();
       toast.success("Qabul o'chirildi");
     },
   });
@@ -97,14 +105,18 @@ export const useBookings = () => {
     (data: BookingFormValues) => {
       if (dialog.editingItem) {
         updateMut.mutate(
-          { id: dialog.editingItem.id, body: data as any },
+          { id: dialog.editingItem.id, body: data as Partial<Booking> },
           {
-            onSuccess: () => toast.success('Qabul muvaffaqiyatli yangilandi'),
-            onSettled: () => dialog.closeDialog(),
+            onSuccess: () => {
+              toast.success('Qabul muvaffaqiyatli yangilandi');
+              dialog.closeDialog();
+            },
           },
         );
       } else {
-        createMut.mutate(data as any, { onSettled: () => dialog.closeDialog() });
+        // keep the form open on errors (time conflict, past date, outside the doctor's schedule)
+        // so the user can fix it; the backend message is shown by the global mutation toast
+        createMut.mutate(data, { onSuccess: () => dialog.closeDialog() });
       }
     },
     [dialog, createMut, updateMut],
@@ -153,6 +165,10 @@ export const useBookings = () => {
     },
     services,
     isLoading: table.isLoading || patientsLoading || doctorsLoading || servicesLoading,
+    error: table.error,
+    refetch: table.refetch,
+    sort: table.sort,
+    setSort: table.setSort,
     stats,
   };
 };

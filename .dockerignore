@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+.git
+.github
+.vscode
+.idea
+*.log
+.env
+.env.*
+!.env.example
+!.env.production.example
+playwright-report
+test-results
+bun.lockb

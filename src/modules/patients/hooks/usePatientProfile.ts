@@ -10,13 +10,18 @@ import {
   paymentsApi,
   doctorsApi,
 } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
-import { canAccessPayments } from '@/shared/config/roles';
+import { can, canAccessPayments } from '@/shared/config/roles';
+import { clinicToday } from '@/shared/lib/date-utils';
 
 export const usePatientProfile = (patientId: string | undefined) => {
   const authed = useStore((s) => s.isAuthenticated);
   const role = useStore((s) => s.currentUser?.role);
+  const ownDoctorId = useStore((s) => (s.currentUser?.role === 'doctor' ? s.currentUser.doctorId : undefined));
   const canManagePayments = canAccessPayments(role);
+  const canAddVisit = can(role, 'visits.create');
+  const canEditPatient = can(role, 'patients.update');
   const queryClient = useQueryClient();
 
   const { data: patient, isLoading: patientLoading } = useQuery({
@@ -25,30 +30,33 @@ export const usePatientProfile = (patientId: string | undefined) => {
     enabled: !!patientId && authed,
   });
 
+  // full history: every page (backend default limit is 10, max 100) so totals are correct
+  const byPatient = { patientId: patientId ?? '' };
   const { data: visitsRes } = useQuery({
-    queryKey: [...queryKeys.visits, 'byPatient', patientId],
-    queryFn: () => visitsApi.list({ patientId: patientId! }),
+    queryKey: queryKeys.visitsLookup(byPatient),
+    queryFn: () => fetchAllPages(visitsApi.list, byPatient),
     enabled: !!patientId && authed,
   });
   const patientVisits = visitsRes?.data ?? [];
 
   const { data: bookingsRes } = useQuery({
-    queryKey: [...queryKeys.bookings, 'byPatient', patientId],
-    queryFn: () => bookingsApi.list({ patientId: patientId! }),
+    queryKey: queryKeys.bookingsLookup(byPatient),
+    queryFn: () => fetchAllPages(bookingsApi.list, byPatient),
     enabled: !!patientId && authed,
   });
   const patientBookings = bookingsRes?.data ?? [];
 
   const { data: paymentsRes } = useQuery({
-    queryKey: [...queryKeys.payments, 'byPatient', patientId],
-    queryFn: () => paymentsApi.list({ patientId: patientId! }),
+    queryKey: queryKeys.paymentsLookup(byPatient),
+    queryFn: () => fetchAllPages(paymentsApi.list, byPatient),
     enabled: !!patientId && authed && canManagePayments,
   });
   const patientPayments = paymentsRes?.data ?? [];
 
+  // GET /doctors is allowed for every staff role (doctor included)
   const { data: doctorsRes } = useQuery({
-    queryKey: queryKeys.doctors,
-    queryFn: () => doctorsApi.list({ limit: 100 }),
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
     enabled: authed && !!patientId,
   });
   const doctors = doctorsRes?.data ?? [];
@@ -76,10 +84,17 @@ export const usePatientProfile = (patientId: string | undefined) => {
     },
   });
 
+  // visits/payments change the patient balance (GET /patients/:id) and the dashboard aggregates
+  const invalidateBalance = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+    queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+  };
+
   const createVisitMut = useMutation({
     mutationFn: visitsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.visits });
+      invalidateBalance();
       toast.success("Yangi tashrif qo'shildi");
     },
   });
@@ -88,6 +103,7 @@ export const usePatientProfile = (patientId: string | undefined) => {
     mutationFn: paymentsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.payments });
+      invalidateBalance();
       toast.success("To'lov qayd etildi");
     },
   });
@@ -113,8 +129,19 @@ export const usePatientProfile = (patientId: string | undefined) => {
   });
 
   const [visitModal, setVisitModal] = useState(false);
+  const emptyVisitForm = () => ({
+    doctorId: ownDoctorId ?? '',
+    diagnosis: '',
+    treatment: '',
+    notes: '',
+    price: '',
+    status: 'completed' as VisitStatus,
+    shouldPayNow: false,
+    payAmount: '',
+    payMethod: 'cash' as PaymentMethod,
+  });
   const [visitForm, setVisitForm] = useState({
-    doctorId: '',
+    doctorId: ownDoctorId ?? '',
     diagnosis: '',
     treatment: '',
     notes: '',
@@ -137,7 +164,11 @@ export const usePatientProfile = (patientId: string | undefined) => {
 
   const totalPaid = patientPayments.filter((p) => p.status === 'paid' || p.status === 'partial').reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const totalDue = patientVisits.reduce((s, v) => s + (Number(v.price) || 0), 0);
-  const totalDebt = Math.max(0, totalDue - totalPaid);
+  // Debt/credit come only from the backend balance (INCOME paid+partial − (completed visit price − discount));
+  // it covers every row and is also correct for roles that cannot list payments. Never recomputed here.
+  const balance = typeof patient?.balance === 'number' ? patient.balance : 0;
+  const totalDebt = Math.max(0, -balance);
+  const credit = Math.max(0, balance);
 
   const handleEditSave = () => {
     if (!patient) return;
@@ -148,7 +179,8 @@ export const usePatientProfile = (patientId: string | undefined) => {
     updatePatientMut.mutate(
       {
         id: patient.id,
-        body: { ...editForm, age: Number(editForm.age) },
+        // "" = no doctor selected → null unassigns on the backend
+        body: { ...editForm, age: Number(editForm.age), assignedDoctorId: editForm.assignedDoctorId || null },
       },
       {
         onSuccess: () => {
@@ -175,7 +207,7 @@ export const usePatientProfile = (patientId: string | undefined) => {
       toothNumber: selectedTooth,
       condition: toothForm.condition,
       notes: toothForm.notes,
-      date: new Date().toISOString().split('T')[0],
+      date: clinicToday(),
     };
     updatePatientMut.mutate(
       { id: patient.id, body: { toothChart } },
@@ -194,7 +226,7 @@ export const usePatientProfile = (patientId: string | undefined) => {
       toast.error('Shifokorni tanlang');
       return;
     }
-    const today = new Date().toISOString().split('T')[0];
+    const today = clinicToday();
     createVisitMut.mutate(
       {
         patientId: patient.id,
@@ -224,17 +256,7 @@ export const usePatientProfile = (patientId: string | undefined) => {
         },
         onSettled: () => {
           setVisitModal(false);
-          setVisitForm({
-            doctorId: '',
-            diagnosis: '',
-            treatment: '',
-            notes: '',
-            price: '',
-            status: 'completed',
-            shouldPayNow: false,
-            payAmount: '',
-            payMethod: 'cash',
-          });
+          setVisitForm(emptyVisitForm());
         },
       },
     );
@@ -251,7 +273,7 @@ export const usePatientProfile = (patientId: string | undefined) => {
       toast.error("Majburiy maydonlarni to'ldiring");
       return;
     }
-    const today = new Date().toISOString().split('T')[0];
+    const today = clinicToday();
     createPaymentMut.mutate(
       {
         patientId: patient.id,
@@ -261,7 +283,8 @@ export const usePatientProfile = (patientId: string | undefined) => {
         type: 'INCOME',
         date: today,
         description: payForm.description,
-        visitId: payForm.visitId || undefined,
+        // only this patient's visits may be linked (backend rejects foreign visitId with 400)
+        visitId: payForm.visitId && patientVisits.some((v) => v.id === payForm.visitId) ? payForm.visitId : undefined,
       },
       {
         onSettled: () => {
@@ -315,9 +338,13 @@ export const usePatientProfile = (patientId: string | undefined) => {
     patientBookings,
     patientPayments,
     canManagePayments,
+    canAddVisit,
+    canEditPatient,
     totalPaid,
     totalDue,
     totalDebt,
+    credit,
+    balance,
     doctors,
     editOpen,
     setEditOpen,

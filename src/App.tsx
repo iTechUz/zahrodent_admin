@@ -1,8 +1,7 @@
 import { Suspense } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { ApiError } from "@/lib/api/client";
-import { BrowserRouter, useRoutes, Navigate } from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { createQueryClient } from "@/lib/api/query-client";
+import { BrowserRouter, useRoutes, Navigate, useNavigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,20 +29,12 @@ import {
 
 import NotFound from "./pages/NotFound.tsx";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 60_000, retry: 1 },
-    mutations: {
-      onError: (err) => {
-        if (err instanceof ApiError) toast.error(err.message);
-      },
-    },
-  },
-});
+const queryClient = createQueryClient();
 
 const AppRoutes = () => {
   const { isAuthenticated } = useStore();
-  useSocket();
+  const navigate = useNavigate();
+  useSocket({ onOpenLead: () => navigate('/leads') });
 
   const routes = useRoutes([
     // Auth routes (not protected, but redirect if authenticated)

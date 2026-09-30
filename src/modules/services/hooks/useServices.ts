@@ -10,6 +10,7 @@ import { ServiceSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
 import { servicesApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
+import { can } from '@/shared/config/roles';
 
 type ServiceFormValues = z.infer<typeof ServiceSchema>;
 
@@ -17,6 +18,7 @@ export const CATEGORIES = ['Davolash', 'Ortodontiya', 'Xirurgiya', 'Gigiyena'];
 
 export const useServices = () => {
   const authed = useStore((s) => s.isAuthenticated);
+  const role = useStore((s) => s.currentUser?.role);
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -27,10 +29,11 @@ export const useServices = () => {
     perPage: 20,
   });
 
+  // GET /services/stats: admin + receptionist (doctors would get 403)
   const { data: stats } = useQuery({
-    queryKey: ['services', 'stats'],
+    queryKey: queryKeys.servicesStats,
     queryFn: () => servicesApi.stats(),
-    enabled: authed,
+    enabled: authed && can(role, 'services.stats'),
   });
 
   const createMut = useMutation({
@@ -80,11 +83,11 @@ export const useServices = () => {
     (data: ServiceFormValues) => {
       if (dialog.editingItem) {
         updateMut.mutate(
-          { id: dialog.editingItem.id, body: data as any },
+          { id: dialog.editingItem.id, body: data as Partial<Service> },
           { onSettled: () => dialog.closeDialog() },
         );
       } else {
-        createMut.mutate(data as any, { onSettled: () => dialog.closeDialog() });
+        createMut.mutate(data as Omit<Service, 'id'>, { onSettled: () => dialog.closeDialog() });
       }
     },
     [dialog, createMut, updateMut],
@@ -118,6 +121,8 @@ export const useServices = () => {
     handleSave,
     handleDelete,
     isLoading: table.isLoading,
+    error: table.error,
+    refetch: table.refetch,
     stats,
   };
 };

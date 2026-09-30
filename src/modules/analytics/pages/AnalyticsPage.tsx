@@ -1,6 +1,6 @@
 import { PageHeader } from '@/shared/components/PageHeader';
 import { useAnalytics } from '../hooks/useAnalytics';
-import { formatUzS } from '@/shared/lib/formatters';
+import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { 
   GrowthChart, 
   RevenueChart, 
@@ -21,7 +21,19 @@ export default function AnalyticsPage() {
     conversionData,
     sourceData,
     doctorEfficiency,
+    isError,
+    error,
+    refetch,
   } = useAnalytics();
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Tahlillar" description="Klinika samaradorligi va ko'rsatkichlari" />
+        <QueryErrorState error={error} onRetry={refetch} title="Tahlil ma'lumotlari yuklanmadi" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

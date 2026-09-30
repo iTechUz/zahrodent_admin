@@ -1,60 +1,85 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { toast } from 'sonner';
+import { resolveApiUrl } from '@/lib/api/runtime-config';
+import { can } from '@/shared/config/roles';
+import type { Lead } from '@/shared/types';
 
 let socket: Socket | null = null;
+let socketToken: string | null = null;
 
-export const useSocket = () => {
+function closeSocket() {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+    socketToken = null;
+  }
+}
+
+/** One shared socket.io connection, authenticated with the JWT (`auth: { token }`). */
+function ensureSocket(token: string): Socket {
+  if (socket && socketToken === token) return socket;
+  closeSocket(); // token changed (re-login as another user)
+  socket = io(resolveApiUrl(), {
+    transports: ['websocket'],
+    auth: { token },
+  });
+  socketToken = token;
+  if (import.meta.env.DEV) {
+    socket.on('connect', () => console.info('[socket] connected'));
+    socket.on('disconnect', (reason) => console.info('[socket] disconnected:', reason));
+  }
+  socket.on('connect_error', (err) => console.warn('[socket] connect error:', err.message));
+  return socket;
+}
+
+interface UseSocketOptions {
+  /** "Ko'rish" action on the new-lead toast */
+  onOpenLead?: (lead: Pick<Lead, 'id'>) => void;
+}
+
+/**
+ * Connects after login (reacts to the token in the store, not only on mount) and
+ * disconnects on logout. Returns the current socket (or null while logged out).
+ */
+export const useSocket = ({ onOpenLead }: UseSocketOptions = {}) => {
   const queryClient = useQueryClient();
-  const isAuthenticated = useStore((s) => s.isAuthenticated);
+  const token = useStore((s) => (s.isAuthenticated ? s.token : null));
+  const role = useStore((s) => s.currentUser?.role);
+  const [current, setCurrent] = useState<Socket | null>(() => (token ? socket : null));
+  const onOpenLeadRef = useRef(onOpenLead);
+  onOpenLeadRef.current = onOpenLead;
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      if (socket) {
-        socket.disconnect();
-        socket = null;
-      }
+    if (!token) {
+      closeSocket();
+      setCurrent(null);
       return;
     }
 
-    if (!socket) {
-      const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      socket = io(socketUrl, {
-        transports: ['websocket'],
-      });
+    const s = ensureSocket(token);
+    setCurrent(s);
 
-      socket.on('connect', () => {
-        console.log('Connected to WebSocket server');
-      });
-
-      socket.on('disconnect', () => {
-        console.log('Disconnected from WebSocket server');
-      });
-    }
-
-    const handleNewLead = (lead: any) => {
-      console.log('New lead received via WebSocket:', lead);
-      // Invalidate leads query to refetch data
+    const handleNewLead = (lead: Pick<Lead, 'id' | 'name' | 'phone'>) => {
+      if (!can(role, 'leads.read')) return;
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      
-      // Optional: show a notification
       toast.info(`Yangi murojaat: ${lead.name}`, {
         description: lead.phone,
         action: {
           label: "Ko'rish",
-          onClick: () => console.log("View lead", lead.id)
-        }
+          onClick: () => onOpenLeadRef.current?.(lead),
+        },
       });
     };
 
-    socket.on('newLead', handleNewLead);
+    s.on('newLead', handleNewLead);
 
     return () => {
-      socket?.off('newLead', handleNewLead);
+      s.off('newLead', handleNewLead);
     };
-  }, [queryClient]);
+  }, [queryClient, token, role]);
 
-  return socket;
+  return current;
 };

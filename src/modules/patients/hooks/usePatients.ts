@@ -8,7 +8,7 @@ import { useDialogState } from '@/shared/hooks/useDialogState';
 import { PatientService } from '../services/patient.service';
 import { PatientSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
-import { patientsApi } from '@/lib/api/endpoints';
+import { patientsApi, type PatientUpdatePayload } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
 
 import { getMonthToDateRange } from '@/shared/lib/date-utils';
@@ -37,24 +37,29 @@ export const usePatients = () => {
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['patients', 'stats'],
+    queryKey: queryKeys.patientsStats,
     queryFn: () => patientsApi.stats(),
     enabled: authed,
   });
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+    queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+  };
+
   const createMut = useMutation({
     mutationFn: patientsApi.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      invalidate();
       toast.success("Yangi bemor qo'shildi");
     },
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<Patient> }) =>
+    mutationFn: ({ id, body }: { id: string; body: PatientUpdatePayload }) =>
       patientsApi.update(id, body),
     onSuccess: (_, v) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      invalidate();
       queryClient.invalidateQueries({ queryKey: queryKeys.patient(v.id) });
       toast.success("Bemor ma'lumotlari yangilandi");
     },
@@ -63,7 +68,7 @@ export const usePatients = () => {
   const deleteMut = useMutation({
     mutationFn: patientsApi.remove,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      invalidate();
       toast.success("Bemor o'chirildi");
     },
   });
@@ -73,17 +78,37 @@ export const usePatients = () => {
 
   const handleSave = useCallback(
     (data: PatientFormValues) => {
+      const { assignedDoctorId, ...rest } = data;
       if (dialog.editingItem) {
+        // "" from the select = no doctor → null unassigns on the backend
         updateMut.mutate(
-          { id: dialog.editingItem.id, body: data as any },
+          { id: dialog.editingItem.id, body: { ...rest, assignedDoctorId: assignedDoctorId || null } },
           { onSettled: () => dialog.closeDialog() },
         );
       } else {
-        createMut.mutate(data as any, { onSettled: () => dialog.closeDialog() });
+        createMut.mutate(
+          {
+            ...rest,
+            notes: rest.notes ?? '',
+            ...(assignedDoctorId ? { assignedDoctorId } : {}),
+          } as Parameters<typeof patientsApi.create>[0],
+          { onSettled: () => dialog.closeDialog() },
+        );
       }
     },
     [dialog, createMut, updateMut],
   );
+
+  /** "Qarzdorlar": debtors of any registration date — the month-to-date range would hide older debtors */
+  const toggleDebtOnly = useCallback(() => {
+    if (table.filters.debtOnly === 'true') {
+      table.setFilters('debtOnly', undefined);
+    } else {
+      table.setFilters('debtOnly', 'true');
+      table.setFilters('startDate', undefined);
+      table.setFilters('endDate', undefined);
+    }
+  }, [table]);
 
   const handleDelete = useCallback(() => {
     if (deleteId) {
@@ -101,6 +126,9 @@ export const usePatients = () => {
     setSearch: table.setSearch,
     filters: table.filters,
     setFilters: table.setFilters,
+    toggleDebtOnly,
+    sort: table.sort,
+    setSort: table.setSort,
     modalOpen: dialog.isOpen,
     setModalOpen: dialog.setIsOpen,
     editing: dialog.editingItem,
@@ -111,6 +139,8 @@ export const usePatients = () => {
     setDeleteId,
     handleDelete,
     isLoading: table.isLoading,
+    error: table.error,
+    refetch: table.refetch,
     isSaving: createMut.isPending || updateMut.isPending,
     stats,
   };

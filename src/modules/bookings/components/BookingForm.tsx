@@ -19,8 +19,16 @@ import { BookingSchema } from '@/shared/lib/validation';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Service } from '@/shared/types';
 import * as z from 'zod';
+import { clinicToday } from '@/shared/lib/date-utils';
 
 type BookingFormValues = z.infer<typeof BookingSchema>;
+
+export const PAST_BOOKING_DATE_ERROR = "O'tgan sanaga qabul yozib bo'lmaydi";
+
+/** New bookings can't be in the past (backend 400); editing an existing past booking is allowed. */
+export function pastBookingDateError(date: string, isEdit: boolean, today: string = clinicToday()): string | null {
+  return !isEdit && !!date && date < today ? PAST_BOOKING_DATE_ERROR : null;
+}
 
 interface BookingFormProps {
   open: boolean;
@@ -81,7 +89,15 @@ export const BookingForm = ({
     }
   }, [editing, form, open]);
 
+  const today = clinicToday();
+
   const handleSubmit = (values: BookingFormValues) => {
+    // backend rejects new bookings in the past (400) — catch it before the request
+    const dateError = pastBookingDateError(values.date, !!editing, today);
+    if (dateError) {
+      form.setError('date', { message: dateError });
+      return;
+    }
     onSave(values);
   };
 
@@ -158,7 +174,7 @@ export const BookingForm = ({
                   <FormItem>
                     <FormLabel>Sana <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input type="date" min={editing ? undefined : today} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

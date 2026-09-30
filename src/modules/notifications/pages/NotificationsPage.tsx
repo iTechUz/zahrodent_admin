@@ -1,6 +1,6 @@
 import React from 'react';
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { useServerTable } from '@/shared/hooks/useServerTable';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -8,16 +8,14 @@ import { StatCard } from '@/shared/components/StatCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Send, MessageSquare, ChevronLeft, ChevronRight, Bell, ShieldCheck, 
-  Calendar, CheckSquare, Square, Search, RefreshCcw, Loader2, Info
+  Send, MessageSquare, ChevronLeft, ChevronRight, ShieldCheck, 
+  Calendar, CheckSquare, Square, RefreshCcw, Loader2, Info
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { cn } from '@/shared/lib/utils';
 import { patientsApi, doctorsApi, notificationsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { Notification, Patient, Doctor, NotificationRecipient } from '@/shared/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBulkSms, DatePreset } from '../hooks/useBulkSms';
@@ -407,9 +405,8 @@ function BulkSmsTab() {
 
 function NotificationsPageContent() {
   const authed = useStore((s) => s.isAuthenticated);
-  const queryClient = useQueryClient();
 
-  const table = useServerTable<Notification, {}>({
+  const table = useServerTable<Notification, Record<string, never>>({
     queryKey: queryKeys.notifications,
     fetchFn: (params) => notificationsApi.list(params),
     perPage: 15,
@@ -421,7 +418,7 @@ function NotificationsPageContent() {
   }, [table.data]);
 
   const doctorIds = React.useMemo(() => {
-    const ids = table.data.map((n: any) => n.doctorId).filter(Boolean) as string[];
+    const ids = table.data.map((n) => n.doctorId).filter(Boolean) as string[];
     return Array.from(new Set(ids)).sort();
   }, [table.data]);
 
