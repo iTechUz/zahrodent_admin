@@ -70,7 +70,7 @@ jobs:
             docker pull 10449/zaxrodent_admin:${{ github.sha }}
             docker rm -f zaxrodent_admin || true
 
-            docker run -d \
+            docker run -d --restart unless-stopped \
               --name zaxrodent_admin \
               -p 8070:8070 \
               --env-file /home/ubuntu/projects/zaxro_dent/zahrodent_admin/.env \
