@@ -19,7 +19,8 @@ export const permissions = {
   'patients.read': STAFF,
   'patients.create': FRONT_DESK,
   'patients.update': STAFF, // doctor: only own patients (backend scopes)
-  'patients.delete': ADMIN, // 409 when the patient has visits/payments
+  'patients.delete': ADMIN, // soft delete (archive) — history is kept
+  'patients.restore': ADMIN,
   'patients.comment': STAFF,
   'patients.stats': STAFF,
 
@@ -57,6 +58,10 @@ export const permissions = {
   'leads.write': FRONT_DESK,
 
   'users.manage': ADMIN,
+
+  'settings.read': STAFF,
+  'settings.update': ADMIN,
+  'auth.changePassword': STAFF,
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type Permission = keyof typeof permissions;

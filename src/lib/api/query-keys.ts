@@ -55,6 +55,8 @@ export const queryKeys = {
   notifications: ['notifications'] as const,
   notificationsList: listKey('notifications'),
 
+  settings: ['settings'] as const,
+
   analytics: ['analytics'] as const,
   analyticsDashboard: (date: string) => ['analytics', 'dashboard', date] as const,
   analyticsMonthly: (months: number) => ['analytics', 'monthly', months] as const,
