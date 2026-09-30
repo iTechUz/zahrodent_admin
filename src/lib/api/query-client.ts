@@ -21,12 +21,17 @@ export function getErrorMessage(err: unknown, fallback = GENERIC_QUERY_ERROR): s
   return fallback;
 }
 
+/** "So'rov ID: …" line for support, when the backend sent a `requestId`. */
+export function getRequestIdLabel(err: unknown): string | undefined {
+  return err instanceof ApiError && err.requestId ? `So'rov ID: ${err.requestId}` : undefined;
+}
+
 /** Toast a failed query. 401 is skipped (client already redirects to /login); identical messages are de-duplicated. */
 export function reportQueryError(err: unknown, query?: Pick<Query, 'meta'>) {
   if (query?.meta?.silentError) return;
   if (err instanceof ApiError && err.status === 401) return;
   const message = query?.meta?.errorMessage ?? getErrorMessage(err);
-  toast.error(message, { id: `query-error:${message}` });
+  toast.error(message, { id: `query-error:${message}`, description: getRequestIdLabel(err) });
 }
 
 function shouldRetry(failureCount: number, err: unknown) {
@@ -44,7 +49,8 @@ export function createQueryClient() {
       queries: { staleTime: 60_000, retry: shouldRetry, refetchOnWindowFocus: false },
       mutations: {
         onError: (err) => {
-          if (err instanceof ApiError && err.status !== 401) toast.error(err.message);
+          if (err instanceof ApiError && err.status !== 401)
+            toast.error(err.message, { description: getRequestIdLabel(err) });
           else if (!(err instanceof ApiError)) toast.error("Amalni bajarishda xatolik yuz berdi");
         },
       },

@@ -1,5 +1,6 @@
 import { useStore } from './useStore';
 import { makeUser } from '@/test/utils';
+import { emitAuthEvent } from '@/lib/api/auth-events';
 
 describe('useStore', () => {
   afterEach(() => useStore.getState().logout());
@@ -18,5 +19,23 @@ describe('useStore', () => {
     expect(useStore.getState().darkMode).toBe(true);
     expect(useStore.getState().isAuthenticated).toBe(true);
     useStore.setState({ darkMode: false });
+  });
+
+  it('a silent refresh ("refreshed" event) swaps the store token', () => {
+    useStore.getState().setSession('old', makeUser('admin'));
+    emitAuthEvent({ type: 'refreshed', accessToken: 'new' });
+    expect(useStore.getState()).toMatchObject({ token: 'new', isAuthenticated: true });
+  });
+
+  it('an "expired" event logs out', () => {
+    useStore.getState().setSession('old', makeUser('admin'));
+    emitAuthEvent({ type: 'expired' });
+    expect(useStore.getState()).toMatchObject({ token: null, currentUser: null, isAuthenticated: false });
+  });
+
+  it('ignores "refreshed" after logout', () => {
+    useStore.getState().logout();
+    emitAuthEvent({ type: 'refreshed', accessToken: 'late' });
+    expect(useStore.getState().token).toBeNull();
   });
 });

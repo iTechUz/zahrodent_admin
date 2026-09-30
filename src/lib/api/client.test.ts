@@ -1,4 +1,4 @@
-import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth-token';
+import { AUTH_NOTICE_KEY, AUTH_TOKEN_KEY, AUTH_USER_KEY, REFRESH_TOKEN_KEY, TOKEN_EXPIRES_AT_KEY } from './auth-token';
 
 type ClientModule = typeof import('./client');
 
@@ -239,8 +239,8 @@ describe('apiRequest', () => {
   });
 
   describe('401 handling', () => {
-    it('clears token + user from both storages and redirects to /login', async () => {
-      const { apiRequest, ApiError } = await loadClient('https://api.test');
+    it('without a refresh token: clears the session, leaves a notice and redirects to /login', async () => {
+      const { apiRequest, ApiError, SESSION_EXPIRED_MESSAGE } = await loadClient('https://api.test');
       localStorage.setItem(AUTH_TOKEN_KEY, 'tok');
       localStorage.setItem(AUTH_USER_KEY, '{}');
       sessionStorage.setItem(AUTH_TOKEN_KEY, 'tok2');
@@ -250,11 +250,13 @@ describe('apiRequest', () => {
       const err = await apiRequest('/patients').catch((e) => e);
 
       expect(err).toBeInstanceOf(ApiError);
-      expect(err).toMatchObject({ status: 401, message: 'Unauthorized' });
+      expect(err).toMatchObject({ status: 401, message: SESSION_EXPIRED_MESSAGE });
+      expect(fetchMock).toHaveBeenCalledTimes(1); // nothing to refresh with
       expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBeNull();
       expect(localStorage.getItem(AUTH_USER_KEY)).toBeNull();
       expect(sessionStorage.getItem(AUTH_TOKEN_KEY)).toBeNull();
       expect(sessionStorage.getItem(AUTH_USER_KEY)).toBeNull();
+      expect(sessionStorage.getItem(AUTH_NOTICE_KEY)).toBe(SESSION_EXPIRED_MESSAGE);
       expect(assignMock).toHaveBeenCalledWith('/login');
     });
 
@@ -269,6 +271,238 @@ describe('apiRequest', () => {
         message: "Telefon raqami yoki parol noto'g'ri",
       });
       expect(assignMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('silent refresh', () => {
+    type Route = (url: string, init: RequestInit) => Response | Promise<Response>;
+    const authOf = (init: RequestInit) => (init.headers as Headers).get('Authorization');
+
+    /** fetch stub: /auth/refresh → `refresh`, everything else → 401 for the old token, 200 otherwise */
+    function server({
+      refresh = () => jsonResponse({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 900 }),
+      validToken = 'Bearer new-access',
+    }: { refresh?: Route; validToken?: string } = {}) {
+      fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.endsWith('/auth/refresh')) return refresh(url, init);
+        return authOf(init) === validToken
+          ? jsonResponse({ ok: true, url })
+          : jsonResponse({ message: 'Unauthorized' }, { status: 401 });
+      });
+    }
+    const refreshCalls = () => fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/auth/refresh'));
+
+    function remembered(access = 'old-access', refresh = 'old-refresh') {
+      localStorage.setItem(AUTH_TOKEN_KEY, access);
+      localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+      localStorage.setItem(AUTH_USER_KEY, '{}');
+    }
+
+    it('on 401 refreshes once, stores the rotated tokens and retries the request with the new token', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      server();
+
+      await expect(apiRequest('/patients')).resolves.toMatchObject({ ok: true });
+
+      expect(refreshCalls()).toHaveLength(1);
+      const [, refreshInit] = refreshCalls()[0];
+      expect(JSON.parse(refreshInit.body as string)).toEqual({ refresh_token: 'old-refresh' });
+      expect(authOf(refreshInit)).toBeNull();
+      const last = fetchMock.mock.calls.at(-1)!;
+      expect(last[0]).toBe('https://api.test/patients');
+      expect(authOf(last[1])).toBe('Bearer new-access');
+      expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBe('new-access');
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('new-refresh');
+      expect(Number(localStorage.getItem(TOKEN_EXPIRES_AT_KEY))).toBeGreaterThan(Date.now());
+      expect(assignMock).not.toHaveBeenCalled();
+    });
+
+    it('resends method and body on the retry', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      server();
+      await apiRequest('/patients/p1', { method: 'PATCH', body: '{"age":30}' });
+      const last = fetchMock.mock.calls.at(-1)![1] as RequestInit;
+      expect(last.method).toBe('PATCH');
+      expect(last.body).toBe('{"age":30}');
+    });
+
+    it('single-flight: concurrent 401s share one refresh request', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      server({
+        refresh: async () => {
+          await gate;
+          return jsonResponse({ access_token: 'new-access', refresh_token: 'new-refresh' });
+        },
+      });
+
+      const all = Promise.all([apiRequest('/a'), apiRequest('/b'), apiRequest('/c')]);
+      await vi.waitFor(() => expect(refreshCalls()).toHaveLength(1));
+      release();
+      const results = await all;
+
+      expect(results.map((r) => (r as { url: string }).url)).toEqual([
+        'https://api.test/a',
+        'https://api.test/b',
+        'https://api.test/c',
+      ]);
+      expect(refreshCalls()).toHaveLength(1);
+    });
+
+    it('a later 401 with an already-rotated token retries with the current one (no second refresh)', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      let calls = 0;
+      fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+        calls++;
+        if (calls === 1) {
+          // while this request is "in flight" another one refreshed the session
+          localStorage.setItem(AUTH_TOKEN_KEY, 'new-access');
+          return jsonResponse({ message: 'Unauthorized' }, { status: 401 });
+        }
+        return authOf(init) === 'Bearer new-access' ? jsonResponse({ ok: true }) : jsonResponse({}, { status: 401 });
+      });
+      await expect(apiRequest('/x')).resolves.toEqual({ ok: true });
+      expect(refreshCalls()).toHaveLength(0);
+    });
+
+    it('refresh rejected (invalid / reused) → clears the session and redirects with the Uzbek message', async () => {
+      const { apiRequest, SESSION_EXPIRED_MESSAGE } = await loadClient('https://api.test');
+      remembered();
+      server({ refresh: () => jsonResponse({ message: SESSION_EXPIRED_MESSAGE }, { status: 401 }) });
+
+      const results = await Promise.allSettled([apiRequest('/a'), apiRequest('/b')]);
+
+      expect(results.every((r) => r.status === 'rejected')).toBe(true);
+      expect((results[0] as PromiseRejectedResult).reason).toMatchObject({ status: 401, message: SESSION_EXPIRED_MESSAGE });
+      expect(refreshCalls()).toHaveLength(1);
+      expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBeNull();
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
+      expect(localStorage.getItem(AUTH_USER_KEY)).toBeNull();
+      expect(sessionStorage.getItem(AUTH_NOTICE_KEY)).toBe(SESSION_EXPIRED_MESSAGE);
+      expect(assignMock).toHaveBeenCalledWith('/login');
+    });
+
+    it('emits "expired" so the store logs out', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      const { onAuthEvent } = await import('./auth-events');
+      const events: string[] = [];
+      onAuthEvent((e) => events.push(e.type));
+      remembered();
+      server({ refresh: () => jsonResponse({}, { status: 401 }) });
+      await apiRequest('/a').catch(() => {});
+      expect(events).toEqual(['expired']);
+    });
+
+    it('emits "refreshed" with the new access token', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      const { onAuthEvent } = await import('./auth-events');
+      const events: unknown[] = [];
+      onAuthEvent((e) => events.push(e));
+      remembered();
+      server();
+      await apiRequest('/a');
+      expect(events).toEqual([{ type: 'refreshed', accessToken: 'new-access' }]);
+    });
+
+    it('retries only once: a 401 after a successful refresh ends the session (no loop)', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      server({ validToken: 'never' });
+      await expect(apiRequest('/a')).rejects.toMatchObject({ status: 401 });
+      expect(refreshCalls()).toHaveLength(1);
+      expect(fetchMock).toHaveBeenCalledTimes(3); // request, refresh, retry
+      expect(assignMock).toHaveBeenCalledWith('/login');
+    });
+
+    it.each(['/auth/login', '/auth/refresh', '/auth/logout'])('never refreshes for %s', async (path) => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      fetchMock.mockResolvedValue(jsonResponse({ message: 'Unauthorized' }, { status: 401 }));
+      await expect(apiRequest(path, { method: 'POST', body: '{}' })).rejects.toMatchObject({ status: 401 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBe('old-access');
+      expect(assignMock).not.toHaveBeenCalled();
+    });
+
+    it('refreshes for /auth/me (an authenticated endpoint)', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      server();
+      await expect(apiRequest('/auth/me')).resolves.toMatchObject({ ok: true });
+      expect(refreshCalls()).toHaveLength(1);
+    });
+
+    it('offline during refresh: keeps the session and surfaces the network error', async () => {
+      const { apiRequest, NETWORK_ERROR_MESSAGE } = await loadClient('https://api.test');
+      remembered();
+      server({
+        refresh: () => {
+          throw new TypeError('Failed to fetch');
+        },
+      });
+      await expect(apiRequest('/a')).rejects.toMatchObject({ status: 0, message: NETWORK_ERROR_MESSAGE });
+      expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBe('old-access');
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('old-refresh');
+      expect(assignMock).not.toHaveBeenCalled();
+    });
+
+    it('a non-remembered session keeps the rotated tokens in sessionStorage', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      sessionStorage.setItem(AUTH_TOKEN_KEY, 'old-access');
+      sessionStorage.setItem(REFRESH_TOKEN_KEY, 'old-refresh');
+      server();
+      await apiRequest('/a');
+      expect(sessionStorage.getItem(AUTH_TOKEN_KEY)).toBe('new-access');
+      expect(sessionStorage.getItem(REFRESH_TOKEN_KEY)).toBe('new-refresh');
+      expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBeNull();
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
+    });
+
+    it('another tab rotated the shared refresh token: a "reused" rejection keeps the session', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      server({
+        refresh: () => {
+          // the other tab finished first and wrote its tokens
+          localStorage.setItem(AUTH_TOKEN_KEY, 'new-access');
+          localStorage.setItem(REFRESH_TOKEN_KEY, 'tab2-refresh');
+          return jsonResponse({ message: 'reused' }, { status: 401 });
+        },
+      });
+      await expect(apiRequest('/a')).resolves.toMatchObject({ ok: true });
+      expect(assignMock).not.toHaveBeenCalled();
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('tab2-refresh');
+    });
+
+    it('refreshes proactively when the access token expires within 60s', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      localStorage.setItem(TOKEN_EXPIRES_AT_KEY, String(Date.now() + 30_000));
+      server();
+      await apiRequest('/a');
+      expect(fetchMock.mock.calls.map(([u]) => u)).toEqual(['https://api.test/auth/refresh', 'https://api.test/a']);
+    });
+
+    it('does not refresh proactively while the token is still fresh', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered('new-access');
+      localStorage.setItem(TOKEN_EXPIRES_AT_KEY, String(Date.now() + 10 * 60_000));
+      server();
+      await apiRequest('/a');
+      expect(refreshCalls()).toHaveLength(0);
+    });
+  });
+
+  describe('requestId', () => {
+    it('keeps the backend requestId on the ApiError', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      fetchMock.mockResolvedValue(jsonResponse({ message: 'Server xatosi', requestId: 'req-42' }, { status: 500 }));
+      await expect(apiRequest('/x')).rejects.toMatchObject({ status: 500, requestId: 'req-42' });
     });
   });
 

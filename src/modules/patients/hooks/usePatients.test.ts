@@ -237,7 +237,7 @@ describe('usePatients', () => {
       const { result } = renderHook(() => usePatients(), { wrapper });
       act(() => result.current.setDeleteId('p1'));
       act(() => result.current.handleDelete());
-      await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(msg));
+      await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(msg, { description: undefined }));
       expect(toastMock.success).not.toHaveBeenCalledWith("Bemor o'chirildi");
       expect(invalidate).not.toHaveBeenCalled();
       expect(result.current.deleteId).toBeNull();

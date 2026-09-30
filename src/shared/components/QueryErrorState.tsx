@@ -1,6 +1,6 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getErrorMessage } from '@/lib/api/query-client';
+import { getErrorMessage, getRequestIdLabel } from '@/lib/api/query-client';
 
 interface QueryErrorStateProps {
   error?: unknown;
@@ -26,6 +26,9 @@ export function QueryErrorState({
       </div>
       <h3 className="text-sm font-medium text-foreground">{title}</h3>
       <p className="text-xs text-muted-foreground mt-1 max-w-md">{getErrorMessage(error)}</p>
+      {getRequestIdLabel(error) && (
+        <p className="text-[10px] text-muted-foreground/70 mt-1 font-mono select-all">{getRequestIdLabel(error)}</p>
+      )}
       {onRetry && (
         <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
           <RefreshCw className="w-3.5 h-3.5 mr-2" />
