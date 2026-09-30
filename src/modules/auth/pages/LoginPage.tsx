@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Sparkles, Eye, EyeOff, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
-import { takeAuthNotice } from '@/lib/api/auth-token';
+import { getAuthNotice } from '@/lib/api/auth-token';
 
 export default function LoginPage() {
   const setSession = useStore((s) => s.setSession);
@@ -19,8 +19,8 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // "Sessiya muddati tugagan…" etc. — set by the API client before redirecting here (read once)
-  const [notice] = useState(() => takeAuthNotice());
+  // "Sessiya muddati tugagan…" etc. — set by the API client before redirecting here; cleared on login
+  const [notice] = useState(() => getAuthNotice());
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -85,7 +85,8 @@ export const usePatientProfile = (
   const { data: comments, isLoading: commentsLoading } = useQuery({
     queryKey: ['patients', patientId, 'comments'],
     queryFn: () => patientsApi.getComments(patientId!),
-    enabled: !!patientId && authed,
+    // the backend 404s comments of an archived patient — wait for the record when deep-linked
+    enabled: !!patientId && authed && (!withDeleted || (!!patient && !isArchived)),
   });
 
   const addCommentMut = useMutation({

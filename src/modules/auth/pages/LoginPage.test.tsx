@@ -158,12 +158,18 @@ describe('LoginPage', () => {
     expect(useStore.getState().token).toBe('a1');
   });
 
-  it('shows the "session expired" notice left by the API client, once', () => {
+  it('shows the "session expired" notice left by the API client until the next login', async () => {
     sessionStorage.setItem(AUTH_NOTICE_KEY, 'Sessiya muddati tugagan, qayta kiring');
     const { unmount } = renderPage();
     expect(screen.getByRole('status')).toHaveTextContent('Sessiya muddati tugagan, qayta kiring');
     unmount();
-    renderPage();
-    expect(screen.queryByRole('status')).toBeNull();
+    // e.g. the SPA rendered /login, then the hard redirect reloaded it
+    const { form, fill } = renderPage();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    login.mockResolvedValue({ access_token: 'a', refresh_token: 'r', user: makeUser('admin') });
+    fill('+998 90 123 45 67', 'secret');
+    fireEvent.submit(form);
+    await waitFor(() => expect(useStore.getState().isAuthenticated).toBe(true));
+    expect(sessionStorage.getItem(AUTH_NOTICE_KEY)).toBeNull();
   });
 });

@@ -525,6 +525,7 @@ describe('usePatientProfile', () => {
 
       expect(pApi.get).toHaveBeenCalledWith('p1', { includeDeleted: true });
       expect(result.current).toMatchObject({ isArchived: true, canRestore: true, canEditPatient: false, canAddVisit: false });
+      expect(pApi.getComments).not.toHaveBeenCalled(); // backend 404s for archived patients
 
       await act(() => result.current.restore());
       expect(pApi.restore.mock.calls[0][0]).toBe('p1');

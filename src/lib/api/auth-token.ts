@@ -96,7 +96,11 @@ export function clearAuthStorage() {
   }
 }
 
-/** One-shot message for the login page (e.g. "session expired"); survives the redirect. */
+/**
+ * Message for the login page (e.g. "session expired"). It survives the hard redirect
+ * and stays until the next successful login — the SPA may render /login once before
+ * the reload, so reading it must not consume it.
+ */
 export const AUTH_NOTICE_KEY = 'zahro_auth_notice';
 
 export function setAuthNotice(message: string) {
@@ -107,12 +111,18 @@ export function setAuthNotice(message: string) {
   }
 }
 
-export function takeAuthNotice(): string | null {
+export function getAuthNotice(): string | null {
   try {
-    const msg = sessionStorage.getItem(AUTH_NOTICE_KEY);
-    if (msg) sessionStorage.removeItem(AUTH_NOTICE_KEY);
-    return msg;
+    return sessionStorage.getItem(AUTH_NOTICE_KEY);
   } catch {
     return null;
+  }
+}
+
+export function clearAuthNotice() {
+  try {
+    sessionStorage.removeItem(AUTH_NOTICE_KEY);
+  } catch {
+    /* ignore */
   }
 }

@@ -12,7 +12,8 @@ import {
   setAuthNotice,
   setAuthToken,
   setAuthTokens,
-  takeAuthNotice,
+  getAuthNotice,
+  clearAuthNotice,
 } from './auth-token';
 
 beforeEach(() => {
@@ -138,11 +139,13 @@ describe('auth-token', () => {
   });
 
   describe('auth notice', () => {
-    it('is read once', () => {
+    it('survives reads (the SPA may render /login before the hard redirect) until cleared', () => {
       setAuthNotice('Sessiya muddati tugagan, qayta kiring');
       expect(sessionStorage.getItem(AUTH_NOTICE_KEY)).toBeTruthy();
-      expect(takeAuthNotice()).toBe('Sessiya muddati tugagan, qayta kiring');
-      expect(takeAuthNotice()).toBeNull();
+      expect(getAuthNotice()).toBe('Sessiya muddati tugagan, qayta kiring');
+      expect(getAuthNotice()).toBe('Sessiya muddati tugagan, qayta kiring');
+      clearAuthNotice();
+      expect(getAuthNotice()).toBeNull();
     });
   });
 });

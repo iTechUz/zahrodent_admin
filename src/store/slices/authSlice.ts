@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand';
 import {
   AUTH_USER_KEY,
+  clearAuthNotice,
   clearAuthStorage,
   getAuthToken,
   isSessionRemembered,
@@ -65,6 +66,7 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set) => ({
     const t: AuthTokens = typeof tokens === 'string' ? { access_token: tokens } : tokens;
     // a new login must not inherit the previous session's refresh token / expiry
     clearAuthStorage();
+    clearAuthNotice();
     setAuthTokens(t, remember);
     persistUser(user, remember);
     set({ token: t.access_token, currentUser: user, isAuthenticated: true, authReady: true });
