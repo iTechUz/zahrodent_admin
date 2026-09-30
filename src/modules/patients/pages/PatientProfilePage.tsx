@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StatusBadge, SourceBadge, PaymentStatusBadge } from '@/shared/components/StatusBadge';
-import { ArrowLeft, Phone, Calendar, Pencil, Plus, CreditCard } from 'lucide-react';
+import { ArrowLeft, Phone, Calendar, Pencil, Plus, CreditCard, Archive, RotateCcw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { CheckCircle2, Wallet, Receipt, ArrowRight } from 'lucide-react';
@@ -39,6 +39,7 @@ const fmt = (n: number) => new Intl.NumberFormat('uz-UZ').format(n);
 export default function PatientProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [newComment, setNewComment] = useState('');
   
   const {
@@ -79,11 +80,24 @@ export default function PatientProfilePage() {
     canManagePayments,
     canAddVisit,
     canEditPatient,
+    isArchived,
+    canRestore,
+    restore,
+    isRestoring,
     isAddingComment,
     handleAddComment,
     isLoading,
     comments,
-  } = usePatientProfile(id);
+  } = usePatientProfile(id, { includeDeleted: searchParams.get('includeDeleted') === 'true' });
+
+  const handleRestore = async () => {
+    try {
+      await restore();
+      navigate(`/patients/${id}`, { replace: true });
+    } catch {
+      /* toast shown by the query client */
+    }
+  };
 
   if (!patient && isLoading) return <LoadingScreen />;
   if (!patient) return <div className="p-6 text-center text-muted-foreground">Bemor topilmadi</div>;
@@ -101,6 +115,27 @@ export default function PatientProfilePage() {
         )}
       </div>
 
+      {isArchived && (
+        <div
+          role="status"
+          className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between rounded-xl border border-warning/40 bg-warning/10 px-4 py-3"
+        >
+          <div className="flex items-center gap-2 text-sm">
+            <Archive className="w-4 h-4 text-warning" />
+            <span>
+              Bu bemor arxivlangan
+              {patient.deletedAt ? ` (${patient.deletedAt.slice(0, 10)})` : ''}. Tarix saqlangan, lekin bemor
+              ro'yxatlarda ko'rinmaydi.
+            </span>
+          </div>
+          {canRestore && (
+            <Button size="sm" onClick={handleRestore} disabled={isRestoring} className="gap-2 shrink-0">
+              <RotateCcw className="w-4 h-4" /> Arxivdan tiklash
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-card rounded-xl border border-border p-5">
         <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -114,6 +149,14 @@ export default function PatientProfilePage() {
               <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{patient.phone}</span>
               <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{patient.createdAt}</span>
               <SourceBadge source={patient.source} />
+              {patient.telegramConnected && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-info/30 bg-info/10 text-info"
+                  title="Eslatmalar Telegram orqali ham yuboriladi"
+                >
+                  <Send className="w-3 h-3" /> Telegram ulangan
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 p-3 rounded-lg bg-muted/40 border border-border/50">
               <div className="space-y-0.5">

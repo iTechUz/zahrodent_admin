@@ -114,4 +114,17 @@ describe('useServices', () => {
     act(() => result.current.handleDelete());
     expect(api.remove).not.toHaveBeenCalled();
   });
+
+  it('setSort maps to sortBy/order on GET /services and resets the page', async () => {
+    api.list.mockResolvedValue(paginated([svc('a', 'Davolash')], 45));
+    const { result } = setup();
+    await waitFor(() => expect(result.current.services).toHaveLength(1));
+    act(() => result.current.setPage(2));
+    act(() => result.current.setSort('price'));
+    await waitFor(() =>
+      expect(api.list).toHaveBeenLastCalledWith({ page: 0, limit: 20, search: '', category: 'all', sortBy: 'price', order: 'asc' }),
+    );
+    act(() => result.current.setSort('price'));
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ sortBy: 'price', order: 'desc' })));
+  });
 });

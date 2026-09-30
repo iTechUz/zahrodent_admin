@@ -27,6 +27,8 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { SortableTableHead } from '@/shared/components/SortableHeader';
+import { sortBy } from '@/lib/api/sort-fields';
 
 function ServicesPageContent() {
   const {
@@ -53,6 +55,8 @@ function ServicesPageContent() {
     error,
     refetch,
     stats,
+    sort,
+    setSort,
   } = useServices();
 
   // backend: services create/update/delete are admin-only
@@ -143,9 +147,18 @@ function ServicesPageContent() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Xizmat nomi</TableHead>
-                <TableHead>Kategoriya</TableHead>
-                <TableHead className="text-right">Narxi</TableHead>
+                <SortableTableHead sortKey={sortBy('services', 'name')} sort={sort} onSort={setSort}>
+                  Xizmat nomi
+                </SortableTableHead>
+                <SortableTableHead sortKey={sortBy('services', 'category')} sort={sort} onSort={setSort}>
+                  Kategoriya
+                </SortableTableHead>
+                <SortableTableHead sortKey={sortBy('services', 'duration')} sort={sort} onSort={setSort} className="text-right">
+                  Davomiyligi
+                </SortableTableHead>
+                <SortableTableHead sortKey={sortBy('services', 'price')} sort={sort} onSort={setSort} className="text-right">
+                  Narxi
+                </SortableTableHead>
                 <TableHead className="text-right">Bemorlar</TableHead>
                 <TableHead className="text-right">Daromad</TableHead>
                 {hasRowActions && <TableHead className="w-[80px]"></TableHead>}
@@ -162,6 +175,7 @@ function ServicesPageContent() {
                         {s.category}
                       </span>
                     </TableCell>
+                    <TableCell className="text-right text-muted-foreground">{s.duration} daq.</TableCell>
                     <TableCell className="text-right font-medium">
                       {formatUzS(s.price)}
                     </TableCell>

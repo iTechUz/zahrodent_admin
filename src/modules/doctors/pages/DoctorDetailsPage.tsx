@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useDoctor, useDoctors } from '../hooks/useDoctors';
 import { visitsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -28,6 +29,11 @@ import { formatUzS } from '@/shared/lib/formatters';
 import { DOCTOR_WEEKDAY_LABELS, normalizeDoctorSchedule } from '@/shared/lib/doctor-schedule';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DoctorForm, DoctorVisitForm } from '../components/DoctorForm';
+import { SortableTableHead } from '@/shared/components/SortableHeader';
+import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { resolvePatientRef } from '@/shared/lib/patient-ref';
+import { sortBy, type SortField } from '@/lib/api/sort-fields';
+import type { SortOrder } from '@/lib/api/endpoints';
 
 export const RECENT_VISITS_LIMIT = 10;
 
@@ -59,17 +65,22 @@ function DoctorDetailsContent() {
     doctorEfficiency?.avgCheck ??
     (totalVisits > 0 ? Math.round((doctorEfficiency?.totalRevenue ?? 0) / totalVisits) : 0);
 
-  const visitParams = { doctorId: id, limit: RECENT_VISITS_LIMIT };
+  // server-side sort of the recent visits (default: backend date desc)
+  const [visitSort, setVisitSort] = useState<{ sortBy?: SortField<'visits'>; order?: SortOrder }>({});
+  const toggleVisitSort = (field: string) =>
+    setVisitSort((prev) => ({
+      sortBy: field as SortField<'visits'>,
+      order: prev.sortBy === field && prev.order === 'asc' ? 'desc' : 'asc',
+    }));
+  const visitParams = { doctorId: id, limit: RECENT_VISITS_LIMIT, ...visitSort };
   const { data: visitsRes } = useQuery({
     queryKey: queryKeys.visitsList(visitParams),
     queryFn: () => visitsApi.list(visitParams),
     enabled: !!id,
+    placeholderData: keepPreviousData,
   });
   const recentVisits = visitsRes?.data ?? [];
-  const patientName = (patientId: string) => {
-    const p = patients.find((pt) => pt.id === patientId);
-    return p ? `${p.firstName} ${p.lastName}` : `#${patientId.slice(-4)}`;
-  };
+  const visitPatient = (v: (typeof recentVisits)[number]) => resolvePatientRef(v, patients);
 
   if (doctorLoading) {
     return (
@@ -262,10 +273,17 @@ function DoctorDetailsContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sana</TableHead>
+                  <SortableTableHead sortKey={sortBy('visits', 'date')} sort={visitSort} onSort={toggleVisitSort}>
+                    Sana
+                  </SortableTableHead>
                   <TableHead>Bemor</TableHead>
                   <TableHead>Tashxis</TableHead>
-                  <TableHead>Holat</TableHead>
+                  <SortableTableHead sortKey={sortBy('visits', 'price')} sort={visitSort} onSort={toggleVisitSort}>
+                    Narx
+                  </SortableTableHead>
+                  <SortableTableHead sortKey={sortBy('visits', 'status')} sort={visitSort} onSort={toggleVisitSort}>
+                    Holat
+                  </SortableTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -273,9 +291,10 @@ function DoctorDetailsContent() {
                   <TableRow key={v.id}>
                     <TableCell className="text-xs">{v.date}</TableCell>
                     <TableCell className="font-medium text-xs">
-                      {patientName(v.patientId)}
+                      {visitPatient(v) ? <PatientNameLabel patient={visitPatient(v)} /> : `#${v.patientId.slice(-4)}`}
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-[200px]">{v.diagnosis}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{formatUzS(Number(v.price) || 0)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[10px] capitalize">
                         {VISIT_STATUS_LABELS[v.status] ?? v.status}

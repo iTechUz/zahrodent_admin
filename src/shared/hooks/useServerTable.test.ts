@@ -108,14 +108,68 @@ describe('useServerTable', () => {
     expect(fetchFn).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
   });
 
-  it('setSearch updates search and resets to page 0', async () => {
-    const { result, fetchFn } = setup();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    act(() => result.current.setPage(3));
-    act(() => result.current.setSearch('Ali'));
-    expect(result.current.search).toBe('Ali');
-    expect(result.current.page).toBe(0);
-    await waitFor(() => expect(fetchFn).toHaveBeenLastCalledWith({ page: 0, limit: 10, search: 'Ali' }));
+  describe('debounced search', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('updates the input value immediately but requests only after 300ms, then resets to page 0', async () => {
+      const { result, fetchFn } = setup();
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.setPage(3));
+      await waitFor(() => expect(fetchFn).toHaveBeenLastCalledWith(expect.objectContaining({ page: 3 })));
+      vi.useFakeTimers();
+      const callsBefore = fetchFn.mock.calls.length;
+
+      act(() => result.current.setSearch('A'));
+      act(() => result.current.setSearch('Al'));
+      act(() => result.current.setSearch('Ali'));
+      expect(result.current.search).toBe('Ali');
+      expect(result.current.appliedSearch).toBe('');
+      expect(result.current.page).toBe(3); // not yet
+      act(() => vi.advanceTimersByTime(299));
+      expect(result.current.appliedSearch).toBe('');
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(result.current.appliedSearch).toBe('Ali');
+      expect(result.current.page).toBe(0);
+      vi.useRealTimers();
+      await waitFor(() => expect(fetchFn).toHaveBeenLastCalledWith({ page: 0, limit: 10, search: 'Ali' }));
+      // one request for the three keystrokes
+      expect(fetchFn.mock.calls.slice(callsBefore).filter(([p]) => p.search === 'Ali')).toHaveLength(1);
+      expect(fetchFn.mock.calls.slice(callsBefore).some(([p]) => p.search === 'A' || p.search === 'Al')).toBe(false);
+    });
+
+    it('trims the value and ignores whitespace-only changes', () => {
+      vi.useFakeTimers();
+      const { result } = setup();
+      act(() => result.current.setPage(2));
+      act(() => result.current.setSearch('   '));
+      act(() => vi.advanceTimersByTime(300));
+      expect(result.current.appliedSearch).toBe('');
+      expect(result.current.page).toBe(2); // nothing changed → no reset
+      act(() => result.current.setSearch(' Ali '));
+      act(() => vi.advanceTimersByTime(300));
+      expect(result.current.appliedSearch).toBe('Ali');
+    });
+
+    it('searchDebounceMs: 0 applies immediately', () => {
+      const fetchFn = vi.fn(async () => ({ data: [], total: 0 }));
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(
+        () => useServerTable<Row, Filters>({ queryKey: ['now'], fetchFn, searchDebounceMs: 0 }),
+        { wrapper },
+      );
+      act(() => result.current.setSearch('x'));
+      expect(result.current.appliedSearch).toBe('x');
+    });
+
+    it('does not fire after unmount', () => {
+      vi.useFakeTimers();
+      const { result, unmount, fetchFn } = setup();
+      act(() => result.current.setSearch('late'));
+      unmount();
+      act(() => vi.advanceTimersByTime(1000));
+      expect(fetchFn).not.toHaveBeenCalledWith(expect.objectContaining({ search: 'late' }));
+    });
   });
 
   it('setFilters(key, value) merges one filter and resets to page 0', async () => {

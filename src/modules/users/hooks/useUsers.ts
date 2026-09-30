@@ -5,6 +5,10 @@ import { toast } from 'sonner';
 import { useState, useCallback } from 'react';
 import { useDialogState } from '@/shared/hooks/useDialogState';
 import { SessionUser } from '@/shared/types/auth';
+import type { SortOrder } from '@/lib/api/endpoints';
+import type { SortField } from '@/lib/api/sort-fields';
+
+export type UsersSort = { sortBy?: SortField<'users'>; order?: SortOrder };
 
 type UserBody = Parameters<typeof usersApi.create>[0];
 
@@ -12,10 +16,12 @@ export const useUsers = () => {
   const authed = useStore((s) => s.isAuthenticated);
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  // GET /users is a plain array — sorting is server-side, search is local
+  const [sort, setSort] = useState<UsersSort>({});
 
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => usersApi.list(),
+    queryKey: ['users', 'list', sort],
+    queryFn: () => usersApi.list(sort.sortBy ? sort : undefined),
     enabled: authed,
   });
 
@@ -58,6 +64,8 @@ export const useUsers = () => {
   return {
     users,
     isLoading,
+    sort,
+    setSort,
     modalOpen: dialog.isOpen,
     setModalOpen: dialog.setIsOpen,
     editing: dialog.editingItem,

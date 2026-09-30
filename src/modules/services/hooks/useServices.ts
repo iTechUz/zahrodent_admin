@@ -123,6 +123,8 @@ export const useServices = () => {
     isLoading: table.isLoading,
     error: table.error,
     refetch: table.refetch,
+    sort: table.sort,
+    setSort: table.setSort,
     stats,
   };
 };

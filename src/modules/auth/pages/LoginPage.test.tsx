@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { loginRequest } from '@/lib/api/endpoints';
 import { ApiError, NETWORK_ERROR_MESSAGE } from '@/lib/api/client';
-import { AUTH_TOKEN_KEY } from '@/lib/api/auth-token';
+import { AUTH_NOTICE_KEY, AUTH_TOKEN_KEY, REFRESH_TOKEN_KEY, TOKEN_EXPIRES_AT_KEY } from '@/lib/api/auth-token';
 import { useStore } from '@/store/useStore';
 import { resetApiMock, toastMock } from '@/test/api-mock';
 import { loginAs, makeUser } from '@/test/utils';
@@ -145,5 +145,31 @@ describe('LoginPage', () => {
     expect(password).toHaveAttribute('type', 'text');
     fireEvent.click(toggle);
     expect(password).toHaveAttribute('type', 'password');
+  });
+
+  it('stores the refresh token and expiry from the login response', async () => {
+    login.mockResolvedValue({ access_token: 'a1', refresh_token: 'r1', expires_in: 900, user: makeUser('admin') });
+    const { form, fill } = renderPage();
+    fill('+998 90 123 45 67', 'secret');
+    fireEvent.submit(form);
+    await waitFor(() => expect(useStore.getState().isAuthenticated).toBe(true));
+    expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('r1');
+    expect(Number(localStorage.getItem(TOKEN_EXPIRES_AT_KEY))).toBeGreaterThan(Date.now());
+    expect(useStore.getState().token).toBe('a1');
+  });
+
+  it('shows the "session expired" notice left by the API client until the next login', async () => {
+    sessionStorage.setItem(AUTH_NOTICE_KEY, 'Sessiya muddati tugagan, qayta kiring');
+    const { unmount } = renderPage();
+    expect(screen.getByRole('status')).toHaveTextContent('Sessiya muddati tugagan, qayta kiring');
+    unmount();
+    // e.g. the SPA rendered /login, then the hard redirect reloaded it
+    const { form, fill } = renderPage();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    login.mockResolvedValue({ access_token: 'a', refresh_token: 'r', user: makeUser('admin') });
+    fill('+998 90 123 45 67', 'secret');
+    fireEvent.submit(form);
+    await waitFor(() => expect(useStore.getState().isAuthenticated).toBe(true));
+    expect(sessionStorage.getItem(AUTH_NOTICE_KEY)).toBeNull();
   });
 });

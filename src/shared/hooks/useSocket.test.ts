@@ -176,4 +176,34 @@ describe('useSocket', () => {
     expect(first.disconnect).toHaveBeenCalledTimes(1);
     expect(io).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ auth: { token: 'jwt-b' } }));
   });
+
+  it('reconnects with the new access token after a silent refresh (same user)', async () => {
+    const { useSocket, useStore } = await loadHook();
+    useStore.setState(authed('jwt-old'));
+    const { result } = renderHook(() => useSocket(), { wrapper: createWrapper().wrapper });
+    const first = fake;
+    fake = makeFakeSocket();
+    vi.mocked(io).mockReturnValue(fake as never);
+
+    act(() => useStore.getState().setAccessToken('jwt-refreshed'));
+
+    expect(first.disconnect).toHaveBeenCalledTimes(1);
+    expect(io).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ auth: { token: 'jwt-refreshed' } }));
+    expect(result.current).toBe(fake);
+    expect(fake.handlers.get('newLead')).toHaveLength(1);
+  });
+
+  it('server-side disconnect (token rejected) triggers one refresh', async () => {
+    const { useSocket, useStore } = await loadHook();
+    const client = await import('@/lib/api/client');
+    const refresh = vi.spyOn(client, 'refreshAccessToken').mockResolvedValue('jwt-new');
+    useStore.setState(authed('jwt-a'));
+    renderHook(() => useSocket(), { wrapper: createWrapper().wrapper });
+
+    fake.emit('disconnect', 'io server disconnect');
+    fake.emit('disconnect', 'io server disconnect');
+    fake.emit('disconnect', 'transport close');
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
 });

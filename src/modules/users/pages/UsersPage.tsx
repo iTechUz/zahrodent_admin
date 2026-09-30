@@ -12,6 +12,24 @@ import { UserForm } from '../components/UserForm';
 import { roleConfig } from '@/shared/config/roles';
 import { cn } from '@/shared/lib/utils';
 import { useState, useMemo } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { SEARCH_DEBOUNCE_MS } from '@/shared/hooks/useServerTable';
+import type { UsersSort } from '../hooks/useUsers';
+
+/** "<sortBy>:<order>" options of GET /users (backend USER_SORT_FIELDS) */
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'createdAt:desc', label: 'Avval yangilari' },
+  { value: 'createdAt:asc', label: 'Avval eskilari' },
+  { value: 'name:asc', label: 'Ism (A–Z)' },
+  { value: 'name:desc', label: 'Ism (Z–A)' },
+  { value: 'phone:asc', label: "Telefon bo'yicha" },
+];
+
+function parseSort(value: string): UsersSort {
+  const [sortBy, order] = value.split(':') as [UsersSort['sortBy'], UsersSort['order']];
+  return { sortBy, order };
+}
 
 export function UsersPageContent() {
   const {
@@ -26,18 +44,19 @@ export function UsersPageContent() {
     setDeleteId,
     deleteId,
     handleDelete,
+    sort,
+    setSort,
   } = useUsers();
 
   const [search, setSearch] = useState('');
+  const term = useDebouncedValue(search.trim().toLowerCase(), SEARCH_DEBOUNCE_MS);
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       if (u.role !== 'receptionist') return false;
-      const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) || 
-                           u.phone.toLowerCase().includes(search.toLowerCase());
-      return matchesSearch;
+      return u.name.toLowerCase().includes(term) || u.phone.toLowerCase().includes(term);
     });
-  }, [users, search]);
+  }, [users, term]);
 
   return (
     <div className="space-y-6">
@@ -63,6 +82,21 @@ export function UsersPageContent() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <Select
+          value={sort.sortBy ? `${sort.sortBy}:${sort.order ?? 'asc'}` : 'createdAt:desc'}
+          onValueChange={(v) => setSort(parseSort(v))}
+        >
+          <SelectTrigger className="w-full sm:w-[200px]" aria-label="Saralash">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (

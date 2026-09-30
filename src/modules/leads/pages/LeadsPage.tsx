@@ -17,7 +17,6 @@ import {
   List, 
   Copy, 
   MessageCircle,
-  Clock,
   User,
   Download,
   HeartPulse,
@@ -42,6 +41,7 @@ import { cn } from '@/shared/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { sortBy } from '@/lib/api/sort-fields';
 
 const STATUS_COLUMNS: { id: LeadStatus; label: string; color: string; bgColor: string; icon: LucideIcon }[] = [
   { id: 'new', label: 'Yangi', color: 'text-blue-600', bgColor: 'bg-blue-50', icon: MessageSquare },
@@ -67,7 +67,9 @@ export default function LeadsPage() {
     page,
     setPage,
     totalPages,
-    totalCount
+    totalCount,
+    sort,
+    setSort,
   } = useLeads();
   
   const navigate = useNavigate();
@@ -92,7 +94,7 @@ export default function LeadsPage() {
   // every page with the current filters (the table/board only holds one page)
   const handleExport = async () => {
     try {
-      const res = await fetchAllPages(leadsApi.list, { ...filters, search });
+      const res = await fetchAllPages(leadsApi.list, { ...filters, search, ...sort });
       await exportToExcel(res.data as unknown as Record<string, unknown>[], 'murojaatlar');
     } catch {
       toast.error('Eksport qilishda xatolik yuz berdi');
@@ -172,12 +174,10 @@ export default function LeadsPage() {
   const columns: Column<Lead>[] = [
     { 
       header: 'Ism', 
+      sortKey: sortBy('leads', 'name'),
       accessor: (l) => (
         <div className="flex flex-col cursor-pointer hover:text-primary transition-colors" onClick={() => handleOpenDetails(l)}>
           <span className="font-medium">{l.name}</span>
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {formatDate(l.createdAt)}
-          </span>
         </div>
       )
     },
@@ -198,6 +198,7 @@ export default function LeadsPage() {
     },
     { 
       header: 'Holat', 
+      sortKey: sortBy('leads', 'status'),
       accessor: (l) => {
         const col = STATUS_COLUMNS.find(c => c.id === l.status);
         return (
@@ -209,11 +210,17 @@ export default function LeadsPage() {
     },
     {
       header: 'Manba',
+      sortKey: sortBy('leads', 'source'),
       accessor: (l) => (
         <Badge variant="outline" className="text-[10px] font-normal opacity-70">
           {l.source === 'telegram_bot' ? 'Bot' : l.source === 'crm' ? 'Qo\'lda' : l.source}
         </Badge>
       )
+    },
+    {
+      header: 'Sana',
+      sortKey: sortBy('leads', 'createdAt'),
+      accessor: (l) => <span className="text-xs text-muted-foreground">{formatDate(l.createdAt)}</span>,
     },
     {
       header: 'Amallar',
@@ -453,6 +460,8 @@ export default function LeadsPage() {
           data={leads} 
           columns={columns} 
           isLoading={isLoading}
+          sort={sort}
+          onSortChange={setSort}
         />
         
         {totalPages > 1 && (

@@ -9,9 +9,10 @@ interface ConfirmDeleteDialogProps {
   onConfirm: () => void;
   title?: string;
   description?: string;
+  confirmLabel?: string;
 }
 
-export function ConfirmDeleteDialog({ open, onOpenChange, onConfirm, title = 'Ishonchingiz komilmi?', description = 'Bu amalni qaytarib bo\'lmaydi. Ma\'lumot butunlay o\'chiriladi.' }: ConfirmDeleteDialogProps) {
+export function ConfirmDeleteDialog({ open, onOpenChange, onConfirm, title = 'Ishonchingiz komilmi?', description = 'Bu amalni qaytarib bo\'lmaydi. Ma\'lumot butunlay o\'chiriladi.', confirmLabel = "O'chirish" }: ConfirmDeleteDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -22,7 +23,7 @@ export function ConfirmDeleteDialog({ open, onOpenChange, onConfirm, title = 'Is
         <AlertDialogFooter>
           <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            O'chirish
+            {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

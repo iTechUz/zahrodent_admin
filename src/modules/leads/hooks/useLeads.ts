@@ -48,6 +48,8 @@ export const useLeads = () => {
     setPage: table.setPage,
     search: table.search,
     setSearch: table.setSearch,
+    sort: table.sort,
+    setSort: table.setSort,
     filters: table.filters,
     setFilters: table.setFilters,
     setStatusFilter,

@@ -511,4 +511,35 @@ describe('usePatientProfile', () => {
       await waitFor(() => expect(result.current.comments).toEqual([{ id: 'c1', content: 'x' }]));
     });
   });
+
+  describe('archived (soft-deleted) patient', () => {
+    const archived = { ...patient, deletedAt: '2026-06-15T10:00:00.000Z' };
+
+    it('admin + includeDeleted asks the backend for the archived record and may restore it', async () => {
+      pApi.get.mockResolvedValue(archived);
+      pApi.restore.mockResolvedValue(patient);
+      const { wrapper, queryClient } = createWrapper();
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+      const { result } = renderHook(() => usePatientProfile('p1', { includeDeleted: true }), { wrapper });
+      await ready(result);
+
+      expect(pApi.get).toHaveBeenCalledWith('p1', { includeDeleted: true });
+      expect(result.current).toMatchObject({ isArchived: true, canRestore: true, canEditPatient: false, canAddVisit: false });
+      expect(pApi.getComments).not.toHaveBeenCalled(); // backend 404s for archived patients
+
+      await act(() => result.current.restore());
+      expect(pApi.restore.mock.calls[0][0]).toBe('p1');
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
+      expect(toastMock.success).toHaveBeenCalledWith('Bemor arxivdan tiklandi');
+    });
+
+    it('non-admins never send includeDeleted', async () => {
+      loginAs('receptionist');
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => usePatientProfile('p1', { includeDeleted: true }), { wrapper });
+      await ready(result);
+      expect(pApi.get).toHaveBeenCalledWith('p1');
+      expect(result.current.canRestore).toBe(false);
+    });
+  });
 });

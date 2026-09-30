@@ -57,9 +57,16 @@ describe('createQueryClient', () => {
     const qc = createQueryClient();
     const onError = qc.getDefaultOptions().mutations?.onError as (e: unknown) => void;
     onError(new ApiError(409, 'Vaqt band'));
-    expect(toast.error).toHaveBeenCalledWith('Vaqt band');
+    expect(toast.error).toHaveBeenCalledWith('Vaqt band', { description: undefined });
     vi.mocked(toast.error).mockClear();
     onError(new ApiError(401, 'x'));
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('shows the backend requestId under the error message', () => {
+    const qc = createQueryClient();
+    const onError = qc.getDefaultOptions().mutations?.onError as (e: unknown) => void;
+    onError(new ApiError(500, 'Server xatosi', 'req-7'));
+    expect(toast.error).toHaveBeenCalledWith('Server xatosi', { description: "So'rov ID: req-7" });
   });
 });

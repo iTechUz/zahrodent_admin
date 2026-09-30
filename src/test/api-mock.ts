@@ -10,6 +10,21 @@ const page = () => Promise.resolve({ data: [] as never[], total: 0 });
 function make() {
   return {
     loginRequest: vi.fn(),
+    PASSWORD_MIN_LENGTH: 8,
+    PASSWORD_MAX_LENGTH: 72,
+    TEMPLATE_PLACEHOLDERS: ['{name}', '{date}', '{time}', '{doctor}', '{clinic}'] as const,
+    TEMPLATE_MAX_LENGTH: 500,
+    REMINDER_DAYS_MAX: 7,
+    authApi: {
+      login: vi.fn(),
+      logout: vi.fn(),
+      me: vi.fn(),
+      changePassword: vi.fn(),
+    },
+    settingsApi: {
+      get: vi.fn(),
+      update: vi.fn(),
+    },
     patientsApi: {
       list: vi.fn(page),
       stats: vi.fn(),
@@ -17,6 +32,7 @@ function make() {
       create: vi.fn(),
       update: vi.fn(),
       remove: vi.fn(),
+      restore: vi.fn(),
       getComments: vi.fn(),
       addComment: vi.fn(),
     },
@@ -99,7 +115,7 @@ const ARRAY_ENDPOINTS = new Set(['analyticsApi.monthly', 'analyticsApi.sources',
 export function resetApiMock() {
   apiMock.loginRequest.mockReset();
   for (const [group, fns] of Object.entries(apiMock)) {
-    if (typeof fns === 'function') continue;
+    if (typeof fns !== 'object' || Array.isArray(fns)) continue;
     for (const [name, fn] of Object.entries(fns as Record<string, ReturnType<typeof vi.fn>>)) {
       fn.mockReset();
       if (ARRAY_ENDPOINTS.has(`${group}.${name}`)) fn.mockImplementation(() => Promise.resolve([]));

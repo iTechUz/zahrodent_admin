@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { patientRefLabel, resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { bookingsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
@@ -153,7 +155,7 @@ export function BookingCalendar() {
               </div>
               <div className="space-y-0.5">
                 {dayBookings.slice(0, 3).map((b) => {
-                  const patient = patients.find((p) => p.id === b.patientId);
+                  const patient = resolvePatientRef(b, patients);
                   return (
                     <button
                       key={b.id}
@@ -169,7 +171,7 @@ export function BookingCalendar() {
                       )}
                     >
                       <span className="hidden md:inline">{b.time} </span>
-                      {patient?.firstName}
+                      {patientRefLabel(patient, { short: true })}
                     </button>
                   );
                 })}
@@ -187,11 +189,11 @@ export function BookingCalendar() {
         <DialogContent>
           <DialogHeader><DialogTitle>Qabul tafsilotlari</DialogTitle></DialogHeader>
           {selectedBooking && (() => {
-            const patient = patients.find((p) => p.id === selectedBooking.patientId);
+            const patient = resolvePatientRef(selectedBooking, patients);
             const doctor = doctors.find((d) => d.id === selectedBooking.doctorId);
             return (
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Bemor</span><span className="font-medium">{patient?.firstName} {patient?.lastName}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Bemor</span><PatientNameLabel className="font-medium" patient={patient} /></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Shifokor</span><span className="font-medium">{doctor ? `Dr. ${doctorFullName(doctor)}` : '—'}</span></div>
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Vaqt</span><span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{selectedBooking.date} — {selectedBooking.time}</span></div>
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Manba</span><SourceBadge source={selectedBooking.source} /></div>

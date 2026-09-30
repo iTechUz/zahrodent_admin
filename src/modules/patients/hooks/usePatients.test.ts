@@ -216,7 +216,7 @@ describe('usePatients', () => {
       expect(api.remove).not.toHaveBeenCalled();
     });
 
-    it('removes the selected patient, invalidates and clears deleteId', async () => {
+    it('archives (soft delete) the selected patient, invalidates and clears deleteId', async () => {
       api.remove.mockResolvedValue({ id: 'p1' });
       const { result, invalidate } = setup();
       act(() => result.current.setDeleteId('p1'));
@@ -225,20 +225,35 @@ describe('usePatients', () => {
       await waitFor(() => expect(result.current.deleteId).toBeNull());
       expect(api.remove.mock.calls[0][0]).toBe('p1');
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients'] });
-      expect(toastMock.success).toHaveBeenCalledWith("Bemor o'chirildi");
+      expect(toastMock.success).toHaveBeenCalledWith(
+        'Bemor arxivlandi',
+        expect.objectContaining({ action: expect.objectContaining({ label: 'Qaytarish' }) }),
+      );
     });
-  });
-  describe('delete conflict (409)', () => {
-    it('shows the backend message when the patient has visits/payments and keeps the list', async () => {
-      const msg = "Bemorda tashriflar yoki to'lovlar bor — o'chirib bo'lmaydi";
-      api.remove.mockRejectedValue(new ApiError(409, msg));
+
+    it('"Qaytarish" on the toast restores the patient', async () => {
+      api.remove.mockResolvedValue({ id: 'p1' });
+      api.restore.mockResolvedValue({ id: 'p1' } as never);
+      const { result } = setup();
+      act(() => result.current.setDeleteId('p1'));
+      act(() => result.current.handleDelete());
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalled());
+      const opts = toastMock.success.mock.calls[0][1] as { action: { onClick: () => void } };
+      act(() => opts.action.onClick());
+      await waitFor(() => expect(api.restore.mock.calls[0]?.[0]).toBe('p1'));
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Bemor arxivdan tiklandi'));
+    });
+
+    it('a failed delete shows the backend message (generic error handling) and keeps the list', async () => {
+      const msg = 'Server xatosi';
+      api.remove.mockRejectedValue(new ApiError(500, msg));
       const { wrapper, queryClient } = createWrapper(createQueryClient());
       const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
       const { result } = renderHook(() => usePatients(), { wrapper });
       act(() => result.current.setDeleteId('p1'));
       act(() => result.current.handleDelete());
-      await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(msg));
-      expect(toastMock.success).not.toHaveBeenCalledWith("Bemor o'chirildi");
+      await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(msg, { description: undefined }));
+      expect(toastMock.success).not.toHaveBeenCalled();
       expect(invalidate).not.toHaveBeenCalled();
       expect(result.current.deleteId).toBeNull();
     });

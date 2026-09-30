@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { patientRefLabel, resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { bookingsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
@@ -137,12 +139,12 @@ function DroppableDayCell({
       </div>
       <div className="space-y-0.5">
         {dayBookings.slice(0, 3).map((b) => {
-          const p = patients.find((pt) => pt.id === b.patientId);
+          const p = resolvePatientRef(b, patients);
           return (
             <DraggableBookingChip
               key={b.id}
               booking={b}
-              patientName={p?.firstName ?? '?'}
+              patientName={patientRefLabel(p, { short: true })}
               onClick={() => onBookingClick(b)}
               draggable={draggable}
             />
@@ -336,11 +338,11 @@ export function DraggableBookingCalendar() {
       {/* Drag overlay (ghost that follows cursor) */}
       <DragOverlay dropAnimation={null}>
         {activeBooking && (() => {
-          const p = patients.find((pt) => pt.id === activeBooking.patientId);
+          const p = resolvePatientRef(activeBooking, patients);
           return (
             <DraggableBookingChip
               booking={activeBooking}
-              patientName={p?.firstName ?? '?'}
+              patientName={patientRefLabel(p, { short: true })}
               onClick={() => {}}
               isOverlay
             />
@@ -353,13 +355,13 @@ export function DraggableBookingCalendar() {
         <DialogContent>
           <DialogHeader><DialogTitle>Qabul tafsilotlari</DialogTitle></DialogHeader>
           {selectedBooking && (() => {
-            const patient = patients.find((p) => p.id === selectedBooking.patientId);
+            const patient = resolvePatientRef(selectedBooking, patients);
             const doctor = doctors.find((d) => d.id === selectedBooking.doctorId);
             return (
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Bemor</span>
-                  <span className="font-medium">{patient?.firstName} {patient?.lastName}</span>
+                  <PatientNameLabel className="font-medium" patient={patient} />
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shifokor</span>

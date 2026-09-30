@@ -10,6 +10,7 @@ import { ProtectedRoute, GlobalSearch } from "@/components";
 import { useStore } from "@/store/useStore";
 import { LoadingScreen } from "@/shared/components";
 import { useSocket } from "@/shared/hooks/useSocket";
+import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 
 // Module Routes
 import {
@@ -32,7 +33,8 @@ import NotFound from "./pages/NotFound.tsx";
 const queryClient = createQueryClient();
 
 const AppRoutes = () => {
-  const { isAuthenticated } = useStore();
+  const isAuthenticated = useStore((s) => s.isAuthenticated);
+  const authReady = useAuthBootstrap();
   const navigate = useNavigate();
   useSocket({ onOpenLead: () => navigate('/leads') });
 
@@ -69,6 +71,9 @@ const AppRoutes = () => {
     // Global routes
     { path: "*", element: <NotFound /> },
   ]);
+
+  // a stored token without a cached user is being verified (GET /auth/me)
+  if (!authReady) return <LoadingScreen />;
 
   return (
     <>

@@ -37,6 +37,17 @@ export interface Patient {
   toothChart?: Record<number, ToothRecord>;
   /** paid − owed (sum of payments − sum of visit prices); negative = debt */
   balance?: number;
+  /** set when the patient is archived (soft-deleted) */
+  deletedAt?: string | null;
+  /** the patient linked the Telegram bot → reminders also go to Telegram */
+  telegramConnected?: boolean;
+}
+
+/** Patient summary embedded in booking / payment rows — present even when the patient is archived. */
+export interface PatientRef {
+  firstName: string;
+  lastName: string;
+  deletedAt?: string | null;
 }
 
 export interface PatientComment {
@@ -98,6 +109,7 @@ export interface Booking {
   notes?: string;
   createdAt: string;
   serviceId?: string;
+  patient?: PatientRef;
 }
 
 export interface Visit {
@@ -111,6 +123,7 @@ export interface Visit {
   diagnosis: string;
   treatment: string;
   notes: string;
+  patient?: PatientRef;
 }
 
 export interface Payment {
@@ -125,6 +138,19 @@ export interface Payment {
   discount?: number;
   serviceId?: string;
   visitId?: string;
+  patient?: PatientRef;
+}
+
+/** GET /settings — clinic info + reminder templates ({name},{date},{time},{doctor},{clinic}). */
+export interface ClinicSettings {
+  clinicName: string;
+  address: string;
+  phone: string;
+  workingHours: string;
+  smsReminderTemplate: string;
+  telegramReminderTemplate: string;
+  /** 0..7 — how many days before the booking the reminder goes out */
+  reminderDaysAhead: number;
 }
 
 export interface Notification {

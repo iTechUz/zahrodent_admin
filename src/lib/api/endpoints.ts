@@ -12,6 +12,8 @@ import type {
   Lead,
 } from '@/shared/types';
 import type { SessionUser } from '@/shared/types/auth';
+import type { ClinicSettings } from '@/shared/types';
+import type { AuthTokens } from './auth-token';
 import type {
   DashboardAnalytics,
   MonthlyAnalyticsRow,
@@ -23,13 +25,46 @@ import { MAX_PAGE_LIMIT } from './helpers';
 
 export { MAX_PAGE_LIMIT };
 
+export type LoginResponse = AuthTokens & { user: SessionUser };
+
 export async function loginRequest(body: { phone: string; password: string }) {
-  return apiRequest<{ access_token: string; user: SessionUser }>('/auth/login', {
+  return apiRequest<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(body),
     skipAuth: true,
   });
 }
+
+/** Password rules of `PATCH /auth/password` (backend ChangePasswordDto). */
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 72;
+
+export const authApi = {
+  login: loginRequest,
+  /** Revokes the refresh token server-side. Public endpoint — a 401 here never triggers a refresh. */
+  logout: (refreshToken: string) =>
+    apiRequest<{ success: boolean }>('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }),
+  me: () => apiRequest<SessionUser>('/auth/me'),
+  /** Revokes every refresh token of the user on success. 400 "Joriy parol noto'g'ri". */
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    apiRequest<{ success: boolean }>('/auth/password', { method: 'PATCH', body: JSON.stringify(body) }),
+};
+
+/** Placeholders the backend substitutes in reminder templates. */
+export const TEMPLATE_PLACEHOLDERS = ['{name}', '{date}', '{time}', '{doctor}', '{clinic}'] as const;
+export const TEMPLATE_MAX_LENGTH = 500;
+export const REMINDER_DAYS_MAX = 7;
+
+export const settingsApi = {
+  /** Every staff role may read. */
+  get: () => apiRequest<ClinicSettings>('/settings'),
+  /** Admin only; partial update. */
+  update: (body: Partial<ClinicSettings>) =>
+    apiRequest<ClinicSettings>('/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+};
 
 function qs(params: Record<string, string | number | boolean | undefined | null>) {
   const u = new URLSearchParams();
@@ -66,12 +101,17 @@ export const patientsApi = {
     params?: ListParams & { source?: string; startDate?: string; endDate?: string; debtOnly?: string | boolean },
   ) => apiRequest<PaginatedResponse<Patient>>(`/patients${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; newThisMonth: number; topSource: string }>('/patients/stats'),
-  get: (id: string) => apiRequest<Patient>(`/patients/${id}`),
+  /** `includeDeleted` (admin only) also returns an archived (soft-deleted) patient. */
+  get: (id: string, opts?: { includeDeleted?: boolean }) =>
+    apiRequest<Patient>(`/patients/${id}${qs({ includeDeleted: opts?.includeDeleted ? 'true' : undefined })}`),
   create: (body: Partial<Patient> & Pick<Patient, 'firstName' | 'lastName' | 'age' | 'phone' | 'source'>) =>
     apiRequest<Patient>('/patients', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: PatientUpdatePayload) =>
     apiRequest<Patient>(`/patients/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  /** Soft delete (archive), admin only — history (visits, payments, bookings) is kept. */
   remove: (id: string) => apiRequest<{ id: string }>(`/patients/${id}`, { method: 'DELETE' }),
+  /** Admin only: un-archive a soft-deleted patient. */
+  restore: (id: string) => apiRequest<Patient>(`/patients/${id}/restore`, { method: 'POST' }),
   getComments: (id: string) => apiRequest<PatientComment[]>(`/patients/${id}/comments`),
   addComment: (id: string, body: { content: string }) =>
     apiRequest<PatientComment>(`/patients/${id}/comments`, { method: 'POST', body: JSON.stringify(body) }),
@@ -198,7 +238,8 @@ export const notificationsApi = {
 };
 
 export const usersApi = {
-  list: () => apiRequest<SessionUser[]>('/users'),
+  /** Plain array (no pagination); sortBy: createdAt | name | role | phone. */
+  list: (params?: { sortBy?: string; order?: SortOrder }) => apiRequest<SessionUser[]>(`/users${qs(params ?? {})}`),
   get: (id: string) => apiRequest<SessionUser>(`/users/${id}`),
   create: (body: {
     name: string;

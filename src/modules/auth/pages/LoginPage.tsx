@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Sparkles, Eye, EyeOff, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
+import { getAuthNotice } from '@/lib/api/auth-token';
 
 export default function LoginPage() {
   const setSession = useStore((s) => s.setSession);
@@ -18,6 +19,8 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // "Sessiya muddati tugagan…" etc. — set by the API client before redirecting here; cleared on login
+  const [notice] = useState(() => getAuthNotice());
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +39,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await loginRequest({ phone: phone.trim(), password });
-      setSession(res.access_token, res.user, rememberMe);
+      const { user, ...tokens } = res;
+      setSession(tokens, user, rememberMe);
       toast.success(`Xush kelibsiz, ${res.user.name}!`);
     } catch (err) {
       // ApiError: backend message (wrong phone / password, 429 …) or the network message (status 0).
@@ -100,6 +104,15 @@ export default function LoginPage() {
             <h2 className="font-display font-bold text-2xl text-foreground">Tizimga kirish</h2>
             <p className="text-sm text-muted-foreground mt-1">Hisobingizga kirish uchun ma&apos;lumotlarni kiriting</p>
           </div>
+
+          {notice && !error && (
+            <div
+              role="status"
+              className="bg-warning/10 border border-warning/30 rounded-lg px-4 py-2.5 text-sm text-foreground"
+            >
+              {notice}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">

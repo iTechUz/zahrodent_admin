@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -278,7 +280,7 @@ interface BookingDetailsProps {
 export const BookingDetails = ({ booking, onClose, patients, doctors }: BookingDetailsProps) => {
   if (!booking) return null;
 
-  const patient = patients.find((p) => p.id === booking.patientId);
+  const patient = resolvePatientRef(booking, patients);
   const doctor = doctors.find((d) => d.id === booking.doctorId);
 
   return (
@@ -290,7 +292,7 @@ export const BookingDetails = ({ booking, onClose, patients, doctors }: BookingD
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Bemor</span>
-            <span className="font-medium">{patient?.firstName} {patient?.lastName}</span>
+            <PatientNameLabel className="font-medium" patient={patient} />
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Shifokor</span>

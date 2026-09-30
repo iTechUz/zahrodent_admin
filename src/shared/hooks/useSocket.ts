@@ -4,11 +4,28 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { toast } from 'sonner';
 import { resolveApiUrl } from '@/lib/api/runtime-config';
+import { ApiError, expireSession, refreshAccessToken } from '@/lib/api/client';
 import { can } from '@/shared/config/roles';
 import type { Lead } from '@/shared/types';
 
 let socket: Socket | null = null;
 let socketToken: string | null = null;
+/** the token for which a refresh was already attempted after a server-side disconnect */
+let refreshTriedFor: string | null = null;
+
+/**
+ * The server verifies the JWT only in the handshake and drops the connection
+ * ("io server disconnect") when it is invalid/expired — e.g. on an automatic reconnect
+ * after a network drop with an access token that expired meanwhile. Refresh once: the new
+ * token lands in the store and the hook below reconnects with it.
+ */
+function refreshAfterServerDisconnect(token: string) {
+  if (refreshTriedFor === token) return;
+  refreshTriedFor = token;
+  refreshAccessToken().catch((err: unknown) => {
+    if (err instanceof ApiError && err.status >= 400 && err.status < 500) expireSession();
+  });
+}
 
 function closeSocket() {
   if (socket) {
@@ -18,10 +35,13 @@ function closeSocket() {
   }
 }
 
-/** One shared socket.io connection, authenticated with the JWT (`auth: { token }`). */
+/**
+ * One shared socket.io connection, authenticated with the JWT (`auth: { token }`).
+ * A new token (silent refresh or another user's login) → reconnect with it.
+ */
 function ensureSocket(token: string): Socket {
   if (socket && socketToken === token) return socket;
-  closeSocket(); // token changed (re-login as another user)
+  closeSocket();
   socket = io(resolveApiUrl(), {
     transports: ['websocket'],
     auth: { token },
@@ -32,6 +52,9 @@ function ensureSocket(token: string): Socket {
     socket.on('disconnect', (reason) => console.info('[socket] disconnected:', reason));
   }
   socket.on('connect_error', (err) => console.warn('[socket] connect error:', err.message));
+  socket.on('disconnect', (reason) => {
+    if (reason === 'io server disconnect') refreshAfterServerDisconnect(token);
+  });
   return socket;
 }
 
