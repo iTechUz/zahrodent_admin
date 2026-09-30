@@ -65,11 +65,23 @@ export const usePatients = () => {
     },
   });
 
-  const deleteMut = useMutation({
-    mutationFn: patientsApi.remove,
+  const restoreMut = useMutation({
+    mutationFn: patientsApi.restore,
     onSuccess: () => {
       invalidate();
-      toast.success("Bemor o'chirildi");
+      toast.success('Bemor arxivdan tiklandi');
+    },
+  });
+
+  // soft delete: the patient is archived, visits/payments/bookings history stays
+  const deleteMut = useMutation({
+    mutationFn: patientsApi.remove,
+    onSuccess: (_, id) => {
+      invalidate();
+      toast.success('Bemor arxivlandi', {
+        description: "Tarix (tashriflar, to'lovlar, qabullar) saqlanib qoldi",
+        action: { label: 'Qaytarish', onClick: () => restoreMut.mutate(id) },
+      });
     },
   });
 

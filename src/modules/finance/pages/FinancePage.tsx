@@ -22,6 +22,8 @@ import { DataTable, Column } from '@/shared/components/DataTable';
 import { Payment } from '@/shared/types';
 import { formatUzS, formatDate } from '@/shared/lib/formatters';
 import { PaymentStatusBadge } from '@/shared/components/StatusBadge';
+import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { patientRefLabel, resolvePatientRef } from '@/shared/lib/patient-ref';
 import { exportToExcel } from '@/shared/lib/excel';
 import { paymentsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
@@ -73,9 +75,8 @@ export function FinancePageContent() {
       const res = await fetchAllPages(paymentsApi.list, { ...filters, search });
 
       const exportData = res.data.map(p => {
-        const pt = patients.find(patient => patient.id === p.patientId);
         return {
-          'Bemor': `${pt?.firstName ?? ''} ${pt?.lastName ?? ''}`.trim() || '—',
+          'Bemor': patientRefLabel(resolvePatientRef(p, patients)),
           'Summa': p.amount,
           'Turi': p.type === 'EXPENSE' ? 'Chiqim' : 'Kirim',
           'Usul': PAYMENT_METHOD_LABELS[p.method as keyof typeof PAYMENT_METHOD_LABELS] || p.method,
@@ -97,10 +98,7 @@ export function FinancePageContent() {
   const columns: Column<Payment>[] = [
     {
       header: 'Bemor',
-      accessor: (p) => {
-        const pt = patients.find(pt => pt.id === p.patientId);
-        return `${pt?.firstName ?? ''} ${pt?.lastName ?? ''}`.trim() || '—';
-      }
+      accessor: (p) => <PatientNameLabel patient={resolvePatientRef(p, patients)} />
     },
     { header: 'Tavsif', accessor: 'description' },
     {

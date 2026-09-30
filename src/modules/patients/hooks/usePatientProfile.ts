@@ -15,19 +15,40 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments } from '@/shared/config/roles';
 import { clinicToday } from '@/shared/lib/date-utils';
 
-export const usePatientProfile = (patientId: string | undefined) => {
+export const usePatientProfile = (
+  patientId: string | undefined,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {},
+) => {
   const authed = useStore((s) => s.isAuthenticated);
   const role = useStore((s) => s.currentUser?.role);
   const ownDoctorId = useStore((s) => (s.currentUser?.role === 'doctor' ? s.currentUser.doctorId : undefined));
   const canManagePayments = canAccessPayments(role);
-  const canAddVisit = can(role, 'visits.create');
-  const canEditPatient = can(role, 'patients.update');
+  const canAddVisitRole = can(role, 'visits.create');
   const queryClient = useQueryClient();
+  // archived patients are only reachable by admins (`?includeDeleted=true` deep link)
+  const withDeleted = includeDeleted && can(role, 'patients.restore');
 
   const { data: patient, isLoading: patientLoading } = useQuery({
-    queryKey: patientId ? queryKeys.patient(patientId) : ['patients', 'none'],
-    queryFn: () => patientsApi.get(patientId!),
+    queryKey: patientId
+      ? withDeleted
+        ? [...queryKeys.patient(patientId), { includeDeleted: true }]
+        : queryKeys.patient(patientId)
+      : ['patients', 'none'],
+    queryFn: () => (withDeleted ? patientsApi.get(patientId!, { includeDeleted: true }) : patientsApi.get(patientId!)),
     enabled: !!patientId && authed,
+  });
+  const isArchived = !!patient?.deletedAt;
+  const canAddVisit = canAddVisitRole && !isArchived;
+  const canEditPatient = can(role, 'patients.update') && !isArchived;
+  const canRestore = isArchived && can(role, 'patients.restore');
+
+  const restoreMut = useMutation({
+    mutationFn: () => patientsApi.restore(patientId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+      toast.success('Bemor arxivdan tiklandi');
+    },
   });
 
   // full history: every page (backend default limit is 10, max 100) so totals are correct
@@ -340,6 +361,10 @@ export const usePatientProfile = (patientId: string | undefined) => {
     canManagePayments,
     canAddVisit,
     canEditPatient,
+    isArchived,
+    canRestore,
+    restore: () => restoreMut.mutateAsync(),
+    isRestoring: restoreMut.isPending,
     totalPaid,
     totalDue,
     totalDebt,

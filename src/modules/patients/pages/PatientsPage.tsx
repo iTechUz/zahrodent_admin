@@ -242,6 +242,7 @@ function PatientsPageContent() {
           columns={columns}
           onEdit={can('patients.update') ? openEdit : undefined}
           onDelete={can('patients.delete') ? setDeleteId : undefined}
+          deleteLabel="Arxivlash"
           onView={(p) => navigate(`/patients/${p.id}`)}
           isLoading={isLoading}
           sort={sort}
@@ -283,10 +284,13 @@ function PatientsPageContent() {
         onSave={handleSave} 
       />
 
-      <ConfirmDeleteDialog 
-        open={!!deleteId} 
-        onOpenChange={() => setDeleteId(null)} 
-        onConfirm={handleDelete} 
+      <ConfirmDeleteDialog
+        open={!!deleteId}
+        onOpenChange={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Bemorni arxivlaysizmi?"
+        description="Bemor ro'yxatlardan olib tashlanadi va arxivlanadi. Tashriflar, to'lovlar va qabullar tarixi saqlanib qoladi — administrator uni qayta tiklay oladi."
+        confirmLabel="Arxivlash"
       />
     </div>
   );

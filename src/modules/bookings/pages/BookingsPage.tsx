@@ -18,6 +18,8 @@ import { Booking } from '@/shared/types';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { formatDate } from '@/shared/lib/formatters';
 import { StatCard } from '@/shared/components/StatCard';
+import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { StatsSkeleton } from '@/components/Skeletons';
 
 function BookingsPageContent() {
@@ -62,10 +64,7 @@ function BookingsPageContent() {
   const columns: Column<Booking>[] = [
     { 
       header: 'Bemor', 
-      accessor: (b) => {
-        const p = patients.find(patient => patient.id === b.patientId);
-        return <span className="font-medium">{p?.firstName} {p?.lastName}</span>;
-      }
+      accessor: (b) => <PatientNameLabel className="font-medium" patient={resolvePatientRef(b, patients)} />
     },
     { 
       header: 'Shifokor', 

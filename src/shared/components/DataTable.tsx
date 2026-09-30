@@ -39,6 +39,7 @@ interface DataTableRowProps<T> {
   onView?: (item: T) => void;
   idAccessor: keyof T;
   rowIndex: number;
+  deleteLabel: string;
 }
 
 // Optimized Row Component
@@ -49,7 +50,8 @@ const DataTableRow = memo(<T extends { id?: string | number }>({
   onDelete, 
   onView, 
   idAccessor, 
-  rowIndex 
+  rowIndex,
+  deleteLabel,
 }: DataTableRowProps<T>) => {
   const itemId = String(item[idAccessor] || rowIndex);
   
@@ -89,7 +91,7 @@ const DataTableRow = memo(<T extends { id?: string | number }>({
                   onClick={() => onDelete(itemId)}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  O'chirish
+                  {deleteLabel}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -110,6 +112,8 @@ interface DataTableProps<T> {
   isLoading?: boolean;
   sort?: DataTableSort;
   onSortChange?: (sortBy: string) => void;
+  /** row menu text for onDelete (e.g. "Arxivlash" for a soft delete) */
+  deleteLabel?: string;
 }
 
 export const DataTable = memo(<T extends { id?: string | number }>({ 
@@ -122,6 +126,7 @@ export const DataTable = memo(<T extends { id?: string | number }>({
   isLoading,
   sort,
   onSortChange,
+  deleteLabel = "O'chirish",
 }: DataTableProps<T>) => {
   if (!isLoading && data.length === 0) {
     return <EmptyState />;
@@ -190,6 +195,7 @@ export const DataTable = memo(<T extends { id?: string | number }>({
                   onView={onView}
                   idAccessor={idAccessor}
                   rowIndex={index}
+                  deleteLabel={deleteLabel}
                 />
               ))
             )}
