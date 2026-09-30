@@ -74,4 +74,12 @@ describe('useUsers', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users'] });
     expect(toastMock.success).toHaveBeenCalledWith("Xodim o'chirildi");
   });
+
+  it('sorting is sent to GET /users (sortBy + order)', async () => {
+    api.list.mockResolvedValue([]);
+    const { result } = setup();
+    await waitFor(() => expect(api.list).toHaveBeenCalledWith(undefined));
+    act(() => result.current.setSort({ sortBy: 'name', order: 'desc' }));
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ sortBy: 'name', order: 'desc' }));
+  });
 });

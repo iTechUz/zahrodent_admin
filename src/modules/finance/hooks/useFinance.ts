@@ -178,5 +178,7 @@ export const useFinance = () => {
     isLoading: table.isLoading || patientsLoading,
     error: table.error,
     refetch: table.refetch,
+    sort: table.sort,
+    setSort: table.setSort,
   };
 };

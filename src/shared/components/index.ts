@@ -7,3 +7,4 @@ export * from './StatCard';
 export * from './StatusBadge';
 export * from './QueryErrorState';
 export * from './PatientNameLabel';
+export * from './SortableHeader';

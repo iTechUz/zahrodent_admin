@@ -29,6 +29,7 @@ import { BOOKING_SOURCE_LABELS, BOOKING_SOURCES } from '@/shared/constants';
 import { exportToExcel } from '@/shared/lib/excel';
 import { patientsApi } from '@/lib/api/endpoints';
 import { toast } from 'sonner';
+import { sortBy } from '@/lib/api/sort-fields';
 import { useState } from "react";
 
 function PatientsPageContent() {
@@ -66,7 +67,7 @@ function PatientsPageContent() {
   const columns: Column<Patient>[] = [
     { 
       header: 'Ism familiya', 
-      sortKey: 'firstName',
+      sortKey: sortBy('patients', 'firstName'),
       accessor: (p) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-accent-foreground">
@@ -80,7 +81,7 @@ function PatientsPageContent() {
         </div>
       )
     },
-    { header: 'Yosh', accessor: (p) => `${p.age} yosh`, sortKey: 'age' },
+    { header: 'Yosh', accessor: (p) => `${p.age} yosh`, sortKey: sortBy('patients', 'age') },
     { header: 'Telefon', accessor: 'phone' },
     { 
       header: 'Shifokor', 
@@ -98,12 +99,12 @@ function PatientsPageContent() {
         );
       }
     },
-    { header: 'Manba', accessor: (p) => <SourceBadge source={p.source} /> },
+    { header: 'Manba', accessor: (p) => <SourceBadge source={p.source} />, sortKey: sortBy('patients', 'source') },
     { 
       header: "Ro'yxatdan o'tgan", 
       accessor: (p) => <span className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</span>,
       className: 'hidden md:table-cell',
-      sortKey: 'createdAt',
+      sortKey: sortBy('patients', 'createdAt'),
     },
   ];
 

@@ -21,6 +21,7 @@ import { StatCard } from '@/shared/components/StatCard';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { StatsSkeleton } from '@/components/Skeletons';
+import { sortBy } from '@/lib/api/sort-fields';
 
 function BookingsPageContent() {
   const {
@@ -76,16 +77,18 @@ function BookingsPageContent() {
     },
     { 
       header: 'Sana/Vaqt', 
-      sortKey: 'date',
+      sortKey: sortBy('bookings', 'date'),
       accessor: (b) => <span className="text-muted-foreground">{formatDate(b.date)} {b.time}</span> 
     },
     { 
       header: 'Manba', 
       accessor: (b) => <SourceBadge source={b.source} />,
-      className: 'hidden md:table-cell'
+      className: 'hidden md:table-cell',
+      sortKey: sortBy('bookings', 'source'),
     },
     { 
       header: 'Holat', 
+      sortKey: sortBy('bookings', 'status'),
       accessor: (b) => !canUpdate ? (
         <StatusBadge status={b.status} />
       ) : (

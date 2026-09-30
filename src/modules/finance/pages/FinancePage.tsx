@@ -30,6 +30,7 @@ import { fetchAllPages } from '@/lib/api/helpers';
 import { clinicToday } from '@/shared/lib/date-utils';
 import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { toast } from 'sonner';
+import { sortBy } from '@/lib/api/sort-fields';
 import { useState } from 'react';
 
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
@@ -64,6 +65,8 @@ export function FinancePageContent() {
     isLoading,
     error,
     refetch,
+    sort,
+    setSort,
   } = useFinance();
 
   const [isExporting, setIsExporting] = useState(false);
@@ -72,7 +75,7 @@ export function FinancePageContent() {
     try {
       setIsExporting(true);
       // every page (the backend caps limit at 100)
-      const res = await fetchAllPages(paymentsApi.list, { ...filters, search });
+      const res = await fetchAllPages(paymentsApi.list, { ...filters, search, ...sort });
 
       const exportData = res.data.map(p => {
         return {
@@ -103,10 +106,12 @@ export function FinancePageContent() {
     { header: 'Tavsif', accessor: 'description' },
     {
       header: 'Summa',
+      sortKey: sortBy('payments', 'amount'),
       accessor: (p) => <span className="font-semibold">{formatUzS(p.amount)}</span>
     },
     { 
       header: 'Turi', 
+      sortKey: sortBy('payments', 'type'),
       accessor: (p) => (
         <span className={p.type === 'EXPENSE' ? 'text-destructive' : 'text-success'}>
           {p.type === 'EXPENSE' ? 'Chiqim' : 'Kirim'}
@@ -115,14 +120,17 @@ export function FinancePageContent() {
     },
     { 
       header: 'Usul', 
+      sortKey: sortBy('payments', 'method'),
       accessor: (p) => PAYMENT_METHOD_LABELS[p.method as keyof typeof PAYMENT_METHOD_LABELS]
     },
     {
       header: 'Holat',
+      sortKey: sortBy('payments', 'status'),
       accessor: (p) => <PaymentStatusBadge status={p.status} />
     },
     {
       header: 'Sana',
+      sortKey: sortBy('payments', 'date'),
       accessor: (p) => <span className="text-xs text-muted-foreground">{formatDate(p.date)}</span>
     },
   ];
@@ -323,6 +331,8 @@ export function FinancePageContent() {
           onEdit={openEdit}
           onDelete={setDeleteId}
           isLoading={isLoading}
+          sort={sort}
+          onSortChange={setSort}
         />
       )}
 

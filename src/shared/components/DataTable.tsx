@@ -4,10 +4,9 @@ import {
   Pencil, 
   Trash2, 
   Eye,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
 } from 'lucide-react';
+import { SortButton } from './SortableHeader';
+import { ariaSort } from '@/shared/lib/sort';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -140,23 +139,14 @@ export const DataTable = memo(<T extends { id?: string | number }>({
             <tr className="border-b border-border bg-muted/30">
               {columns.map((column, i) => {
                 const sortable = !!(column.sortKey && onSortChange);
-                const active = sortable && sort?.sortBy === column.sortKey;
-                const Icon = active ? (sort?.order === 'desc' ? ArrowDown : ArrowUp) : ArrowUpDown;
                 return (
                   <th
                     key={i}
                     className={`text-left px-4 py-3 font-medium text-muted-foreground ${column.className || ''}`}
-                    aria-sort={active ? (sort?.order === 'desc' ? 'descending' : 'ascending') : undefined}
+                    aria-sort={sortable ? ariaSort(sort, column.sortKey) : undefined}
                   >
                     {sortable ? (
-                      <button
-                        type="button"
-                        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}
-                        onClick={() => onSortChange!(column.sortKey!)}
-                      >
-                        {column.header}
-                        <Icon className={`w-3.5 h-3.5 ${active ? '' : 'opacity-40'}`} />
-                      </button>
+                      <SortButton label={column.header} sortKey={column.sortKey!} sort={sort} onSort={onSortChange!} />
                     ) : (
                       column.header
                     )}

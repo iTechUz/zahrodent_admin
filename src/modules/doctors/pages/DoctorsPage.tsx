@@ -38,6 +38,8 @@ import { useCan } from '@/shared/hooks/usePermissions';
 import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { cn } from '@/shared/lib/utils';
 import { StatCard } from '@/shared/components/StatCard';
+import { SortableTableHead } from '@/shared/components/SortableHeader';
+import { sortBy } from '@/lib/api/sort-fields';
 
 function DoctorsPageContent() {
   const {
@@ -48,6 +50,8 @@ function DoctorsPageContent() {
     setPage,
     search,
     setSearch,
+    sort,
+    setSort,
     filters,
     setFilters,
     patients,
@@ -187,8 +191,12 @@ function DoctorsPageContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ism</TableHead>
-                  <TableHead>Mutaxassislik</TableHead>
+                  <SortableTableHead sortKey={sortBy('doctors', 'firstName')} sort={sort} onSort={setSort}>
+                    Ism
+                  </SortableTableHead>
+                  <SortableTableHead sortKey={sortBy('doctors', 'specialty')} sort={sort} onSort={setSort}>
+                    Mutaxassislik
+                  </SortableTableHead>
                   <TableHead>Telefon</TableHead>
                   <TableHead>Ish kunlari</TableHead>
                   <TableHead className="text-right">Bemorlar</TableHead>
