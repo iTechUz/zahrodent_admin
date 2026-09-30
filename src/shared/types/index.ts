@@ -39,6 +39,8 @@ export interface Patient {
   balance?: number;
   /** set when the patient is archived (soft-deleted) */
   deletedAt?: string | null;
+  /** the patient linked the Telegram bot → reminders also go to Telegram */
+  telegramConnected?: boolean;
 }
 
 /** Patient summary embedded in booking / payment rows — present even when the patient is archived. */

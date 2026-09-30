@@ -149,6 +149,14 @@ export default function PatientProfilePage() {
               <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{patient.phone}</span>
               <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{patient.createdAt}</span>
               <SourceBadge source={patient.source} />
+              {patient.telegramConnected && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-info/30 bg-info/10 text-info"
+                  title="Eslatmalar Telegram orqali ham yuboriladi"
+                >
+                  <Send className="w-3 h-3" /> Telegram ulangan
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 p-3 rounded-lg bg-muted/40 border border-border/50">
               <div className="space-y-0.5">
