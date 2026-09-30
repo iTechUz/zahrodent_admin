@@ -479,6 +479,25 @@ describe('apiRequest', () => {
       expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('tab2-refresh');
     });
 
+    it('cross-tab: waits for the Web Lock and reuses the tokens another tab just rotated', async () => {
+      const { apiRequest } = await loadClient('https://api.test');
+      remembered();
+      const request = vi.fn(async (_name: string, fn: () => Promise<unknown>) => {
+        // the other tab held the lock and refreshed first
+        localStorage.setItem(AUTH_TOKEN_KEY, 'new-access');
+        localStorage.setItem(REFRESH_TOKEN_KEY, 'tab2-refresh');
+        return fn();
+      });
+      vi.stubGlobal('navigator', { ...navigator, locks: { request } });
+      server();
+
+      await expect(apiRequest('/a')).resolves.toMatchObject({ ok: true });
+
+      expect(request).toHaveBeenCalledWith('zahro-auth-refresh', expect.any(Function));
+      expect(refreshCalls()).toHaveLength(0); // our stale token was never sent
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe('tab2-refresh');
+    });
+
     it('refreshes proactively when the access token expires within 60s', async () => {
       const { apiRequest } = await loadClient('https://api.test');
       remembered();

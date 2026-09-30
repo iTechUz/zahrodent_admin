@@ -119,25 +119,35 @@ function isSessionInvalid(err: unknown) {
   return err instanceof ApiError && err.status >= 400 && err.status < 500;
 }
 
-async function doRefresh(): Promise<string> {
+async function doRefresh(staleRefreshToken: string | null): Promise<string> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) throw new ApiError(401, SESSION_EXPIRED_MESSAGE);
+  // Another tab rotated the shared (localStorage) token while we waited for the lock:
+  // reuse its result — sending our old token would count as reuse and revoke the family.
+  const access = getAuthToken();
+  if (staleRefreshToken && refreshToken !== staleRefreshToken && access) return access;
 
   const res = await send(buildUrl('/auth/refresh'), { method: 'POST', body: JSON.stringify({ refresh_token: refreshToken }) }, null);
   const data = (await parseBody(res).catch(() => null)) as (AuthTokens & Record<string, unknown>) | null;
 
   if (!res.ok || !data?.access_token) {
-    // Another tab may have rotated the (shared, localStorage) refresh token meanwhile:
-    // our copy is now "reused" and rejected, but the session itself is fine.
+    // a tab without Web Locks support may have rotated it meanwhile
     const current = getRefreshToken();
-    const access = getAuthToken();
-    if (current && current !== refreshToken && access) return access;
+    const currentAccess = getAuthToken();
+    if (current && current !== refreshToken && currentAccess) return currentAccess;
     throw res.ok ? new ApiError(401, SESSION_EXPIRED_MESSAGE) : toApiError(res, data);
   }
 
   setAuthTokens(data); // same storage as before ("Eslab qolish")
   emitAuthEvent({ type: 'refreshed', accessToken: data.access_token });
   return data.access_token;
+}
+
+/** Serialize refreshes across tabs (Web Locks API) when the browser supports it. */
+function withRefreshLock(fn: () => Promise<string>): Promise<string> {
+  const locks = typeof navigator !== 'undefined' ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
+  if (!locks?.request) return fn();
+  return locks.request('zahro-auth-refresh', fn) as Promise<string>;
 }
 
 /**
@@ -147,7 +157,8 @@ async function doRefresh(): Promise<string> {
  */
 export function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {
-    refreshPromise = doRefresh().finally(() => {
+    const stale = getRefreshToken();
+    refreshPromise = withRefreshLock(() => doRefresh(stale)).finally(() => {
       refreshPromise = null;
     });
   }
