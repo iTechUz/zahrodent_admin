@@ -145,7 +145,7 @@ function PatientsPageContent() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExport} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
-              Excel Export
+              Excelga yuklash
             </Button>
             {can('patients.create') && (
               <Button onClick={openCreate}>
@@ -168,7 +168,6 @@ function PatientsPageContent() {
           value={stats?.newThisMonth ?? 0} 
           icon={<UserPlus className="w-5 h-5 text-success" />} 
           trend="Yangi qo'shilganlar"
-          trendUp={true}
         />
         <StatCard 
           title="Asosiy manba" 

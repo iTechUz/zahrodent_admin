@@ -51,7 +51,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('useFinance', () => {
-  it('lists payments with MTD range and all/all/all filters', async () => {
+  it('lists payments for the current month and all/all/all filters', async () => {
     api.list.mockResolvedValue(paginated([payment], 31));
     const { result } = setup();
     await waitFor(() => expect(result.current.payments).toEqual([payment]));
@@ -63,8 +63,6 @@ describe('useFinance', () => {
       method: 'all',
       dateRange: 'month',
       type: 'all',
-      startDate: '2026-06-01',
-      endDate: '',
     });
     expect(result.current.totalCount).toBe(31);
     expect(result.current.totalPages).toBe(4);

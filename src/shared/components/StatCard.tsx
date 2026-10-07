@@ -17,8 +17,8 @@ export function StatCard({ title, value, icon, trend, trendUp, className }: Stat
         <p className="text-sm text-muted-foreground font-medium">{title}</p>
         <p className="text-2xl font-display font-bold text-card-foreground">{value}</p>
         {trend && (
-          <p className={cn('text-xs font-medium', trendUp ? 'text-success' : 'text-destructive')}>
-            {trendUp ? '↑' : '↓'} {trend}
+          <p className={cn('text-xs font-medium', trendUp === undefined ? 'text-muted-foreground' : trendUp ? 'text-success' : 'text-destructive')}>
+            {trendUp === undefined ? '' : trendUp ? '↑ ' : '↓ '}{trend}
           </p>
         )}
       </div>

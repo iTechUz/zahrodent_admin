@@ -43,7 +43,7 @@ describe('roleConfig', () => {
   it('has an Uzbek label for every role', () => {
     expect(roleConfig.admin.label).toBe('Administrator');
     expect(roleConfig.doctor.label).toBe('Shifokor');
-    expect(roleConfig.receptionist.label).toBe('Qabulxona');
+    expect(roleConfig.receptionist.label).toBe('Qabul xodimi');
     expect(Object.keys(roleConfig).sort()).toEqual(Object.keys(roleAccess).sort());
   });
 });

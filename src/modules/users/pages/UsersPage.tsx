@@ -61,8 +61,8 @@ export function UsersPageContent() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Qabulxona xodimlari"
-        description="Qabulxona xodimlarini boshqarish"
+        title="Xodimlar"
+        description="Qabul xodimlari hisoblarini yaratish va boshqarish"
         action={
           <Button onClick={openCreate} className="gradient-primary">
             <Plus className="w-4 h-4 mr-2" />

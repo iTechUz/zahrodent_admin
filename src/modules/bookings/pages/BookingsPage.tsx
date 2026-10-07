@@ -144,7 +144,6 @@ function BookingsPageContent() {
             value={stats?.completedToday ?? 0} 
             icon={<CheckCircle2 className="w-5 h-5 text-success" />} 
             trend="Muvaffaqiyatli qabullar"
-            trendUp={true}
           />
         </div>
       )}
@@ -172,14 +171,14 @@ function BookingsPageContent() {
                 type="date" 
                 className="w-[140px] h-8 text-xs border-none bg-transparent" 
                 value={filters.startDate || ''} 
-                onChange={(e) => setFilters('startDate', e.target.value || undefined)}
+                onChange={(e) => { setFilters('startDate', e.target.value || undefined); if (e.target.value) setFilters('dateRange', 'all'); }}
               />
               <span className="text-muted-foreground text-xs">—</span>
               <Input 
                 type="date" 
                 className="w-[140px] h-8 text-xs border-none bg-transparent" 
                 value={filters.endDate || ''} 
-                onChange={(e) => setFilters('endDate', e.target.value || undefined)}
+                onChange={(e) => { setFilters('endDate', e.target.value || undefined); if (e.target.value) setFilters('dateRange', 'all'); }}
               />
             </div>
 

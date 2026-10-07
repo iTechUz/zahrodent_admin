@@ -13,7 +13,6 @@ import { bookingsApi, patientsApi, doctorsApi, servicesApi } from '@/lib/api/end
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
-import { getMonthToDateRange } from '@/shared/lib/date-utils';
 
 type BookingFormValues = z.infer<typeof BookingSchema>;
 
@@ -22,8 +21,6 @@ export const useBookings = () => {
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewBooking, setViewBooking] = useState<Booking | null>(null);
-
-  const mtd = getMonthToDateRange();
 
   const table = useServerTable<
     Booking,
@@ -35,8 +32,6 @@ export const useBookings = () => {
       status: 'all', 
       source: 'all', 
       dateRange: 'month',
-      startDate: mtd.startDate,
-      endDate: mtd.endDate
     },
     perPage: 10,
   });

@@ -92,5 +92,5 @@ export const roleAccess: Record<UserRole, string[]> = {
 export const roleConfig: Record<UserRole, { label: string; color: string }> = {
   admin: { label: 'Administrator', color: 'bg-primary/15 text-primary border-primary/30' },
   doctor: { label: 'Shifokor', color: 'bg-info/15 text-info border-info/30' },
-  receptionist: { label: 'Qabulxona', color: 'bg-warning/15 text-warning border-warning/30' },
+  receptionist: { label: 'Qabul xodimi', color: 'bg-warning/15 text-warning border-warning/30' },
 };

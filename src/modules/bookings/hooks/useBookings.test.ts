@@ -52,7 +52,7 @@ afterEach(() => vi.useRealTimers());
 
 describe('useBookings', () => {
   describe('queries', () => {
-    it('lists bookings with MTD range and "all" status/source filters', async () => {
+    it('lists bookings for the current month and "all" status/source filters', async () => {
       bookings.list.mockResolvedValue(paginated([booking], 1));
       const { result } = setup();
       await waitFor(() => expect(result.current.bookings).toEqual([booking]));
@@ -63,8 +63,6 @@ describe('useBookings', () => {
         status: 'all',
         source: 'all',
         dateRange: 'month',
-        startDate: '2026-06-01',
-        endDate: '',
       });
       expect(result.current.totalBookings).toBe(1);
       expect(result.current.totalPages).toBe(1);

@@ -1,4 +1,6 @@
 import React from 'react';
+import { addDaysToDate, clinicToday } from '@/shared/lib/date-utils';
+import { formatDate } from '@/shared/lib/formatters';
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
@@ -187,7 +189,7 @@ function BulkSmsTab() {
 
   const previewMessage = React.useMemo(() => {
     return message
-      .replace(/\[sana\]/g, '2024-04-16')
+      .replace(/\[sana\]/g, formatDate(addDaysToDate(clinicToday(), 1)))
       .replace(/\[vaqt\]/g, '14:30')
       .replace(/\[bemor\]/g, 'Ali Valiyev');
   }, [message]);

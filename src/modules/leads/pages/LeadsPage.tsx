@@ -244,7 +244,7 @@ export default function LeadsPage() {
     <div className="p-4 md:p-6 max-w-full overflow-hidden space-y-6">
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
         <PageHeader
-          title="Murojaatlar (Sotuv Varonkasi)"
+          title="Murojaatlar"
           description="Dental klinika sotuv bosqichlari va mijozlar oqimi"
         />
         <div className="flex items-center gap-3">

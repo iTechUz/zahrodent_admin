@@ -12,7 +12,7 @@ import { paymentsApi, patientsApi, doctorsApi, analyticsApi } from '@/lib/api/en
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
-import { clinicToday, getMonthToDateRange } from '@/shared/lib/date-utils';
+import { clinicToday } from '@/shared/lib/date-utils';
 
 type PaymentFormValues = z.infer<typeof PaymentSchema>;
 
@@ -20,8 +20,6 @@ export const useFinance = () => {
   const authed = useStore((s) => s.isAuthenticated);
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const mtd = getMonthToDateRange();
 
   const table = useServerTable<
     Payment,
@@ -34,8 +32,6 @@ export const useFinance = () => {
       method: 'all', 
       dateRange: 'month', 
       type: 'all',
-      startDate: mtd.startDate,
-      endDate: mtd.endDate
     },
     perPage: 10,
   });

@@ -146,7 +146,7 @@ export function FinancePageContent() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExport} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
-              Excel Export
+              Excelga yuklash
             </Button>
             <Button onClick={openCreate}>
               <Plus className="w-4 h-4 mr-2" />
@@ -170,21 +170,19 @@ export function FinancePageContent() {
           value={formatUzS(totalRevenue)}
           icon={<DollarSign className="w-5 h-5" />}
           trend="Barcha vaqt uchun"
-          trendUp
         />
         <StatCard
           title="Shu oy daromadi"
           value={formatUzS(thisMonth)}
           icon={<TrendingUp className="w-5 h-5" />}
           trend={`Bugun: ${formatUzS(todayRevenue)}`}
-          trendUp
         />
         <StatCard
           title="Qarzdorlik"
           value={formatUzS(totalDebt)}
           icon={<AlertTriangle className="w-5 h-5" />}
           trend={`${unpaidCount} ta to'lanmagan`}
-          trendUp={false}
+          trendUp={unpaidCount > 0 ? false : undefined}
         />
       </div>
 
@@ -255,14 +253,14 @@ export function FinancePageContent() {
             type="date" 
             className="w-[140px] h-8 text-xs border-none bg-transparent" 
             value={filters.startDate || ''} 
-            onChange={(e) => setFilters('startDate', e.target.value || undefined)}
+            onChange={(e) => { setFilters('startDate', e.target.value || undefined); if (e.target.value) setFilters('dateRange', 'all'); }}
           />
           <span className="text-muted-foreground text-xs">—</span>
           <Input 
             type="date" 
             className="w-[140px] h-8 text-xs border-none bg-transparent" 
             value={filters.endDate || ''} 
-            onChange={(e) => setFilters('endDate', e.target.value || undefined)}
+            onChange={(e) => { setFilters('endDate', e.target.value || undefined); if (e.target.value) setFilters('dateRange', 'all'); }}
           />
         </div>
 
