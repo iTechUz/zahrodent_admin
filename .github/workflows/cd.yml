@@ -29,14 +29,19 @@ jobs:
     env:
       SERVER_HOST: ${{ vars.SERVER_HOST }}
       SERVER_USER: ${{ vars.SERVER_USER }}
-      IMAGE: ${{ vars.IMAGE_NAME }}:${{ github.event.workflow_run.head_sha || github.sha }}
+      IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       CONTAINER: ${{ vars.CONTAINER_NAME }}
     steps:
+      # Tag = qisqa commit sha (7 belgi), masalan 10449/zahrodent_backend:8d777fa
+      - name: Set image
+        run: echo "IMAGE=$IMAGE_NAME:${SHA::7}" >> "$GITHUB_ENV"
+
       - name: Check variables
         run: |
           missing=""
           for k in SERVER_HOST SERVER_USER CONTAINER; do [ -z "${!k}" ] && missing="$missing $k"; done
-          [ "$IMAGE" = ":${{ github.event.workflow_run.head_sha || github.sha }}" ] && missing="$missing IMAGE_NAME"
+          [ -z "$IMAGE_NAME" ] && missing="$missing IMAGE_NAME"
           if [ -n "$missing" ]; then echo "::error::production environment'da yo'q:$missing"; exit 1; fi
 
       - name: Checkout
@@ -90,10 +95,15 @@ jobs:
     env:
       SERVER_HOST: ${{ vars.SERVER_HOST }}
       SERVER_USER: ${{ vars.SERVER_USER }}
-      IMAGE: ${{ vars.IMAGE_NAME }}:${{ github.event.workflow_run.head_sha || github.sha }}
+      IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       CONTAINER: ${{ vars.CONTAINER_NAME }}
       ENV_FILE: /home/ubuntu/zahrodent_admin/.env
     steps:
+      # Tag = qisqa commit sha (7 belgi), masalan 10449/zahrodent_backend:8d777fa
+      - name: Set image
+        run: echo "IMAGE=$IMAGE_NAME:${SHA::7}" >> "$GITHUB_ENV"
+
       - name: Create .env
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
@@ -143,10 +153,15 @@ jobs:
     env:
       SERVER_HOST: ${{ vars.SERVER_HOST }}
       SERVER_USER: ${{ vars.SERVER_USER }}
-      IMAGE: ${{ vars.IMAGE_NAME }}:${{ github.event.workflow_run.head_sha || github.sha }}
+      IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       CONTAINER: ${{ vars.CONTAINER_NAME }}
       ENV_FILE: /home/ubuntu/zahrodent_admin/.env
     steps:
+      # Tag = qisqa commit sha (7 belgi), masalan 10449/zahrodent_backend:8d777fa
+      - name: Set image
+        run: echo "IMAGE=$IMAGE_NAME:${SHA::7}" >> "$GITHUB_ENV"
+
       - name: Setup SSH
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
