@@ -29,3 +29,5 @@ dist-ssr
 !.env.production.example
 coverage
 tsc_output.txt
+/.github/env4ci.env
+/.github/production.env
