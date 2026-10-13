@@ -17,6 +17,18 @@ export const formatDate = (dateString: string): string => {
   });
 };
 
+/** "13.10.2026 16:08" (clinic time zone) for ISO timestamps such as comment.createdAt. */
+export const formatDateTime = (iso: string): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Tashkent', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${g('day')}.${g('month')}.${g('year')} ${g('hour')}:${g('minute')}`;
+};
+
 /**
  * Alias for formatCurrency specifically for 'so'm' suffix
  */

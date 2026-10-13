@@ -38,3 +38,12 @@ describe('formatDate', () => {
     expect(formatDate('')).toBe('');
   });
 });
+
+describe('formatDateTime', () => {
+  it('formats an ISO timestamp in clinic time', async () => {
+    const { formatDateTime } = await import('./formatters');
+    expect(formatDateTime('2026-10-13T11:08:58.064Z')).toBe('13.10.2026 16:08');
+    expect(formatDateTime('')).toBe('');
+    expect(formatDateTime('not-a-date')).toBe('not-a-date');
+  });
+});

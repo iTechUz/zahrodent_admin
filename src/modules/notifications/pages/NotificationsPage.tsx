@@ -6,6 +6,7 @@ import { useServerTable } from '@/shared/hooks/useServerTable';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { StatCard } from '@/shared/components/StatCard';
 import { Button } from '@/components/ui/button';
+import { clinicToday } from '@/shared/lib/date-utils';
 import { Badge } from '@/components/ui/badge';
 import { 
   Send, MessageSquare, ChevronLeft, ChevronRight, ShieldCheck, 
@@ -187,7 +188,7 @@ function BulkSmsTab() {
 
   const previewMessage = React.useMemo(() => {
     return message
-      .replace(/\[sana\]/g, '2024-04-16')
+      .replace(/\[sana\]/g, clinicToday())
       .replace(/\[vaqt\]/g, '14:30')
       .replace(/\[bemor\]/g, 'Ali Valiyev');
   }, [message]);
@@ -452,10 +453,9 @@ function NotificationsPageContent() {
         />
         <StatCard 
           title="Tizim holati" 
-          value="SMS Faol" 
+          value="SMS: Eskiz.uz" 
           icon={<ShieldCheck className="w-5 h-5 text-success" />} 
-          trend="Eskiz.uz ulanmagan"
-          trendUp={true}
+          trend="Kalitlar serverda sozlanadi"
         />
       </div>
 

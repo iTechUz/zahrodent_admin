@@ -1,3 +1,4 @@
+import { PhoneInput } from '@/components/ui/phone-input';
 import { useState } from 'react';
 import { useLeads } from '../hooks/useLeads';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -127,8 +128,15 @@ export default function LeadsPage() {
   };
 
   const handleSaveLead = () => {
-    if (!formValues.name || !formValues.phone) {
-      toast.error("Ism va telefon raqami majburiy");
+    const name = formValues.name.trim();
+    if (name.length < 2) {
+      toast.error("Ism kamida 2 ta belgidan iborat bo'lishi kerak");
+      return;
+    }
+    // an existing lead's phone may predate the mask (bot contacts) — only re-validate when it changed
+    const phoneUnchanged = !!editingLead && editingLead.phone === formValues.phone;
+    if (!phoneUnchanged && !/^\+998\d{9}$/.test(formValues.phone)) {
+      toast.error("Telefon raqami +998 XX XXX XX XX formatida bo'lishi kerak");
       return;
     }
 
@@ -213,7 +221,7 @@ export default function LeadsPage() {
       sortKey: sortBy('leads', 'source'),
       accessor: (l) => (
         <Badge variant="outline" className="text-[10px] font-normal opacity-70">
-          {l.source === 'telegram_bot' ? 'Bot' : l.source === 'crm' ? 'Qo\'lda' : l.source}
+          {l.source === 'telegram_bot' ? 'Bot' : l.source === 'crm' ? 'Qo\'lda' : l.source === 'website' ? 'Sayt' : l.source}
         </Badge>
       )
     },
@@ -369,7 +377,7 @@ export default function LeadsPage() {
                                     >
                                       <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <Badge variant="outline" className="text-[9px] h-4 bg-background/80 backdrop-blur-xs font-bold uppercase tracking-tighter">
-                                          {lead.source === 'telegram_bot' ? 'Bot' : 'Qo\'lda'}
+                                          {lead.source === 'telegram_bot' ? 'Bot' : lead.source === 'website' ? 'Sayt' : 'Qo\'lda'}
                                         </Badge>
                                       </div>
 
@@ -514,11 +522,10 @@ export default function LeadsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefon raqami</Label>
-              <Input 
-                id="phone" 
-                placeholder="+998" 
+              <PhoneInput
+                id="phone"
                 value={formValues.phone}
-                onChange={(e) => setFormValues({ ...formValues, phone: e.target.value })}
+                onChange={(phone) => setFormValues({ ...formValues, phone })}
                 className="rounded-xl"
               />
             </div>
@@ -606,7 +613,7 @@ export default function LeadsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-muted/20 rounded-xl border border-dashed text-center">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1">Manba</p>
-                  <p className="text-xs font-medium">{selectedLead.source === 'telegram_bot' ? 'Telegram Bot' : 'CRM (Qo\'lda)'}</p>
+                  <p className="text-xs font-medium">{selectedLead.source === 'telegram_bot' ? 'Telegram Bot' : selectedLead.source === 'website' ? 'Sayt (landing)' : 'CRM (Qo\'lda)'}</p>
                 </div>
                 <div className="p-3 bg-muted/20 rounded-xl border border-dashed text-center">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1">Xizmat</p>

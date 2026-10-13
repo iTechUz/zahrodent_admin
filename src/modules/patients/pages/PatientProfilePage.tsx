@@ -34,6 +34,9 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Naqd', card: 'Karta', transfer: "O'tkazma", insurance: 'Sug\'urta',
 };
 
+import { PhoneInput } from '@/components/ui/phone-input';
+import { formatDateTime } from '@/shared/lib/formatters';
+
 const fmt = (n: number) => new Intl.NumberFormat('uz-UZ').format(n);
 
 export default function PatientProfilePage() {
@@ -178,7 +181,7 @@ export default function PatientProfilePage() {
             </div>
             {patient.notes && <p className="text-xs text-muted-foreground mt-3 italic">" {patient.notes} "</p>}
           </div>
-          <div className="flex gap-3 text-center">
+          <div className="flex flex-wrap gap-3 text-center">
             <div className="px-4 py-2 rounded-lg bg-muted/30">
               <p className="text-lg font-bold">{patientVisits.length}</p>
               <p className="text-[10px] text-muted-foreground">Tashriflar</p>
@@ -414,7 +417,7 @@ export default function PatientProfilePage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-bold text-foreground">{c.author.name}</span>
-                        <span className="text-[10px] text-muted-foreground">{c.createdAt}</span>
+                        <span className="text-[10px] text-muted-foreground">{formatDateTime(c.createdAt)}</span>
                       </div>
                       <div className="p-3 rounded-2xl rounded-tl-none bg-muted/40 border border-border/50">
                         <p className="text-xs leading-relaxed whitespace-pre-wrap">{c.content}</p>
@@ -471,7 +474,7 @@ export default function PatientProfilePage() {
             </div>
             <div className="space-y-2">
               <Label>Telefon *</Label>
-              <Input value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
+              <PhoneInput value={editForm.phone} onChange={phone => setEditForm({ ...editForm, phone })} />
             </div>
             <div className="space-y-2">
               <Label>Manzil *</Label>

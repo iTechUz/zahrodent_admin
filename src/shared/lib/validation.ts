@@ -3,8 +3,10 @@ import { z } from 'zod';
 export const phoneSchema = z.string().regex(/^\+998\d{9}$/, "Telefon raqami +998XXXXXXXXX formatida bo'lishi kerak");
 export const requiredString = (name: string) => z.string().min(1, `${name} kiritilishi shart`);
 export const positiveNumber = (name: string) => z.preprocess(
-  (val) => Number(val),
-  z.number().positive(`${name} musbat son bo'lishi shart`)
+  (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
+  z
+    .number({ required_error: `${name} kiritilishi shart`, invalid_type_error: `${name} son bo'lishi shart` })
+    .positive(`${name} musbat son bo'lishi shart`),
 );
 
 // Common schemas
@@ -12,7 +14,7 @@ export const PatientSchema = z.object({
   firstName: requiredString('Ism'),
   lastName: requiredString('Familiya'),
   phone: phoneSchema,
-  age: positiveNumber('Yosh'),
+  age: positiveNumber('Yosh').pipe(z.number().max(120, "Yosh 120 dan oshmasligi kerak")),
   // backend CreatePatientDto: MinLength(3)
   address: requiredString('Manzil').min(3, "Manzil kamida 3 ta belgidan iborat bo'lishi kerak"),
   workplace: requiredString('Ish joyi'),
