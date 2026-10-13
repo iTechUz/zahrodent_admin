@@ -10,6 +10,7 @@ import {
   paymentsApi,
   doctorsApi,
 } from '@/lib/api/endpoints';
+import { PatientSchema } from '@/shared/lib/validation';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments } from '@/shared/config/roles';
@@ -194,8 +195,10 @@ export const usePatientProfile = (
 
   const handleEditSave = () => {
     if (!patient) return;
-    if (!editForm.firstName || !editForm.phone) {
-      toast.error("Majburiy maydonlarni to'ldiring");
+    // same rules as the patients-list form (phone format, age 1–120, address ≥ 3 …)
+    const parsed = PatientSchema.safeParse({ ...editForm, assignedDoctorId: editForm.assignedDoctorId || undefined });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Majburiy maydonlarni to'ldiring");
       return;
     }
     updatePatientMut.mutate(

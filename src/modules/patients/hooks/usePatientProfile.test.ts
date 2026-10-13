@@ -261,7 +261,20 @@ describe('usePatientProfile', () => {
       await ready(result);
       act(() => result.current.setEditForm({ ...result.current.editForm, firstName: '', phone: '' }));
       act(() => result.current.handleEditSave());
-      expect(toastMock.error).toHaveBeenCalledWith("Majburiy maydonlarni to'ldiring");
+      expect(toastMock.error).toHaveBeenCalledWith('Ism kiritilishi shart');
+      expect(pApi.update).not.toHaveBeenCalled();
+    });
+
+    it('handleEditSave rejects a bad phone and an impossible age', async () => {
+      const { result } = setup();
+      await ready(result);
+      act(() => result.current.openEdit());
+      act(() => result.current.setEditForm({ ...result.current.editForm, phone: 'abc' }));
+      act(() => result.current.handleEditSave());
+      expect(toastMock.error).toHaveBeenCalledWith("Telefon raqami +998XXXXXXXXX formatida bo'lishi kerak");
+      act(() => result.current.setEditForm({ ...result.current.editForm, phone: '+998901234567', age: '150' }));
+      act(() => result.current.handleEditSave());
+      expect(toastMock.error).toHaveBeenCalledWith('Yosh 120 dan oshmasligi kerak');
       expect(pApi.update).not.toHaveBeenCalled();
     });
 
