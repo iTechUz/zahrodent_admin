@@ -1,0 +1,156 @@
+name: CD
+
+# Faqat CI main'dagi push uchun muvaffaqiyatli tugaganda ishlaydi.
+# Jobs: deploy (image build + Docker Hub push + server) -> notify (Telegram).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: 10449/zaxrodent_admin
+  ENV_FILE: /home/ubuntu/projects/zaxro_dent/zahrodent_admin/.env
+  SERVER_HOST: 116.203.244.91
+  CONTAINER: zaxrodent_admin
+
+jobs:
+  deploy:
+    name: Deploy
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: 10449
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha || github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # .env GitHub "production" environment'dagi secrets/vars'dan yig'iladi.
+      # Majburiy kalit bo'sh bo'lsa deploy to'xtaydi — serverdagi .env buzilmaydi.
+      - name: Create .env
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          umask 077
+          missing=""
+          for k in VITE_API_URL; do
+            [ -z "${!k}" ] && missing="$missing $k"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::production environment'da yo'q:$missing"
+            exit 1
+          fi
+          for k in VITE_API_URL; do
+            if [ -n "${!k}" ]; then printf '%s=%s\n' "$k" "${!k}"; fi
+          done > app.env
+          echo "$(wc -l < app.env) ta kalit yozildi"
+
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id
+          chmod 600 ~/.ssh/id
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          printf 'Host server\n  HostName %s\n  User ubuntu\n  IdentityFile ~/.ssh/id\n' "$SERVER_HOST" > ~/.ssh/config
+
+      # Eski .env .env.bak sifatida saqlanadi (qo'lda qaytarish uchun).
+      - name: Upload .env
+        run: |
+          # shellcheck disable=SC2029 # ENV_FILE runner'da ochiladi (ataylab)
+          ssh server "set -e; umask 077; mkdir -p \"\$(dirname '$ENV_FILE')\"; if [ -f '$ENV_FILE' ]; then cp '$ENV_FILE' '$ENV_FILE.bak'; fi; cat > '$ENV_FILE'" < app.env
+          rm -f app.env
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            IMAGE="${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha || github.sha }}"
+            echo "Deploying $IMAGE"
+
+            docker pull "$IMAGE"
+            docker rm -f ${{ env.CONTAINER }} || true
+
+            docker run -d --restart unless-stopped \
+              --name ${{ env.CONTAINER }} \
+              -p 8070:8070 \
+              --env-file ${{ env.ENV_FILE }} \
+              "$IMAGE"
+
+            for i in $(seq 1 20); do
+              if curl -fsS http://127.0.0.1:8070/healthz > /dev/null; then
+                echo "✅ Healthy"
+                docker image prune -af --filter "until=168h" > /dev/null || true
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "❌ Health check failed"
+            docker logs --tail 100 ${{ env.CONTAINER }}
+            exit 1
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    environment: production
+    needs: [deploy]
+    if: always() && needs.deploy.result != 'skipped'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      # Every value goes through env, never ${{ }} inside run: (script injection).
+      - name: Send Telegram message
+        env:
+          BOT_TOKEN: ${{ secrets.PR_TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ vars.PR_DEV_GROUP_ID }}
+          TOPIC_ID: ${{ vars.PR_TOPIC_ID }}
+          DEPLOY: ${{ needs.deploy.result }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          ACTOR: ${{ github.event.workflow_run.actor.login || github.actor }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_MSG: ${{ github.event.workflow_run.head_commit.message || 'manual deploy' }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha || github.sha }}
+        run: bash .github/script/notify-telegram.sh
