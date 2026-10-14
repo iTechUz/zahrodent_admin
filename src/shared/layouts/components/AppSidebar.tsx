@@ -21,7 +21,7 @@ const allNavItems = [
   { title: 'Tahlillar', path: '/analytics', icon: BarChart3 },
   { title: 'Bildirishnomalar', path: '/notifications', icon: Bell },
   { title: 'Sozlamalar', path: '/settings', icon: Settings },
-  { title: 'Qabulxona', path: '/users', icon: ShieldCheck },
+  { title: 'Xodimlar', path: '/users', icon: ShieldCheck },
 ];
 
 interface AppSidebarProps {
