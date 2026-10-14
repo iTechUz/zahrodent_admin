@@ -27,7 +27,7 @@ const userSchema = z.object({
   name: z.string().min(2, "Kamida 2 ta belgi bo'lishi kerak"),
   phone: z.string().regex(/^\+998\d{9}$/, "Telefon raqami +998XXXXXXXXX formatida bo'lishi kerak"),
   // Doctors are managed on the Shifokorlar page; here only admin / reception.
-  role: z.enum(['admin', 'doctor', 'receptionist']),
+  role: z.enum(['admin', 'doctor', 'receptionist', 'pharmacist']),
   password: z.string().min(6, "Kamida 6 ta belgi").optional().or(z.literal('')),
   specialty: z.string().optional(),
 });
@@ -107,6 +107,7 @@ export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps)
                       {/* A doctor keeps its role when editing one; new doctors are added on the Shifokorlar page */}
                       {field.value === 'doctor' && <SelectItem value="doctor">Shifokor</SelectItem>}
                       <SelectItem value="receptionist">Qabulxona</SelectItem>
+                      <SelectItem value="pharmacist">Apteka</SelectItem>
                       <SelectItem value="admin">Administrator</SelectItem>
                     </SelectContent>
                   </Select>

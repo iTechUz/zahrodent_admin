@@ -25,6 +25,7 @@ import {
   notificationRoutes,
   settingRoutes,
   userRoutes,
+  pharmacyRoutes,
   leadsRoutes
 } from "@/modules";
 
@@ -62,6 +63,7 @@ const AppRoutes = () => {
             ...notificationRoutes,
             ...settingRoutes,
             ...userRoutes,
+            ...pharmacyRoutes,
             ...leadsRoutes,
           ],
         },

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'doctor' | 'receptionist';
+export type UserRole = 'admin' | 'doctor' | 'receptionist' | 'pharmacist';
 
 /** API login javabi — parolsiz sessiya foydalanuvchisi */
 export interface SessionUser {

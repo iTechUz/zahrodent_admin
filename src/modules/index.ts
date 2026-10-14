@@ -10,3 +10,4 @@ export * from './notifications';
 export * from './settings';
 export * from './users';
 export * from './leads';
+export * from './pharmacy';

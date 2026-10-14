@@ -10,6 +10,8 @@ import type {
   DoctorEfficiencyStats,
   PatientComment,
   Lead,
+  Prescription,
+  PrescriptionItem,
 } from '@/shared/types';
 import type { SessionUser } from '@/shared/types/auth';
 import type { ClinicSettings } from '@/shared/types';
@@ -275,4 +277,21 @@ export const leadsApi = {
   updateStatus: (id: string, status: Lead['status']) =>
     apiRequest<Lead>(`/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   remove: (id: string) => apiRequest<{ id: string }>(`/leads/${id}`, { method: 'DELETE' }),
+};
+
+export const prescriptionsApi = {
+  list: (params?: ListParams & { patientId?: string; status?: string }) =>
+    apiRequest<PaginatedResponse<Prescription>>(`/prescriptions${qs(params ?? {})}`),
+  create: (body: {
+    patientId: string;
+    doctorId?: string;
+    visitId?: string;
+    items: PrescriptionItem[];
+    notes?: string;
+    validDays?: number;
+  }) => apiRequest<Prescription>('/prescriptions', { method: 'POST', body: JSON.stringify(body) }),
+  cancel: (id: string) => apiRequest<Prescription>(`/prescriptions/${id}/cancel`, { method: 'PATCH' }),
+  pharmacySearch: (q: string) =>
+    apiRequest<Prescription[]>(`/prescriptions/pharmacy/search${qs({ q })}`),
+  dispense: (id: string) => apiRequest<Prescription>(`/prescriptions/${id}/dispense`, { method: 'POST' }),
 };

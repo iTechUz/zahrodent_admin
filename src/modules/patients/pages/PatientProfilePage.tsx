@@ -28,6 +28,9 @@ import {
   BookingSource,
   PatientComment,
 } from '@/shared/types';
+import { PatientPrescriptions } from '../components/PatientPrescriptions';
+import { can } from '@/shared/config/roles';
+import { useStore } from '@/store/useStore';
 import { LoadingScreen } from '@/shared/components/LoadingScreen';
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -44,6 +47,7 @@ export default function PatientProfilePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [newComment, setNewComment] = useState('');
+  const role = useStore((s) => s.currentUser?.role);
   
   const {
     patient,
@@ -230,6 +234,9 @@ export default function PatientProfilePage() {
           <TabsTrigger value="bookings" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
             Qabullar ({patientBookings.length})
           </TabsTrigger>
+          <TabsTrigger value="prescriptions" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            Retseptlar
+          </TabsTrigger>
           <TabsTrigger value="timeline" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
             Xronika
           </TabsTrigger>
@@ -353,6 +360,14 @@ export default function PatientProfilePage() {
               </div>
             );
           })}
+        </TabsContent>
+
+        <TabsContent value="prescriptions" className="mt-4">
+          <PatientPrescriptions
+            patientId={patient.id}
+            canWrite={can(role, 'prescriptions.write') && !patient.deletedAt}
+            doctorId={patient.assignedDoctorId || patientVisits[0]?.doctorId}
+          />
         </TabsContent>
 
         <TabsContent value="timeline" className="mt-4 space-y-6">

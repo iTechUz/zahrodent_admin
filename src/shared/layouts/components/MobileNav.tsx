@@ -4,6 +4,7 @@ import {
   CalendarDays, 
   Users, 
   MessageSquare, 
+  Pill,
   Settings 
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
@@ -14,6 +15,7 @@ const mobileNavItems = [
   { title: 'Bosh sahifa', path: '/', icon: LayoutDashboard },
   { title: 'Qabullar', path: '/bookings', icon: CalendarDays },
   { title: 'Bemorlar', path: '/patients', icon: Users },
+  { title: 'Apteka', path: '/pharmacy', icon: Pill },
   { title: 'Lidlar', path: '/leads', icon: MessageSquare },
   { title: 'Sozlamalar', path: '/settings', icon: Settings },
 ];
@@ -24,7 +26,9 @@ export function MobileNav() {
   const role = currentUser?.role || 'receptionist';
   const allowedPaths = roleAccess[role];
   
-  const navItems = mobileNavItems.filter((item) => allowedPaths.includes(item.path));
+  const navItems = mobileNavItems.filter(
+    (item) => allowedPaths.includes(item.path) && !(role === 'pharmacist' && item.path === '/'),
+  );
 
   return (
     <div className="fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border flex items-center justify-around px-2 z-50 md:hidden">
