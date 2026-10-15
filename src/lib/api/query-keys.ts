@@ -39,6 +39,10 @@ export const queryKeys = {
   visitsList: listKey('visits'),
   visitsLookup: lookupKey('visits'),
 
+  prescriptions: ['prescriptions'] as const,
+  prescriptionsByPatient: (patientId: string) => ['prescriptions', 'patient', patientId] as const,
+  pharmacySearch: (q: string) => ['prescriptions', 'pharmacy', q] as const,
+
   services: ['services'] as const,
   service: (id: string) => ['services', id] as const,
   servicesList: listKey('services'),

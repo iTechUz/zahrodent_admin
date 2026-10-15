@@ -235,3 +235,31 @@ export interface Lead {
   createdAt: string;
   updatedAt: string;
 }
+
+export type PrescriptionStatus = 'issued' | 'dispensed' | 'cancelled';
+
+export interface PrescriptionItem {
+  id?: string;
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  quantity?: string;
+  instructions?: string;
+}
+
+export interface Prescription {
+  id: string;
+  code: string;
+  patientId: string;
+  doctorId: string;
+  visitId?: string;
+  status: PrescriptionStatus;
+  notes: string;
+  validUntil: string;
+  createdAt: string;
+  dispensedAt: string | null;
+  patient?: { firstName: string; lastName: string; age: number };
+  doctor?: { firstName: string; lastName: string; specialty: string };
+  items: PrescriptionItem[];
+}

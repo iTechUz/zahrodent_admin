@@ -20,12 +20,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, EyeOff } from 'lucide-react';
 
 const userSchema = z.object({
   name: z.string().min(2, "Kamida 2 ta belgi bo'lishi kerak"),
   phone: z.string().regex(/^\+998\d{9}$/, "Telefon raqami +998XXXXXXXXX formatida bo'lishi kerak"),
-  role: z.enum(['admin', 'doctor', 'receptionist']),
+  // Doctors are managed on the Shifokorlar page; here only admin / reception.
+  role: z.enum(['admin', 'doctor', 'receptionist', 'pharmacist']),
   password: z.string().min(6, "Kamida 6 ta belgi").optional().or(z.literal('')),
   specialty: z.string().optional(),
 });
@@ -86,6 +88,29 @@ export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps)
                 <FormItem>
                   <FormLabel>Telefon raqami</FormLabel>
                   <FormControl><PhoneInput {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rol</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {/* A doctor keeps its role when editing one; new doctors are added on the Shifokorlar page */}
+                      {field.value === 'doctor' && <SelectItem value="doctor">Shifokor</SelectItem>}
+                      <SelectItem value="receptionist">Qabulxona</SelectItem>
+                      <SelectItem value="pharmacist">Apteka</SelectItem>
+                      <SelectItem value="admin">Administrator</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
