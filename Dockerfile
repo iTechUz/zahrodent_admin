@@ -23,7 +23,7 @@ COPY docker/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
 RUN chmod +x /docker-entrypoint.d/40-env-config.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 8071
+EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:8071/healthz || exit 1
 
