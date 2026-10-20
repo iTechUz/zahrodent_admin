@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { BOOKING_SOURCES, BOOKING_SOURCE_LABELS } from '@/shared/constants';
 import { Patient, BookingSource } from '@/shared/types';
-import { PatientSchema } from '@/shared/lib/validation';
+import { PatientDialogSchema, PatientFormValues } from '@/shared/lib/validation';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useQuery } from '@tanstack/react-query';
 import { doctorsApi, patientsApi } from '@/lib/api/endpoints';
@@ -18,8 +18,19 @@ import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import * as z from 'zod';
 
-type PatientFormValues = z.infer<typeof PatientSchema>;
-type PatientFormInput = z.input<typeof PatientSchema>;
+type PatientDialogValues = z.infer<typeof PatientDialogSchema>;
+type PatientDialogInput = z.input<typeof PatientDialogSchema>;
+
+const emptyValues = (): PatientDialogInput => ({
+  fullName: '',
+  phone: '',
+  birthYear: '',
+  workplace: '',
+  address: '',
+  assignedDoctorId: '',
+  source: 'walk-in',
+  notes: '',
+});
 
 interface PatientFormProps {
   open: boolean;
@@ -29,19 +40,9 @@ interface PatientFormProps {
 }
 
 export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientFormProps) => {
-  const form = useForm<PatientFormInput>({
-    resolver: zodResolver(PatientSchema),
-    defaultValues: {
-      firstName: '',
-      lastName: '',
-      age: '',
-      phone: '',
-      address: '',
-      workplace: '',
-      assignedDoctorId: '',
-      source: 'walk-in',
-      notes: '',
-    },
+  const form = useForm<PatientDialogInput>({
+    resolver: zodResolver(PatientDialogSchema),
+    defaultValues: emptyValues(),
   });
 
   const { data: doctorsData } = useQuery({
@@ -67,33 +68,31 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
   useEffect(() => {
     if (editing) {
       form.reset({
-        firstName: editing.firstName,
-        lastName: editing.lastName,
-        age: editing.age || '',
+        fullName: `${editing.firstName} ${editing.lastName}`.trim(),
         phone: editing.phone,
-        address: editing.address || '',
+        birthYear: editing.age != null ? new Date().getFullYear() - editing.age : '',
         workplace: editing.workplace || '',
+        address: editing.address || '',
         assignedDoctorId: assignedDoctorId || '',
         source: editing.source,
         notes: editing.notes || '',
       });
     } else {
-      form.reset({
-        firstName: '',
-        lastName: '',
-        age: '',
-        phone: '',
-        address: '',
-        workplace: '',
-        assignedDoctorId: '',
-        source: 'walk-in',
-        notes: '',
-      });
+      form.reset(emptyValues());
     }
   }, [editing, form, open, assignedDoctorId]);
 
-  const handleSubmit = (values: PatientFormValues) => {
-    onSave(values);
+  const handleSubmit = (values: PatientDialogValues) => {
+    const { fullName, birthYear, ...rest } = values;
+    const [firstName, ...lastParts] = fullName.split(/\s+/);
+    const unchanged =
+      editing && fullName === `${editing.firstName} ${editing.lastName}`.trim();
+    onSave({
+      ...rest,
+      firstName: unchanged ? editing.firstName : firstName,
+      lastName: unchanged ? editing.lastName : lastParts.join(' '),
+      age: new Date().getFullYear() - birthYear,
+    } as PatientFormValues);
   };
 
   return (
@@ -107,31 +106,17 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="firstName"
+                name="fullName"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ism *</FormLabel>
+                  <FormItem className="col-span-2">
+                    <FormLabel>Ism familya *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Masalan: Ali" {...field} />
+                      <Input placeholder="Masalan: Ali Valiyev" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="lastName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Familiya *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Masalan: Valiyev" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="phone"
@@ -147,26 +132,12 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
               />
               <FormField
                 control={form.control}
-                name="age"
+                name="birthYear"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Yosh *</FormLabel>
+                    <FormLabel>Tug'ilgan yili *</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="25" {...field} value={field.value != null ? String(field.value) : ''} onChange={e => field.onChange(e.target.value)} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Manzil *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Masalan: Toshkent sh., Chilonzor" {...field} />
+                      <Input type="number" placeholder="1995" {...field} value={field.value != null ? String(field.value) : ''} onChange={e => field.onChange(e.target.value)} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -176,7 +147,7 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
                 control={form.control}
                 name="workplace"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="col-span-2">
                     <FormLabel>Ish joyi *</FormLabel>
                     <FormControl>
                       <Input placeholder="Masalan: Zavod, Maktab" {...field} />
@@ -186,65 +157,86 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
                 )}
               />
 
+              {/* Rest is filled in later via edit */}
+              {editing && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel>Manzil</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Masalan: Toshkent sh., Chilonzor" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="assignedDoctorId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Biriktirilgan shifokor</FormLabel>
+                        <FormControl>
+                          <SearchableSelect
+                            options={doctorOptions}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            placeholder="Shifokorni tanlang"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="source"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Manba</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {BOOKING_SOURCES.map((s) => (
+                              <SelectItem key={s} value={s}>{BOOKING_SOURCE_LABELS[s as BookingSource]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+            </div>
+
+            {editing && (
               <FormField
                 control={form.control}
-                name="assignedDoctorId"
+                name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Biriktirilgan shifokor</FormLabel>
+                    <FormLabel>Izoh</FormLabel>
                     <FormControl>
-                      <SearchableSelect
-                        options={doctorOptions}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder="Shifokorni tanlang"
+                      <Textarea
+                        placeholder="Bemor haqida qo'shimcha ma'lumot..."
+                        className="min-h-[100px]"
+                        {...field}
+                        value={field.value ?? ''}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="source"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Manba</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {BOOKING_SOURCES.map((s) => (
-                          <SelectItem key={s} value={s}>{BOOKING_SOURCE_LABELS[s as BookingSource]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Izoh</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Bemor haqida qo'shimcha ma'lumot..." 
-                      className="min-h-[100px]" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            )}
             <Button type="submit" className="w-full h-11 text-base font-semibold">
               {editing ? "Yangilash" : "Qo'shish"}
             </Button>
