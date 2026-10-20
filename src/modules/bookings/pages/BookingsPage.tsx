@@ -4,6 +4,7 @@ import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { DraggableBookingCalendar } from '@/components';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Search, List, CalendarDays, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -216,6 +217,16 @@ function BookingsPageContent() {
                 ))}
               </SelectContent>
             </Select>
+            <SearchableSelect
+              className="w-[220px] h-10"
+              options={doctors.map((d) => ({
+                value: d.id,
+                label: `${d.firstName} ${d.lastName} (${d.specialty})`,
+              }))}
+              value={filters.doctorId}
+              onValueChange={(val) => setFilters('doctorId', val || undefined)}
+              placeholder="Barcha shifokorlar"
+            />
             <Select 
               value={filters.source || 'all'} 
               onValueChange={(val) => setFilters('source', val)}

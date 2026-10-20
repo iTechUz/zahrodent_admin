@@ -27,7 +27,7 @@ export const useBookings = () => {
 
   const table = useServerTable<
     Booking,
-    { status?: string; source?: string; dateRange?: string; startDate?: string; endDate?: string }
+    { status?: string; source?: string; doctorId?: string; dateRange?: string; startDate?: string; endDate?: string }
   >({
     queryKey: queryKeys.bookings,
     fetchFn: (params) => bookingsApi.list(params),
