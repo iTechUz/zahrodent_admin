@@ -7,6 +7,9 @@ import type {
   Service,
   Notification,
   NotificationRecipient,
+  BookingStatusLogEntry,
+  TelegramLog,
+  TelegramLogStatus,
   DoctorEfficiencyStats,
   PatientComment,
   Lead,
@@ -158,8 +161,10 @@ export const bookingsApi = {
   get: (id: string) => apiRequest<Booking>(`/bookings/${id}`),
   create: (body: Omit<Booking, 'id' | 'createdAt'> & { createdAt?: string }) =>
     apiRequest<Booking>('/bookings', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id: string, body: Partial<Booking>) =>
+  /** `statusReason` is shown to the patient on cancel and kept in the status log. */
+  update: (id: string, body: Partial<Booking> & { statusReason?: string }) =>
     apiRequest<Booking>(`/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  statusLog: (id: string) => apiRequest<BookingStatusLogEntry[]>(`/bookings/${id}/status-log`),
   remove: (id: string) => apiRequest<{ id: string }>(`/bookings/${id}`, { method: 'DELETE' }),
 };
 
@@ -237,6 +242,13 @@ export const notificationsApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+};
+
+export const notificationLogsApi = {
+  list: (params?: ListParams & { status?: TelegramLogStatus; kind?: string }) =>
+    apiRequest<PaginatedResponse<TelegramLog>>(`/notification-logs${qs(params ?? {})}`),
+  summary: () => apiRequest<{ failed24h: number; pending: number }>('/notification-logs/summary'),
+  retry: (id: string) => apiRequest<TelegramLog>(`/notification-logs/${id}/retry`, { method: 'POST', body: '{}' }),
 };
 
 export const usersApi = {

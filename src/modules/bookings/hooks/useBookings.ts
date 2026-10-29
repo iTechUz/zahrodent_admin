@@ -84,7 +84,7 @@ export const useBookings = () => {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<Booking> }) =>
+    mutationFn: ({ id, body }: { id: string; body: Partial<Booking> & { statusReason?: string } }) =>
       bookingsApi.update(id, body),
     onSuccess: () => {
       invalidate();
@@ -123,12 +123,14 @@ export const useBookings = () => {
   );
 
   const handleStatusChange = useCallback(
-    (id: string, status: BookingStatus) => {
+    (id: string, status: BookingStatus, statusReason?: string) => {
       updateMut.mutate(
-        { id, body: { status } },
+        { id, body: { status, ...(statusReason?.trim() ? { statusReason: statusReason.trim() } : {}) } },
         {
-          onSuccess: () =>
-            toast.success(`Holat "${BOOKING_STATUS_LABELS[status]}" ga o'zgartirildi`),
+          onSuccess: () => {
+            toast.success(`Holat "${BOOKING_STATUS_LABELS[status]}" ga o'zgartirildi`);
+            queryClient.invalidateQueries({ queryKey: ['bookings', id, 'status-log'] });
+          },
         },
       );
     },
