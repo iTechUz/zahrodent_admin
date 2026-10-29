@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBulkSms, DatePreset } from '../hooks/useBulkSms';
+import { TelegramDeliveryAlert } from '../components/TelegramDeliveryAlert';
 
 const notifStatusLabels: Record<string, string> = {
   sent: 'Yuborilgan', delivered: 'Yetkazilgan', failed: 'Xatolik',
@@ -443,6 +444,8 @@ function NotificationsPageContent() {
         title="Bildirishnomalar"
         description="Mijozlar bilan aloqa va SMS eslatmalar markazi"
       />
+
+      <TelegramDeliveryAlert />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard 

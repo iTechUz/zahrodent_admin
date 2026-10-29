@@ -163,6 +163,29 @@ export interface Notification {
   status: 'sent' | 'delivered' | 'failed';
 }
 
+export interface BookingStatusLogEntry {
+  id: string;
+  bookingId: string;
+  fromStatus: BookingStatus;
+  toStatus: BookingStatus;
+  reason: string | null;
+  changedByName: string;
+  createdAt: string;
+}
+
+export type TelegramLogStatus = 'pending' | 'sent' | 'failed';
+
+export interface TelegramLog {
+  id: string;
+  kind: string;
+  text: string;
+  status: TelegramLogStatus;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  sentAt: string | null;
+}
+
 export interface DoctorEfficiencyStats {
   id: string;
   firstName: string;

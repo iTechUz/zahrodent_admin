@@ -59,6 +59,10 @@ export const queryKeys = {
   notifications: ['notifications'] as const,
   notificationsList: listKey('notifications'),
 
+  notificationLogs: ['notification-logs'] as const,
+  notificationLogsSummary: ['notification-logs', 'summary'] as const,
+  bookingStatusLog: (id: string) => ['bookings', id, 'status-log'] as const,
+
   settings: ['settings'] as const,
 
   analytics: ['analytics'] as const,

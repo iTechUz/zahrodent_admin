@@ -9,7 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Search, List, CalendarDays, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BOOKING_STATUSES, BOOKING_SOURCES, BOOKING_STATUS_LABELS, BOOKING_SOURCE_LABELS } from '@/shared/constants';
+import { useState } from 'react';
 import { useBookings } from '../hooks/useBookings';
+import { CancelReasonDialog, StatusHistoryDialog } from '../components/BookingStatusDialogs';
+import type { BookingStatus } from '@/shared/types';
 import { BookingForm, BookingDetails } from '../components/BookingForm';
 import { DataTable, Column } from '@/shared/components/DataTable';
 import { useCan } from '@/shared/hooks/usePermissions';
@@ -61,6 +64,10 @@ function BookingsPageContent() {
   const canCreate = can('bookings.create');
   const canUpdate = can('bookings.update');
   const canDelete = can('bookings.delete');
+  const [cancelId, setCancelId] = useState<string | null>(null);
+  const [historyId, setHistoryId] = useState<string | null>(null);
+  const changeStatus = (id: string, s: BookingStatus) =>
+    s === 'cancelled' ? setCancelId(id) : handleStatusChange(id, s);
 
   const columns: Column<Booking>[] = [
     { 
@@ -100,10 +107,13 @@ function BookingsPageContent() {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             {BOOKING_STATUSES.map((s) => (
-              <DropdownMenuItem key={s} onClick={() => handleStatusChange(b.id, s)}>
+              <DropdownMenuItem key={s} onClick={() => changeStatus(b.id, s)}>
                 {BOOKING_STATUS_LABELS[s]}
               </DropdownMenuItem>
             ))}
+            <DropdownMenuItem onClick={() => setHistoryId(b.id)} className="border-t border-border text-muted-foreground">
+              Holat tarixi
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -294,6 +304,16 @@ function BookingsPageContent() {
         patients={patients}
         doctors={doctors}
       />
+
+      <CancelReasonDialog
+        open={!!cancelId}
+        onOpenChange={(o) => !o && setCancelId(null)}
+        onConfirm={(reason) => {
+          if (cancelId) handleStatusChange(cancelId, 'cancelled', reason);
+          setCancelId(null);
+        }}
+      />
+      <StatusHistoryDialog bookingId={historyId} onClose={() => setHistoryId(null)} />
 
       <ConfirmDeleteDialog 
         open={!!deleteId} 
