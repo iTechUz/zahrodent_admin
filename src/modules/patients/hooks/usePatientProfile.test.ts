@@ -228,7 +228,7 @@ describe('usePatientProfile', () => {
       expect(result.current.editForm).toMatchObject({
         firstName: 'Ali',
         lastName: 'Valiyev',
-        age: '30',
+        birthYear: String(new Date().getFullYear() - 30),
         phone: '+998901112233',
         address: 'Toshkent',
         workplace: 'IT',
@@ -265,25 +265,25 @@ describe('usePatientProfile', () => {
       expect(pApi.update).not.toHaveBeenCalled();
     });
 
-    it('handleEditSave rejects a bad phone and an impossible age', async () => {
+    it('handleEditSave rejects a bad phone and an impossible birth year', async () => {
       const { result } = setup();
       await ready(result);
       act(() => result.current.openEdit());
       act(() => result.current.setEditForm({ ...result.current.editForm, phone: 'abc' }));
       act(() => result.current.handleEditSave());
       expect(toastMock.error).toHaveBeenCalledWith("Telefon raqami +998XXXXXXXXX formatida bo'lishi kerak");
-      act(() => result.current.setEditForm({ ...result.current.editForm, phone: '+998901234567', age: '150' }));
+      act(() => result.current.setEditForm({ ...result.current.editForm, phone: '+998901234567', birthYear: '1800' }));
       act(() => result.current.handleEditSave());
-      expect(toastMock.error).toHaveBeenCalledWith('Yosh 120 dan oshmasligi kerak');
+      expect(toastMock.error).toHaveBeenCalledWith("Tug'ilgan yil noto'g'ri");
       expect(pApi.update).not.toHaveBeenCalled();
     });
 
-    it('handleEditSave PATCHes with numeric age, invalidates, toasts and closes', async () => {
+    it('handleEditSave PATCHes with age derived from birth year, invalidates, toasts and closes', async () => {
       pApi.update.mockResolvedValue(patient);
       const { result, invalidate } = setup();
       await ready(result);
       act(() => result.current.openEdit());
-      act(() => result.current.setEditForm({ ...result.current.editForm, age: '31' }));
+      act(() => result.current.setEditForm({ ...result.current.editForm, birthYear: String(new Date().getFullYear() - 31) }));
       act(() => result.current.handleEditSave());
       await waitFor(() => expect(result.current.editOpen).toBe(false));
       expect(pApi.update).toHaveBeenCalledWith('p1', expect.objectContaining({ firstName: 'Ali', age: 31 }));

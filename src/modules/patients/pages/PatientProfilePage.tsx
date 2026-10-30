@@ -484,8 +484,8 @@ export default function PatientProfilePage() {
               <Input value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label>Yosh *</Label>
-              <Input type="number" value={editForm.age} onChange={e => setEditForm({ ...editForm, age: e.target.value })} />
+              <Label>Tug'ilgan yili *</Label>
+              <Input type="number" placeholder="1995" value={editForm.birthYear} onChange={e => setEditForm({ ...editForm, birthYear: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Telefon *</Label>
