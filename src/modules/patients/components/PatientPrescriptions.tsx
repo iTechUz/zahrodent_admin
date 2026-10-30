@@ -11,6 +11,7 @@ import { prescriptionsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
 import { PrescriptionItem } from '@/shared/types';
 import { PrescriptionCard } from './PrescriptionCard';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 
 const emptyItem = (): PrescriptionItem => ({
   name: '', dosage: '', frequency: '', duration: '', quantity: '', instructions: '',
@@ -28,6 +29,7 @@ export function PatientPrescriptions({ patientId, canWrite, doctorId }: Props) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PrescriptionItem[]>([emptyItem()]);
   const [notes, setNotes] = useState('');
+  const [cancelId, setCancelId] = useState<string | null>(null);
 
   const { data } = useQuery({
     queryKey: queryKeys.prescriptionsByPatient(patientId),
@@ -86,7 +88,7 @@ export function PatientPrescriptions({ patientId, canWrite, doctorId }: Props) {
             prescription={rx}
             action={
               canWrite && rx.status === 'issued' ? (
-                <Button size="sm" variant="outline" onClick={() => cancel.mutate(rx.id)} disabled={cancel.isPending}>
+                <Button size="sm" variant="outline" onClick={() => setCancelId(rx.id)} disabled={cancel.isPending}>
                   Bekor qilish
                 </Button>
               ) : undefined
@@ -94,6 +96,18 @@ export function PatientPrescriptions({ patientId, canWrite, doctorId }: Props) {
           />
         ))
       )}
+
+      <ConfirmDeleteDialog
+        open={!!cancelId}
+        onOpenChange={(o) => { if (!o) setCancelId(null); }}
+        onConfirm={() => {
+          if (cancelId) cancel.mutate(cancelId);
+          setCancelId(null);
+        }}
+        title="Retseptni bekor qilasizmi?"
+        description="Bekor qilingan retseptni aptekada berib bo'lmaydi va uni qayta tiklab bo'lmaydi."
+        confirmLabel="Bekor qilish"
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
