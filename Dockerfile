@@ -17,6 +17,10 @@ RUN npm run build
 # ---------- runtime ----------
 FROM nginx:alpine
 
+# `apk upgrade` pulls fixed Alpine packages (e.g. brotli-libs, curl) newer than the base image
+# snapshot — keeps the Trivy CRITICAL gate in CD green.
+RUN apk upgrade --no-cache
+
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY docker/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
