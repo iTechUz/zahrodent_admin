@@ -33,7 +33,7 @@ export const ServiceCard = ({ service, onEdit, onDelete }: ServiceCardProps) => 
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button variant="ghost" size="icon" tooltip="Amallar" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
               <MoreHorizontal className="w-3.5 h-3.5" />
             </Button>
           </DropdownMenuTrigger>

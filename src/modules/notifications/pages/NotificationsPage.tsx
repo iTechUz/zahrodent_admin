@@ -241,7 +241,7 @@ function BulkSmsTab() {
         <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
           <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={toggleSelectAll} className="h-8 w-8 hover:bg-primary/5">
+              <Button variant="ghost" size="icon" tooltip="Hammasini belgilash" onClick={toggleSelectAll} className="h-8 w-8 hover:bg-primary/5">
                 {selectedIds.length === recipients.length && recipients.length > 0 ? (
                   <CheckSquare className="w-5 h-5 text-primary" />
                 ) : (

@@ -106,13 +106,13 @@ export function BookingCalendar() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prevMonth}>
+          <Button variant="ghost" size="icon" tooltip="Oldingi oy" className="h-8 w-8" onClick={prevMonth}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <h3 className="text-sm font-semibold min-w-[140px] text-center">
             {MONTHS[month]} {year}
           </h3>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={nextMonth}>
+          <Button variant="ghost" size="icon" tooltip="Keyingi oy" className="h-8 w-8" onClick={nextMonth}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
