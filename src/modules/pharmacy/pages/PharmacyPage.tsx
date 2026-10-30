@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { prescriptionsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { PrescriptionCard } from '@/modules/patients/components/PrescriptionCard';
 
 export default function PharmacyPage() {
   const queryClient = useQueryClient();
   const [input, setInput] = useState('');
   const [term, setTerm] = useState('');
+  const [dispenseId, setDispenseId] = useState<string | null>(null);
 
   const { data, isFetching } = useQuery({
     queryKey: queryKeys.pharmacySearch(term),
@@ -71,13 +73,25 @@ export default function PharmacyPage() {
             prescription={rx}
             showPatient
             action={
-              <Button onClick={() => dispense.mutate(rx.id)} disabled={dispense.isPending}>
+              <Button onClick={() => setDispenseId(rx.id)} disabled={dispense.isPending}>
                 Dori berildi
               </Button>
             }
           />
         ))}
       </div>
+
+      <ConfirmDeleteDialog
+        open={!!dispenseId}
+        onOpenChange={(o) => { if (!o) setDispenseId(null); }}
+        onConfirm={() => {
+          if (dispenseId) dispense.mutate(dispenseId);
+          setDispenseId(null);
+        }}
+        title="Dori berildimi?"
+        description="Retsept 'berildi' deb belgilanadi va qayta ishlatib bo'lmaydi."
+        confirmLabel="Ha, berildi"
+      />
     </div>
   );
 }
