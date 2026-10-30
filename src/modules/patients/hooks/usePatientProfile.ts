@@ -135,7 +135,7 @@ export const usePatientProfile = (
   const [editForm, setEditForm] = useState({
     firstName: '',
     lastName: '',
-    age: '',
+    birthYear: '',
     phone: '',
     address: '',
     workplace: '',
@@ -196,16 +196,26 @@ export const usePatientProfile = (
   const handleEditSave = () => {
     if (!patient) return;
     // same rules as the patients-list form (phone format, age 1–120, address ≥ 3 …)
-    const parsed = PatientSchema.safeParse({ ...editForm, assignedDoctorId: editForm.assignedDoctorId || undefined });
+    const { birthYear, ...rest } = editForm;
+    const year = Number(birthYear);
+    const thisYear = new Date().getFullYear();
+    const yearOk = birthYear !== '' && Number.isInteger(year) && year <= thisYear && year >= thisYear - 120;
+    // age is what the backend stores; derived from the birth year (placeholder 1 only so the other fields get validated first)
+    const age = yearOk ? thisYear - year : 1;
+    const parsed = PatientSchema.safeParse({ ...rest, age, assignedDoctorId: rest.assignedDoctorId || undefined });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Majburiy maydonlarni to'ldiring");
+      return;
+    }
+    if (!yearOk) {
+      toast.error("Tug'ilgan yil noto'g'ri");
       return;
     }
     updatePatientMut.mutate(
       {
         id: patient.id,
         // "" = no doctor selected → null unassigns on the backend
-        body: { ...editForm, age: Number(editForm.age), assignedDoctorId: editForm.assignedDoctorId || null },
+        body: { ...rest, age, assignedDoctorId: rest.assignedDoctorId || null },
       },
       {
         onSuccess: () => {
@@ -325,7 +335,7 @@ export const usePatientProfile = (
     setEditForm({
       firstName: patient.firstName,
       lastName: patient.lastName,
-      age: String(patient.age),
+      birthYear: String(new Date().getFullYear() - patient.age),
       phone: patient.phone,
       address: patient.address || '',
       workplace: patient.workplace || '',
