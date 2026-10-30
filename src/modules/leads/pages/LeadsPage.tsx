@@ -2,6 +2,7 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { useState } from 'react';
 import { useLeads } from '../hooks/useLeads';
 import { PageHeader } from '@/shared/components/PageHeader';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Lead, LeadStatus } from '@/shared/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,7 @@ export default function LeadsPage() {
   
   const navigate = useNavigate();
   const [view, setView] = useState<'board' | 'table'>('board');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   
   // Lead Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -240,7 +242,7 @@ export default function LeadsPage() {
           <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" onClick={() => handleConvertToPatient(l)}>
             <CalendarPlus className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteLead(l.id)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(l.id)}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -437,7 +439,7 @@ export default function LeadsPage() {
                                               variant="ghost" 
                                               size="icon" 
                                               className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-colors" 
-                                              onClick={(e) => { e.stopPropagation(); deleteLead(lead.id); }} 
+                                              onClick={(e) => { e.stopPropagation(); setDeleteId(lead.id); }} 
                                               title="O'chirish"
                                             >
                                               <Trash2 className="w-4 h-4" />
@@ -631,6 +633,17 @@ export default function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!deleteId}
+        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+        onConfirm={() => {
+          if (deleteId) deleteLead(deleteId);
+          setDeleteId(null);
+        }}
+        title="Murojaatni o'chirasizmi?"
+        description="Murojaat butunlay o'chiriladi va uni qaytarib bo'lmaydi."
+      />
     </div>
   );
 }
