@@ -7,6 +7,11 @@
 set -euo pipefail
 
 if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
+  # Dependabot PR runs get no Actions secrets (only Dependabot secrets): skip, do not fail CI.
+  if [ "${ACTOR:-}" = "dependabot[bot]" ]; then
+    echo "::warning::Dependabot run without Telegram secrets - message skipped"
+    exit 0
+  fi
   echo "::error::BOT_TOKEN/CHAT_ID missing - Telegram message not sent"
   exit 1
 fi
