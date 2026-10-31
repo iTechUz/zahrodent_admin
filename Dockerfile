@@ -1,11 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # ---------- build ----------
-FROM node:20-alpine AS build
+FROM node:20.20.2-alpine3.23 AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# npm cache build'lar orasida saqlanadi (image'ga tushmaydi).
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
 
 COPY . .
 # Build-time default only. At runtime the container's VITE_API_URL (docker run --env-file)
@@ -15,7 +17,7 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 # ---------- runtime ----------
-FROM nginx:alpine
+FROM nginx:1.31.8-alpine3.24
 
 # `apk upgrade` pulls fixed Alpine packages (e.g. brotli-libs, curl) newer than the base image
 # snapshot — keeps the Trivy CRITICAL gate in CD green.
