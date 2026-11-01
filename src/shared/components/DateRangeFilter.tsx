@@ -22,6 +22,12 @@ export interface DateRange {
   endDate?: string;
 }
 
+/** Human label of the period a range stands for ("Shu oy", "O'tgan oy", "Tanlangan davr"). */
+export function presetLabel(range: DateRange, now: Date = new Date()): string {
+  const p = detectPreset(range, now);
+  return p === 'custom' ? 'Tanlangan davr' : LABELS[p];
+}
+
 /** Start/end (YYYY-MM-DD, clinic time zone) of a preset; `custom` keeps whatever is passed in. */
 export function presetRange(preset: DatePreset, now: Date = new Date()): DateRange {
   const today = clinicToday(now);

@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, UserPlus, Stethoscope, CreditCard } from 'lucide-react';
@@ -8,6 +8,7 @@ import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments, roleAccess } from '@/shared/config/roles';
 import { clinicToday } from '@/shared/lib/date-utils';
+import { detectPreset, presetLabel, presetRange, type DateRange } from '@/shared/components/DateRangeFilter';
 import {
   lastTwoMonths,
   monthlyPatientSeries,
@@ -18,6 +19,16 @@ import {
 import type { Doctor, Patient } from '@/shared/types';
 
 export const DASHBOARD_MONTHS = 6;
+const ALL_TIME_START = '2000-01-01';
+
+/** Chart length: enough calendar months to reach `start` (min DASHBOARD_MONTHS, backend max 24). */
+export function monthsToCover(start: string | undefined, today: string): number {
+  if (!start) return DASHBOARD_MONTHS;
+  const [sy, sm] = start.split('-').map(Number);
+  const [ty, tm] = today.split('-').map(Number);
+  const span = (ty - sy) * 12 + (tm - sm) + 1;
+  return Math.min(24, Math.max(DASHBOARD_MONTHS, span));
+}
 export const RECENT_BOOKINGS_LIMIT = 5;
 
 /**
@@ -31,16 +42,28 @@ export const useDashboard = () => {
   const navigate = useNavigate();
   const today = clinicToday();
 
+  // period for the "month" figures and charts; default = this month
+  const [range, setRange] = useState<DateRange>(() => presetRange('month'));
+  const isThisMonth = detectPreset(range) === 'month';
+  // the backend treats "no dates" as this month, so "all time" is an explicit early start
+  const period = useMemo(
+    () => (range.startDate || range.endDate ? range : { startDate: ALL_TIME_START }),
+    [range],
+  );
+  const chartMonths = useMemo(() => monthsToCover(period.startDate, today), [period.startDate, today]);
+
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.analyticsDashboard(today),
-    queryFn: () => analyticsApi.dashboard({ date: today }),
+    queryKey: queryKeys.analyticsDashboard(today, period),
+    queryFn: () => analyticsApi.dashboard({ date: today, ...period }),
     enabled: authed,
+    placeholderData: keepPreviousData,
   });
 
   const monthlyQuery = useQuery({
-    queryKey: queryKeys.analyticsMonthly(DASHBOARD_MONTHS),
-    queryFn: () => analyticsApi.monthly({ months: DASHBOARD_MONTHS }),
+    queryKey: queryKeys.analyticsMonthly(chartMonths),
+    queryFn: () => analyticsApi.monthly({ months: chartMonths }),
     enabled: authed,
+    placeholderData: keepPreviousData,
   });
 
   const sourcesQuery = useQuery({
@@ -97,8 +120,9 @@ export const useDashboard = () => {
 
   const newMom = lastTwoMonths(monthly, 'newPatients');
   const revMom = lastTwoMonths(monthly, 'revenue');
-  const newPatientsTrend = monthOverMonthHint(newMom.current, newMom.previous);
-  const revenueTrend = canViewPayments ? monthOverMonthHint(revMom.current, revMom.previous) : null;
+  // month-over-month only makes sense for the current month
+  const newPatientsTrend = isThisMonth ? monthOverMonthHint(newMom.current, newMom.previous) : null;
+  const revenueTrend = canViewPayments && isThisMonth ? monthOverMonthHint(revMom.current, revMom.previous) : null;
 
   const quickActions = useMemo(() => {
     const routes = role ? roleAccess[role] : [];
@@ -116,6 +140,9 @@ export const useDashboard = () => {
   const isLoading = dashboardQuery.isLoading || monthlyQuery.isLoading || sourcesQuery.isLoading;
 
   return {
+    range,
+    setRange,
+    periodLabel: presetLabel(range),
     // headline figures (backend aggregates)
     totalPatients: stats?.totalPatients ?? 0,
     newPatients: stats?.newPatientsThisMonth ?? 0,

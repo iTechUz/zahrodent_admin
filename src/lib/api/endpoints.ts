@@ -221,7 +221,7 @@ export const paymentsApi = {
 
 export const analyticsApi = {
   /** Headline figures; `date` = clinic "today" (YYYY-MM-DD). Money fields are null for non-admins. */
-  dashboard: (params?: { date?: string }) =>
+  dashboard: (params?: { date?: string; startDate?: string; endDate?: string }) =>
     apiRequest<DashboardAnalytics>(`/analytics/dashboard${qs(params ?? {})}`),
   /** Oldest → newest month buckets. Money fields are null for non-admins. */
   monthly: (params?: { months?: number }) =>
