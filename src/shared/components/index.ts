@@ -8,3 +8,4 @@ export * from './StatusBadge';
 export * from './QueryErrorState';
 export * from './PatientNameLabel';
 export * from './SortableHeader';
+export * from './DateRangeFilter';

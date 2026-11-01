@@ -36,6 +36,8 @@ import { exportToExcel } from '@/shared/lib/excel';
 import { leadsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { DataTable, Column } from '@/shared/components/DataTable';
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
+import { BOOKING_SOURCES, BOOKING_SOURCE_LABELS } from '@/shared/constants';
 import { formatDate } from '@/shared/lib/formatters';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { toast } from 'sonner';
@@ -65,6 +67,7 @@ export default function LeadsPage() {
     search,
     setSearch,
     filters,
+    setFilters,
     setStatusFilter,
     page,
     setPage,
@@ -283,7 +286,31 @@ export default function LeadsPage() {
           />
         </div>
         
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <DateRangeFilter
+            startDate={filters.startDate}
+            endDate={filters.endDate}
+            onChange={(r) => {
+              setFilters('startDate', r.startDate);
+              setFilters('endDate', r.endDate);
+            }}
+          />
+          <div className="flex-1 md:w-44">
+            <Select
+              value={filters.source || 'all'}
+              onValueChange={(v) => setFilters('source', v === 'all' ? undefined : v)}
+            >
+              <SelectTrigger className="rounded-xl border-none bg-background/50" aria-label="Manba">
+                <SelectValue placeholder="Barcha manbalar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Barcha manbalar</SelectItem>
+                {BOOKING_SOURCES.map((s) => (
+                  <SelectItem key={s} value={s}>{BOOKING_SOURCE_LABELS[s]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex-1 md:w-48">
             <Select value={filters.status || 'all'} onValueChange={setStatusFilter}>
               <SelectTrigger className="rounded-xl border-none bg-background/50">

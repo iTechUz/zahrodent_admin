@@ -8,7 +8,8 @@ import { useDialogState } from '@/shared/hooks/useDialogState';
 import { PatientService } from '../services/patient.service';
 import { PatientSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
-import { patientsApi, type PatientUpdatePayload } from '@/lib/api/endpoints';
+import { patientsApi, doctorsApi, type PatientUpdatePayload } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
 import { getMonthToDateRange } from '@/shared/lib/date-utils';
@@ -24,7 +25,7 @@ export const usePatients = () => {
 
   const table = useServerTable<
     Patient,
-    { source?: string; startDate?: string; endDate?: string; debtOnly?: string }
+    { source?: string; startDate?: string; endDate?: string; debtOnly?: string; doctorId?: string }
   >({
     queryKey: queryKeys.patients,
     fetchFn: (params) => patientsApi.list(params),
@@ -34,6 +35,13 @@ export const usePatients = () => {
       source: 'all'
     },
     perPage: 10,
+  });
+
+  // doctor filter options (GET /doctors is open to every staff role)
+  const { data: doctorsData } = useQuery({
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
+    enabled: authed,
   });
 
   const { data: stats } = useQuery({
@@ -139,6 +147,7 @@ export const usePatients = () => {
     filters: table.filters,
     setFilters: table.setFilters,
     toggleDebtOnly,
+    doctors: doctorsData?.data ?? [],
     sort: table.sort,
     setSort: table.setSort,
     modalOpen: dialog.isOpen,

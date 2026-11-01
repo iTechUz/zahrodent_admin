@@ -8,7 +8,7 @@ import { useServerTable } from '@/shared/hooks/useServerTable';
 export const useLeads = () => {
   const queryClient = useQueryClient();
 
-  const table = useServerTable<Lead, { startDate?: string; endDate?: string; status?: string }>({
+  const table = useServerTable<Lead, { startDate?: string; endDate?: string; status?: string; source?: string }>({
     queryKey: ['leads'],
     fetchFn: (params) => leadsApi.list(params),
     perPage: 20,
