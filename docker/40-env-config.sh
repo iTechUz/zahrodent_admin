@@ -8,7 +8,7 @@
 set -eu
 
 TARGET="${ENV_CONFIG_PATH:-/usr/share/nginx/html/env-config.js}"
-VARS="${RUNTIME_ENV_VARS:-VITE_API_URL}"
+VARS="${RUNTIME_ENV_VARS:-VITE_API_URL VITE_GUIDE_URL}"
 
 json_escape() {
   # backslash, double quote and "<" (no </script> injection); strip CR/LF

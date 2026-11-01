@@ -1,4 +1,4 @@
-import { Bell, Moon, Sun, User, LogOut, Settings, Search } from 'lucide-react';
+import { Bell, CircleHelp, Moon, Sun, User, LogOut, Settings, Search } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,8 +9,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { roleAccess, roleConfig } from '@/shared/config/roles';
+import { guideUrlFor } from '@/shared/config/guide';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -32,6 +33,8 @@ export function Topbar() {
   });
   const unread = (notificationsRes?.data ?? []).filter((n) => n.status === 'sent').length;
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const openGuide = () => window.open(guideUrlFor(pathname), '_blank', 'noopener,noreferrer');
   const canOpenNotifications = !!currentUser && roleAccess[currentUser.role].includes('/notifications');
   const openNotifications = () => {
     if (canOpenNotifications) navigate('/notifications');
@@ -53,6 +56,9 @@ export function Topbar() {
         )}
         <Button variant="ghost" size="icon" tooltip={darkMode ? "Yorug' rejim" : "Qorong'i rejim"} className="h-8 w-8" onClick={toggleDarkMode}>
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </Button>
+        <Button variant="ghost" size="icon" tooltip="Qo'llanma" className="h-8 w-8" onClick={openGuide}>
+          <CircleHelp className="w-4 h-4" />
         </Button>
         <Button variant="ghost" size="icon" tooltip="Bildirishnomalar" className="relative h-8 w-8" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
@@ -112,6 +118,9 @@ export function Topbar() {
         )}
         <Button variant="ghost" size="icon" tooltip={darkMode ? "Yorug' rejim" : "Qorong'i rejim"} onClick={toggleDarkMode} className="relative">
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </Button>
+        <Button variant="ghost" size="icon" tooltip="Qo'llanma" onClick={openGuide}>
+          <CircleHelp className="w-4 h-4" />
         </Button>
         <Button variant="ghost" size="icon" tooltip="Bildirishnomalar" className="relative" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
