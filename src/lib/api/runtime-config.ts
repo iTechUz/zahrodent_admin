@@ -19,7 +19,7 @@ declare global {
 }
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
-export const DEFAULT_GUIDE_URL = 'https://zahrocrm.uz/qollanma/';
+export const DEFAULT_GUIDE_URL = 'https://zahro-landing.vercel.app/qollanma/';
 
 function nonEmpty(v: string | undefined | null): string | undefined {
   const t = v?.trim();
