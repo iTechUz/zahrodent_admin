@@ -9,6 +9,7 @@
  */
 export interface RuntimeEnv {
   VITE_API_URL?: string;
+  VITE_GUIDE_URL?: string;
 }
 
 declare global {
@@ -18,6 +19,7 @@ declare global {
 }
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
+export const DEFAULT_GUIDE_URL = 'https://zahrocrm.uz/qollanma/';
 
 function nonEmpty(v: string | undefined | null): string | undefined {
   const t = v?.trim();
@@ -30,4 +32,12 @@ export function resolveApiUrl(): string {
   let url = runtime ?? nonEmpty(import.meta.env.VITE_API_URL) ?? DEFAULT_API_URL;
   if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
   return url.replace(/\/+$/, '');
+}
+
+/** User guide base URL (the landing's /qollanma/ page): runtime → build-time env → default; always ends with '/'. */
+export function resolveGuideUrl(): string {
+  const runtime = typeof window !== 'undefined' ? nonEmpty(window.__ENV__?.VITE_GUIDE_URL) : undefined;
+  let url = runtime ?? nonEmpty(import.meta.env.VITE_GUIDE_URL) ?? DEFAULT_GUIDE_URL;
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  return url.replace(/\/+$/, '') + '/';
 }
