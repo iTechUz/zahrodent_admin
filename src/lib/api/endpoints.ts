@@ -103,7 +103,13 @@ export type ListParams = {
 
 export const patientsApi = {
   list: (
-    params?: ListParams & { source?: string; startDate?: string; endDate?: string; debtOnly?: string | boolean },
+    params?: ListParams & {
+      source?: string;
+      startDate?: string;
+      endDate?: string;
+      debtOnly?: string | boolean;
+      doctorId?: string;
+    },
   ) => apiRequest<PaginatedResponse<Patient>>(`/patients${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; newThisMonth: number; topSource: string }>('/patients/stats'),
   /** `includeDeleted` (admin only) also returns an archived (soft-deleted) patient. */
@@ -279,7 +285,7 @@ export const usersApi = {
 };
 
 export const leadsApi = {
-  list: (params?: ListParams & { startDate?: string; endDate?: string; status?: string }) =>
+  list: (params?: ListParams & { startDate?: string; endDate?: string; status?: string; source?: string }) =>
     apiRequest<PaginatedResponse<Lead>>(`/leads${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Lead>(`/leads/${id}`),
   create: (body: Partial<Lead>) =>

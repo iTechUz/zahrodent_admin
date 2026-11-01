@@ -49,14 +49,16 @@ export function UsersPageContent() {
   } = useUsers();
 
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const term = useDebouncedValue(search.trim().toLowerCase(), SEARCH_DEBOUNCE_MS);
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       if (u.role === 'doctor') return false;
+      if (roleFilter !== 'all' && u.role !== roleFilter) return false;
       return u.name.toLowerCase().includes(term) || u.phone.toLowerCase().includes(term);
     });
-  }, [users, term]);
+  }, [users, term, roleFilter]);
 
   return (
     <div className="space-y-6">
@@ -82,6 +84,21 @@ export function UsersPageContent() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <Select value={roleFilter} onValueChange={setRoleFilter}>
+          <SelectTrigger className="w-full sm:w-[180px]" aria-label="Rol">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Barcha rollar</SelectItem>
+            {Object.entries(roleConfig)
+              .filter(([role]) => role !== 'doctor')
+              .map(([role, cfg]) => (
+                <SelectItem key={role} value={role}>
+                  {cfg.label}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
         <Select
           value={sort.sortBy ? `${sort.sortBy}:${sort.order ?? 'asc'}` : 'createdAt:desc'}
           onValueChange={(v) => setSort(parseSort(v))}

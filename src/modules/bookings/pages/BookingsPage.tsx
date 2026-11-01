@@ -226,6 +226,18 @@ function BookingsPageContent() {
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={filters.doctorId || 'all'}
+              onValueChange={(val) => setFilters('doctorId', val === 'all' ? undefined : val)}
+            >
+              <SelectTrigger className="w-[190px]" aria-label="Shifokor"><SelectValue placeholder="Shifokor" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Barcha shifokorlar</SelectItem>
+                {doctors.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>{d.firstName} {d.lastName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select 
               value={filters.source || 'all'} 
               onValueChange={(val) => setFilters('source', val)}
