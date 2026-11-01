@@ -1,4 +1,5 @@
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
 import { 
   Users, 
   CalendarDays, 
@@ -49,6 +50,9 @@ function DashboardPageContent() {
     isError,
     error,
     refetch,
+    range,
+    setRange,
+    periodLabel,
   } = useDashboard();
 
   if (isLoading) return <DashboardSkeleton />;
@@ -68,6 +72,9 @@ function DashboardPageContent() {
           {new Date().toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long', timeZone: CLINIC_TIME_ZONE })}
         </div>
       </div>
+
+      {/* Davr: "Daromad" va "Yangi bemorlar" kartalari hamda grafiklar shu davr bo'yicha */}
+      <DateRangeFilter startDate={range.startDate} endDate={range.endDate} onChange={setRange} />
 
       {/* Tezkor amallar */}
       {quickActions.length > 0 && (
@@ -100,14 +107,14 @@ function DashboardPageContent() {
           trendUp={completedToday > 0}
         />
         <StatCard
-          title="Daromad (shu oy)"
+          title={`Daromad (${periodLabel.toLowerCase()})`}
           value={canViewPayments ? formatUzS(monthRevenue) : '—'}
           icon={<DollarSign className="w-5 h-5" />}
           trend={canViewPayments ? revenueTrend?.text : "Faqat admin ko'radi"}
           trendUp={canViewPayments ? revenueTrend?.up : undefined}
         />
         <StatCard
-          title="Yangi bemorlar"
+          title={`Yangi bemorlar (${periodLabel.toLowerCase()})`}
           value={newPatients}
           icon={<CalendarDays className="w-5 h-5" />}
           trend={newPatientsTrend?.text}

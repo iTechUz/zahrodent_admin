@@ -4,7 +4,7 @@ import { ApiError } from '@/lib/api/client';
 import { resetApiMock } from '@/test/api-mock';
 import { createWrapper, loginAs, paginated } from '@/test/utils';
 import type { Booking, DashboardAnalytics, Doctor, MonthlyAnalyticsRow, Patient } from '@/shared/types';
-import { useDashboard } from './useDashboard';
+import { useDashboard, monthsToCover } from './useDashboard';
 
 vi.mock('@/lib/api/endpoints', async () => (await import('@/test/api-mock')).apiMock);
 vi.mock('sonner', async () => ({ toast: (await import('@/test/api-mock')).toastMock }));
@@ -75,7 +75,7 @@ describe('useDashboard (admin)', () => {
   it('uses the backend aggregates — no client-side aggregation over truncated lists', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17' });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
     expect(analyticsApi.monthly).toHaveBeenCalledWith({ months: 6 });
     expect(analyticsApi.sources).toHaveBeenCalled();
     // no bulk list scans any more
@@ -108,7 +108,7 @@ describe('useDashboard (admin)', () => {
     vi.setSystemTime(new Date('2026-06-16T19:30:00.000Z')); // 00:30 on 06-17 in Tashkent
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17' });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
   });
 
   it('builds the 6-month chart series from /analytics/monthly', async () => {
@@ -190,7 +190,7 @@ describe('useDashboard (admin)', () => {
     const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
     expect(keys).toEqual(
       expect.arrayContaining([
-        ['analytics', 'dashboard', '2026-06-17'],
+        ['analytics', 'dashboard', '2026-06-17', { startDate: '2026-06-01' }],
         ['analytics', 'monthly', 6],
         ['analytics', 'sources'],
         ['bookings', 'list', { limit: 5 }],
@@ -242,5 +242,14 @@ describe('useDashboard (non-admin)', () => {
     await Promise.resolve();
     expect(analyticsApi.dashboard).not.toHaveBeenCalled();
     expect(bookingsApi.list).not.toHaveBeenCalled();
+  });
+});
+
+describe('monthsToCover', () => {
+  it('covers the period start, between 6 and 24 months', () => {
+    expect(monthsToCover(undefined, '2026-06-17')).toBe(6);
+    expect(monthsToCover('2026-06-01', '2026-06-17')).toBe(6);
+    expect(monthsToCover('2025-06-01', '2026-06-17')).toBe(13);
+    expect(monthsToCover('2000-01-01', '2026-06-17')).toBe(24);
   });
 });

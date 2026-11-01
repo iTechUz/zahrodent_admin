@@ -66,7 +66,8 @@ export const queryKeys = {
   settings: ['settings'] as const,
 
   analytics: ['analytics'] as const,
-  analyticsDashboard: (date: string) => ['analytics', 'dashboard', date] as const,
+  analyticsDashboard: (date: string, period?: { startDate?: string; endDate?: string }) =>
+    (period ? ['analytics', 'dashboard', date, period] : ['analytics', 'dashboard', date]) as readonly unknown[],
   analyticsMonthly: (months: number) => ['analytics', 'monthly', months] as const,
   analyticsSources: ['analytics', 'sources'] as const,
 };
