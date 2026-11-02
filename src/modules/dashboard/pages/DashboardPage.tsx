@@ -1,4 +1,5 @@
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
+import { EmptyState } from '@/shared/components/EmptyState';
 import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
 import { 
   Users, 
@@ -165,6 +166,9 @@ function DashboardPageContent() {
             <TrendingUp className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold">Bemorlar o'sishi <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}{granularity === 'day' ? ' (kunlik)' : ' (oylik)'}</span></h3>
           </div>
+          {!patientGrowth.some((p) => p.patients > 0) ? (
+            <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />
+          ) : (
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={patientGrowth}>
               <defs>
@@ -180,6 +184,7 @@ function DashboardPageContent() {
               <Area type="monotone" dataKey="patients" stroke="hsl(174, 62%, 38%)" fill="url(#colorPatients)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         <div className="bg-card rounded-xl border border-border p-5">
@@ -187,7 +192,9 @@ function DashboardPageContent() {
             <DollarSign className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold">Daromad dinamikasi <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}</span></h3>
           </div>
-          {canViewPayments ? (
+          {canViewPayments && !revenueData.some((r) => r.revenue > 0) ? (
+            <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />
+          ) : canViewPayments ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" vertical={false} />
@@ -212,6 +219,9 @@ function DashboardPageContent() {
             <Activity className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold">Qabul manbalari <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}</span></h3>
           </div>
+          {sourceData.length === 0 ? (
+            <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />
+          ) : (
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={sourceData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="value">
@@ -222,6 +232,7 @@ function DashboardPageContent() {
               <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
             </PieChart>
           </ResponsiveContainer>
+          )}
           <div className="flex flex-wrap gap-3 mt-2">
             {sourceData.map((s) => (
               <div key={s.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
