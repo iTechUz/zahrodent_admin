@@ -238,6 +238,11 @@ export interface MonthlyAnalyticsRow {
   expenses: number | null;
 }
 
+/** GET /analytics/daily — one row per day (`YYYY-MM-DD`), oldest first */
+export interface DailyAnalyticsRow extends Omit<MonthlyAnalyticsRow, 'month'> {
+  date: string;
+}
+
 /** GET /analytics/sources */
 export interface SourceAnalyticsRow {
   source: string;

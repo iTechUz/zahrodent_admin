@@ -8,6 +8,7 @@ import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments, roleAccess } from '@/shared/config/roles';
 import { clinicToday } from '@/shared/lib/date-utils';
+import { ALL_TIME_START, usePeriodAnalytics } from '@/shared/hooks/usePeriodAnalytics';
 import { detectPreset, presetLabel, presetRange, type DateRange } from '@/shared/components/DateRangeFilter';
 import {
   lastTwoMonths,
@@ -18,17 +19,6 @@ import {
 } from '@/shared/lib/reporting';
 import type { Doctor, Patient } from '@/shared/types';
 
-export const DASHBOARD_MONTHS = 6;
-const ALL_TIME_START = '2000-01-01';
-
-/** Chart length: enough calendar months to reach `start` (min DASHBOARD_MONTHS, backend max 24). */
-export function monthsToCover(start: string | undefined, today: string): number {
-  if (!start) return DASHBOARD_MONTHS;
-  const [sy, sm] = start.split('-').map(Number);
-  const [ty, tm] = today.split('-').map(Number);
-  const span = (ty - sy) * 12 + (tm - sm) + 1;
-  return Math.min(24, Math.max(DASHBOARD_MONTHS, span));
-}
 export const RECENT_BOOKINGS_LIMIT = 5;
 
 /**
@@ -50,7 +40,6 @@ export const useDashboard = () => {
     () => (range.startDate || range.endDate ? range : { startDate: ALL_TIME_START }),
     [range],
   );
-  const chartMonths = useMemo(() => monthsToCover(period.startDate, today), [period.startDate, today]);
 
   const dashboardQuery = useQuery({
     queryKey: queryKeys.analyticsDashboard(today, period),
@@ -59,17 +48,13 @@ export const useDashboard = () => {
     placeholderData: keepPreviousData,
   });
 
-  const monthlyQuery = useQuery({
-    queryKey: queryKeys.analyticsMonthly(chartMonths),
-    queryFn: () => analyticsApi.monthly({ months: chartMonths }),
-    enabled: authed,
-    placeholderData: keepPreviousData,
-  });
-
-  const sourcesQuery = useQuery({
-    queryKey: queryKeys.analyticsSources,
-    queryFn: () => analyticsApi.sources(),
-    enabled: authed,
+  // charts + source split follow the selected period (per day ≤ 92 days, else per month)
+  const series = usePeriodAnalytics(range, authed);
+  // this month vs last month hint needs the last two calendar months regardless of the period
+  const trendQuery = useQuery({
+    queryKey: queryKeys.analyticsMonthly(2),
+    queryFn: () => analyticsApi.monthly({ months: 2 }),
+    enabled: authed && isThisMonth,
   });
 
   const recentParams = { limit: RECENT_BOOKINGS_LIMIT };
@@ -112,14 +97,15 @@ export const useDashboard = () => {
   }, [doctorsQuery.data]);
 
   const stats = dashboardQuery.data;
-  const monthly = useMemo(() => monthlyQuery.data ?? [], [monthlyQuery.data]);
+  const monthly = series.rows;
+  const trendRows = useMemo(() => trendQuery.data ?? [], [trendQuery.data]);
 
   const patientGrowth = useMemo(() => monthlyPatientSeries(monthly), [monthly]);
   const revenueData = useMemo(() => monthlyRevenueSeries(monthly), [monthly]);
-  const sourceData = useMemo(() => sourceChartData(sourcesQuery.data ?? []), [sourcesQuery.data]);
+  const sourceData = useMemo(() => sourceChartData(series.sources), [series.sources]);
 
-  const newMom = lastTwoMonths(monthly, 'newPatients');
-  const revMom = lastTwoMonths(monthly, 'revenue');
+  const newMom = lastTwoMonths(trendRows, 'newPatients');
+  const revMom = lastTwoMonths(trendRows, 'revenue');
   // month-over-month only makes sense for the current month
   const newPatientsTrend = isThisMonth ? monthOverMonthHint(newMom.current, newMom.previous) : null;
   const revenueTrend = canViewPayments && isThisMonth ? monthOverMonthHint(revMom.current, revMom.previous) : null;
@@ -137,12 +123,13 @@ export const useDashboard = () => {
       .map(({ allowed: _allowed, ...a }) => a);
   }, [role]);
 
-  const isLoading = dashboardQuery.isLoading || monthlyQuery.isLoading || sourcesQuery.isLoading;
+  const isLoading = dashboardQuery.isLoading || series.isLoading;
 
   return {
     range,
     setRange,
     periodLabel: presetLabel(range),
+    granularity: series.granularity,
     // headline figures (backend aggregates)
     totalPatients: stats?.totalPatients ?? 0,
     newPatients: stats?.newPatientsThisMonth ?? 0,
@@ -175,8 +162,8 @@ export const useDashboard = () => {
     error: dashboardQuery.error,
     refetch: () => {
       dashboardQuery.refetch();
-      monthlyQuery.refetch();
-      sourcesQuery.refetch();
+      series.refetch();
+      trendQuery.refetch();
       recentQuery.refetch();
     },
   };

@@ -53,6 +53,7 @@ function DashboardPageContent() {
     range,
     setRange,
     periodLabel,
+    granularity,
   } = useDashboard();
 
   if (isLoading) return <DashboardSkeleton />;
@@ -162,7 +163,7 @@ function DashboardPageContent() {
         <div className="bg-card rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold">Bemorlar o'sishi</h3>
+            <h3 className="text-sm font-semibold">Bemorlar o'sishi <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}{granularity === 'day' ? ' (kunlik)' : ' (oylik)'}</span></h3>
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={patientGrowth}>
@@ -184,7 +185,7 @@ function DashboardPageContent() {
         <div className="bg-card rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold">Daromad dinamikasi</h3>
+            <h3 className="text-sm font-semibold">Daromad dinamikasi <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}</span></h3>
           </div>
           {canViewPayments ? (
             <ResponsiveContainer width="100%" height={240}>
@@ -209,7 +210,7 @@ function DashboardPageContent() {
         <div className="bg-card rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <Activity className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold">Qabul manbalari</h3>
+            <h3 className="text-sm font-semibold">Qabul manbalari <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}</span></h3>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>

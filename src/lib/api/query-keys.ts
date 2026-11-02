@@ -33,6 +33,8 @@ export const queryKeys = {
   doctorsLookup: lookupKey('doctors'),
   doctorsStats: ['doctors', 'stats'] as const,
   doctorsEfficiency: ['doctors', 'efficiency'] as const,
+  doctorsEfficiencyPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['doctors', 'efficiency', period] as const,
 
   visits: ['visits'] as const,
   visit: (id: string) => ['visits', id] as const,
@@ -48,6 +50,8 @@ export const queryKeys = {
   servicesList: listKey('services'),
   servicesLookup: lookupKey('services'),
   servicesStats: ['services', 'stats'] as const,
+  servicesStatsPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['services', 'stats', period] as const,
 
   payments: ['payments'] as const,
   payment: (id: string) => ['payments', id] as const,
@@ -69,5 +73,10 @@ export const queryKeys = {
   analyticsDashboard: (date: string, period?: { startDate?: string; endDate?: string }) =>
     (period ? ['analytics', 'dashboard', date, period] : ['analytics', 'dashboard', date]) as readonly unknown[],
   analyticsMonthly: (months: number) => ['analytics', 'monthly', months] as const,
+  analyticsMonthlyPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['analytics', 'monthly', 'period', period] as const,
+  analyticsDaily: (period: { startDate?: string; endDate?: string }) => ['analytics', 'daily', period] as const,
   analyticsSources: ['analytics', 'sources'] as const,
+  analyticsSourcesPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['analytics', 'sources', period] as const,
 };

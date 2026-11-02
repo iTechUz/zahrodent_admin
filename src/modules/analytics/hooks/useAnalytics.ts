@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { usePeriodAnalytics } from '@/shared/hooks/usePeriodAnalytics';
+import { addMonthsToDate, clinicMonthStart } from '@/shared/lib/date-utils';
+import type { DateRange } from '@/shared/components/DateRangeFilter';
 import { useStore } from '@/store/useStore';
-import { analyticsApi, servicesApi, doctorsApi } from '@/lib/api/endpoints';
+import { servicesApi, doctorsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments } from '@/shared/config/roles';
@@ -13,34 +16,27 @@ import {
   sourceChartData,
 } from '@/shared/lib/reporting';
 
-export const ANALYTICS_MONTHS = 6;
-/** Period choices for the charts (backend caps `months` at 24). */
-export const ANALYTICS_PERIOD_OPTIONS = [
-  { value: 3, label: 'Oxirgi 3 oy' },
-  { value: 6, label: 'Oxirgi 6 oy' },
-  { value: 12, label: 'Oxirgi 12 oy' },
-  { value: 24, label: 'Oxirgi 24 oy' },
-] as const;
+/** Default period: this and the 5 previous calendar months. */
+export const defaultAnalyticsRange = (): DateRange => ({
+  startDate: addMonthsToDate(clinicMonthStart(), -5),
+  endDate: undefined,
+});
 
 /** Analytics charts are built from backend aggregates (/analytics/monthly, /analytics/sources). */
 export const useAnalytics = () => {
   const authed = useStore((s) => s.isAuthenticated);
   const role = useStore((s) => s.currentUser?.role);
   const canViewPayments = canAccessPayments(role);
-  const [months, setMonths] = useState<number>(ANALYTICS_MONTHS);
+  const [range, setRange] = useState<DateRange>(defaultAnalyticsRange);
 
-  const monthlyQuery = useQuery({
-    queryKey: queryKeys.analyticsMonthly(months),
-    queryFn: () => analyticsApi.monthly({ months }),
-    enabled: authed,
-  });
-  const monthly = useMemo(() => monthlyQuery.data ?? [], [monthlyQuery.data]);
-
-  const sourcesQuery = useQuery({
-    queryKey: queryKeys.analyticsSources,
-    queryFn: () => analyticsApi.sources(),
-    enabled: authed,
-  });
+  const series = usePeriodAnalytics(range, authed);
+  // all time (no dates) → the unfiltered requests
+  const statsPeriod = useMemo(
+    () => (range.startDate || range.endDate ? { startDate: range.startDate, endDate: range.endDate } : {}),
+    [range],
+  );
+  const hasPeriod = !!(statsPeriod.startDate || statsPeriod.endDate);
+  const monthly = series.rows;
 
   const { data: servicesRes } = useQuery({
     queryKey: queryKeys.servicesLookup(),
@@ -50,14 +46,16 @@ export const useAnalytics = () => {
   const services = useMemo(() => servicesRes?.data ?? [], [servicesRes]);
 
   const { data: serviceStats } = useQuery({
-    queryKey: queryKeys.servicesStats,
-    queryFn: () => servicesApi.stats(),
+    queryKey: hasPeriod ? queryKeys.servicesStatsPeriod(statsPeriod) : queryKeys.servicesStats,
+    queryFn: () => servicesApi.stats(hasPeriod ? statsPeriod : undefined),
+    placeholderData: keepPreviousData,
     enabled: authed && canViewPayments && can(role, 'services.stats'),
   });
 
   const { data: efficiencyData } = useQuery({
-    queryKey: queryKeys.doctorsEfficiency,
-    queryFn: () => doctorsApi.efficiency(),
+    queryKey: hasPeriod ? queryKeys.doctorsEfficiencyPeriod(statsPeriod) : queryKeys.doctorsEfficiency,
+    queryFn: () => doctorsApi.efficiency(hasPeriod ? statsPeriod : undefined),
+    placeholderData: keepPreviousData,
     enabled: authed && can(role, 'doctors.efficiency'),
   });
 
@@ -72,8 +70,8 @@ export const useAnalytics = () => {
   );
   const conversionData = useMemo(() => monthlyConversionSeries(monthly), [monthly]);
   const sourceData = useMemo(
-    () => sourceChartData(sourcesQuery.data ?? []).map(({ name, value }) => ({ name, value })),
-    [sourcesQuery.data],
+    () => sourceChartData(series.sources).map(({ name, value }) => ({ name, value })),
+    [series.sources],
   );
 
   const serviceIncomeData = useMemo(() => {
@@ -104,8 +102,9 @@ export const useAnalytics = () => {
   const colors = [...REPORT_CHART_COLORS];
 
   return {
-    months,
-    setMonths,
+    range,
+    setRange,
+    granularity: series.granularity,
     monthlyPatients,
     revenueGrowth,
     conversionData,
@@ -114,12 +113,11 @@ export const useAnalytics = () => {
     canViewPayments,
     serviceStats: serviceIncomeData,
     doctorEfficiency,
-    isLoading: monthlyQuery.isLoading || sourcesQuery.isLoading,
-    isError: monthlyQuery.isError,
-    error: monthlyQuery.error,
+    isLoading: series.isLoading,
+    isError: series.isError,
+    error: series.error,
     refetch: () => {
-      monthlyQuery.refetch();
-      sourcesQuery.refetch();
+      series.refetch();
     },
   };
 };
