@@ -107,7 +107,11 @@ export function FinancePageContent() {
     {
       header: 'Summa',
       sortKey: sortBy('payments', 'amount'),
-      accessor: (p) => <span className="font-semibold">{formatUzS(p.amount)}</span>
+      accessor: (p) => (
+        <span className={p.type === 'EXPENSE' ? 'font-semibold text-destructive tabular-nums' : 'font-semibold tabular-nums'}>
+          {p.type === 'EXPENSE' ? '−' : ''}{formatUzS(p.amount)}
+        </span>
+      )
     },
     { 
       header: 'Turi', 
@@ -170,21 +174,18 @@ export function FinancePageContent() {
           value={formatUzS(totalRevenue)}
           icon={<DollarSign className="w-5 h-5" />}
           trend="Barcha vaqt uchun"
-          trendUp
         />
         <StatCard
           title="Shu oy daromadi"
           value={formatUzS(thisMonth)}
           icon={<TrendingUp className="w-5 h-5" />}
           trend={`Bugun: ${formatUzS(todayRevenue)}`}
-          trendUp
         />
         <StatCard
           title="Qarzdorlik"
           value={formatUzS(totalDebt)}
           icon={<AlertTriangle className="w-5 h-5" />}
           trend={`${unpaidCount} ta to'lanmagan`}
-          trendUp={false}
         />
       </div>
 

@@ -20,7 +20,7 @@ import { useDashboard } from '../hooks/useDashboard';
 import { formatUzS, formatDate } from '@/shared/lib/formatters';
 import { DashboardSkeleton } from '@/components/Skeletons';
 import { QueryErrorState } from '@/shared/components/QueryErrorState';
-import { CLINIC_TIME_ZONE } from '@/shared/lib/date-utils';
+import { formatLongDateUz } from '@/shared/lib/date-utils';
 
 function DashboardPageContent() {
   const {
@@ -65,7 +65,7 @@ function DashboardPageContent() {
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card px-3 py-1.5 rounded-full border border-border">
           <Clock className="w-3.5 h-3.5 text-primary" />
-          {new Date().toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long', timeZone: CLINIC_TIME_ZONE })}
+          {formatLongDateUz()}
         </div>
       </div>
 
@@ -78,7 +78,7 @@ function DashboardPageContent() {
             <button
               key={action.label}
               onClick={() => navigate(action.path)}
-              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-primary/5 transition-all group"
+              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card text-left hover:border-primary/30 hover:bg-primary/5 transition-all group"
             >
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${action.color} transition-transform group-hover:scale-110`}>
                 <action.icon className="w-4.5 h-4.5" />
@@ -97,7 +97,6 @@ function DashboardPageContent() {
           value={todayBookings}
           icon={<CalendarDays className="w-5 h-5" />}
           trend={`${completedToday} ta yakunlangan`}
-          trendUp={completedToday > 0}
         />
         <StatCard
           title="Daromad (shu oy)"
@@ -165,7 +164,7 @@ function DashboardPageContent() {
                   <stop offset="95%" stopColor="hsl(174, 62%, 38%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(220, 10%, 46%)" axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 12 }} stroke="hsl(220, 10%, 46%)" axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid hsl(214, 20%, 90%)', fontSize: '12px' }} formatter={(v: number) => [`${v} ta`, 'Bemorlar']} />
@@ -182,7 +181,7 @@ function DashboardPageContent() {
           {canViewPayments ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(220, 10%, 46%)" axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 12 }} stroke="hsl(220, 10%, 46%)" axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000000}M`} />
                 <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid hsl(214, 20%, 90%)', fontSize: '12px' }} formatter={(v: number) => [formatUzS(v), 'Daromad']} />

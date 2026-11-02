@@ -21,6 +21,16 @@ export function toClinicDate(date: Date = new Date()): string {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+const UZ_WEEKDAYS = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'];
+const UZ_MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+
+/** "2 noyabr 2026, dushanba" (clinic time zone) — Intl has no usable uz data in most browsers. */
+export function formatLongDateUz(date: Date = new Date()): string {
+  const [y, m, d] = toClinicDate(date).split('-').map(Number);
+  const weekday = UZ_WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${d} ${UZ_MONTHS[m - 1]} ${y}, ${weekday}`;
+}
+
 /** Today in the clinic time zone (`YYYY-MM-DD`). */
 export function clinicToday(now: Date = new Date()): string {
   return toClinicDate(now);

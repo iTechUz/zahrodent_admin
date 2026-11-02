@@ -38,7 +38,7 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
 };
 
 import { PhoneInput } from '@/components/ui/phone-input';
-import { formatDateTime } from '@/shared/lib/formatters';
+import { formatDate, formatDateTime } from '@/shared/lib/formatters';
 
 const fmt = (n: number) => new Intl.NumberFormat('uz-UZ').format(n);
 
@@ -154,7 +154,7 @@ export default function PatientProfilePage() {
             <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
               <span>{patient.age} yosh</span>
               <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{patient.phone}</span>
-              <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{patient.createdAt}</span>
+              <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{formatDate(patient.createdAt)}</span>
               <SourceBadge source={patient.source} />
               {patient.telegramConnected && (
                 <span
@@ -266,7 +266,7 @@ export default function PatientProfilePage() {
                       <Receipt className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="text-sm font-semibold">{v.date}</span>
+                      <span className="text-sm font-semibold">{formatDate(v.date)}</span>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{doctor ? `${doctor.firstName} ${doctor.lastName}` : '—'}</p>
                     </div>
                   </div>
@@ -350,7 +350,7 @@ export default function PatientProfilePage() {
             return (
               <div key={b.id} className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
                 <div>
-                  <p className="text-sm font-medium">{b.date} — {b.time}</p>
+                  <p className="text-sm font-medium">{formatDate(b.date)} — {b.time}</p>
                   <p className="text-xs text-muted-foreground">{doctor ? `${doctor.firstName} ${doctor.lastName}` : '—'}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -458,7 +458,7 @@ export default function PatientProfilePage() {
               <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
                 <div>
                   <p className="text-sm font-medium">{p.description}</p>
-                  <p className="text-xs text-muted-foreground">{p.date} • {METHOD_LABELS[p.method]}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(p.date)} • {METHOD_LABELS[p.method]}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold">{fmt(p.amount)} so'm</span>

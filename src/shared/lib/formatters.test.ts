@@ -28,10 +28,10 @@ describe('formatUzS', () => {
 });
 
 describe('formatDate', () => {
-  it('formats as DD/MM/YYYY', () => {
+  it('formats as DD.MM.YYYY', () => {
     // build the ISO string from a local noon so the expected day holds in any timezone
-    expect(formatDate(new Date(2026, 5, 10, 12).toISOString())).toBe('10/06/2026');
-    expect(formatDate(new Date(2026, 0, 5, 12).toISOString())).toBe('05/01/2026');
+    expect(formatDate(new Date(2026, 5, 10, 12).toISOString())).toBe('10.06.2026');
+    expect(formatDate(new Date(2026, 0, 5, 12).toISOString())).toBe('05.01.2026');
   });
 
   it('returns "" for an empty string', () => {

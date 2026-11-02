@@ -154,7 +154,6 @@ function BookingsPageContent() {
             value={stats?.completedToday ?? 0} 
             icon={<CheckCircle2 className="w-5 h-5 text-success" />} 
             trend="Muvaffaqiyatli qabullar"
-            trendUp={true}
           />
         </div>
       )}

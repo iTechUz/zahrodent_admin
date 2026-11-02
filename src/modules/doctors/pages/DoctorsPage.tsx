@@ -108,7 +108,6 @@ function DoctorsPageContent() {
           value={stats?.activeToday ?? 0} 
           icon={<HeartPulse className="w-5 h-5 text-success" />} 
           trend="Xizmat ko'rsatmoqda"
-          trendUp={true}
         />
         <StatCard 
           title="Jami tashriflar" 

@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBulkSms, DatePreset } from '../hooks/useBulkSms';
+import { formatDate } from '@/shared/lib/formatters';
 import { TelegramDeliveryAlert } from '../components/TelegramDeliveryAlert';
 
 const notifStatusLabels: Record<string, string> = {
@@ -295,7 +296,7 @@ function BulkSmsTab() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="text-[11px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-full inline-block">
-                          {new Date(r.bookingDate).toLocaleDateString('uz-UZ')}
+                          {formatDate(r.bookingDate)}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-1">{r.bookingTime}</div>
                         {targetType === 'doctor' && r.patientName && (

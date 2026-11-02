@@ -68,3 +68,10 @@ describe('addMonthsToDate', () => {
     expect(addMonthsToDate('2026-03-31', -1)).toBe('2026-02-28');
   });
 });
+
+describe('formatLongDateUz', () => {
+  it('writes the date in Uzbek with the weekday', async () => {
+    const { formatLongDateUz } = await import('./date-utils');
+    expect(formatLongDateUz(new Date('2026-11-02T06:00:00Z'))).toBe('2 noyabr 2026, dushanba');
+  });
+});

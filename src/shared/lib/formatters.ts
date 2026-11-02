@@ -6,15 +6,15 @@ export const formatCurrency = (amount: number): string => {
 };
 
 /**
- * Format date string to a more readable format
+ * Format a date string as DD.MM.YYYY
  */
 export const formatDate = (dateString: string): string => {
   if (!dateString) return '';
-  return new Date(dateString).toLocaleDateString('uz-UZ', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return dateString;
+  // deterministic DD.MM.YYYY — the 'uz-UZ' locale renders ISO (2026-11-02) in Chrome
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 };
 
 /** "13.10.2026 16:08" (clinic time zone) for ISO timestamps such as comment.createdAt. */

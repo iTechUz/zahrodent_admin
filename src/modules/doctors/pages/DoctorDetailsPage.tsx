@@ -176,28 +176,24 @@ function DoctorDetailsContent() {
           title="Jami bemorlar"
           value={doctorEfficiency?.uniquePatients || 0}
           icon={<Users className="w-5 h-5 text-primary" />}
-          trend="Unique patients"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
           title="Umumiy tushum"
           value={formatUzS(doctorEfficiency?.totalRevenue || 0)}
           icon={<CreditCard className="w-5 h-5 text-success" />}
-          trend="Total revenue"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
           title="Tashriflar"
           value={totalVisits}
           icon={<ClipboardList className="w-5 h-5 text-info" />}
-          trend="Total visits"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
           title="O'rtacha chek"
           value={formatUzS(avgCheck)}
           icon={<TrendingUp className="w-5 h-5 text-warning" />}
-          trend="Avg per visit"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
       </div>

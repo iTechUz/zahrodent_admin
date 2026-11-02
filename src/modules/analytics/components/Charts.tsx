@@ -27,7 +27,7 @@ export const GrowthChart = ({ data, height = 260 }: ChartProps) => (
           <stop offset="95%" stopColor="hsl(174,62%,38%)" stopOpacity={0} />
         </linearGradient>
       </defs>
-      <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,20%,90%)" />
+      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
       <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(220,10%,46%)" />
       <YAxis tick={{ fontSize: 12 }} stroke="hsl(220,10%,46%)" />
       <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} formatter={(v: number) => [`${v} ta`, 'Bemorlar']} />
@@ -39,7 +39,7 @@ export const GrowthChart = ({ data, height = 260 }: ChartProps) => (
 export const RevenueChart = ({ data, height = 260 }: ChartProps) => (
   <ResponsiveContainer width="100%" height={height}>
     <BarChart data={data}>
-      <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,20%,90%)" />
+      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
       <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(220,10%,46%)" />
       <YAxis tick={{ fontSize: 12 }} stroke="hsl(220,10%,46%)" />
       <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} formatter={(v: number) => [`${v} mln so'm`, 'Daromad']} />
@@ -51,7 +51,7 @@ export const RevenueChart = ({ data, height = 260 }: ChartProps) => (
 export const ConversionChart = ({ data, height = 260 }: ChartProps) => (
   <ResponsiveContainer width="100%" height={height}>
     <LineChart data={data}>
-      <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,20%,90%)" />
+      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
       <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(220,10%,46%)" />
       <YAxis tick={{ fontSize: 12 }} stroke="hsl(220,10%,46%)" />
       <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
@@ -106,7 +106,7 @@ export const DoctorEfficiencyChart = ({ data, height = 280 }: { data: DoctorEffi
   return (
     <ResponsiveContainer width="100%" height={Math.max(height, normalized.length * 44)}>
       <BarChart data={normalized} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,20%,90%)" />
+        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
         <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(220,10%,46%)" />
         <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} stroke="hsl(220,10%,46%)" width={85} />
         <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
@@ -136,7 +136,7 @@ export const ServiceRevenueHBarChart = ({ data, height = 280 }: { data: ServiceR
   return (
     <ResponsiveContainer width="100%" height={Math.max(height, formatted.length * 40)}>
       <BarChart data={formatted} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,20%,90%)" />
+        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
         <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(220,10%,46%)" unit=" mln" />
         <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} stroke="hsl(220,10%,46%)" width={110} />
         <Tooltip

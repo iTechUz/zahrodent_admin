@@ -168,7 +168,6 @@ function PatientsPageContent() {
           value={stats?.newThisMonth ?? 0} 
           icon={<UserPlus className="w-5 h-5 text-success" />} 
           trend="Yangi qo'shilganlar"
-          trendUp={true}
         />
         <StatCard 
           title="Asosiy manba" 

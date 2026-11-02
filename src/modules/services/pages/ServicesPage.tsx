@@ -93,7 +93,6 @@ function ServicesPageContent() {
           value={stats?.categoriesCount ?? 0} 
           icon={<Layers className="w-5 h-5 text-success" />} 
           trend="Guruhlar soni"
-          trendUp={true}
         />
         <StatCard 
           title="O'rtacha narx" 
