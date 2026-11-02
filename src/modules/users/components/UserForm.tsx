@@ -22,6 +22,7 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 const userSchema = z.object({
   name: z.string().min(2, "Kamida 2 ta belgi bo'lishi kerak"),
@@ -29,7 +30,7 @@ const userSchema = z.object({
   // Doctors are managed on the Shifokorlar page; here only admin / reception.
   role: z.enum(['admin', 'doctor', 'receptionist', 'pharmacist']),
   password: z.string().min(6, "Kamida 6 ta belgi").optional().or(z.literal('')),
-  specialty: z.string().optional(),
+  specialty: z.string().nullish(),
 });
 
 export type UserFormValues = z.infer<typeof userSchema>;
@@ -69,7 +70,10 @@ export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps)
           <DialogTitle>{editing ? 'Xodimni tahrirlash' : 'Xodim qo\'shish'}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(handleSubmit, (errors) => {
+            console.error('UserForm validation failed', errors);
+            toast.error(Object.values(errors)[0]?.message?.toString() || "Forma noto'g'ri to'ldirilgan");
+          })} className="space-y-4 py-4">
             <FormField
               control={form.control}
               name="name"
