@@ -57,7 +57,7 @@ afterEach(() => {
 
 describe('usePatients', () => {
   describe('list', () => {
-    it('requests page 0 / limit 10 with month-to-date + source=all filters', async () => {
+    it('requests page 0 / limit 10 with only the source=all filter (no default date range)', async () => {
       api.list.mockResolvedValue(paginated([patient], 23));
       const { result } = setup();
       await waitFor(() => expect(result.current.patients).toEqual([patient]));
@@ -65,8 +65,6 @@ describe('usePatients', () => {
         page: 0,
         limit: 10,
         search: '',
-        startDate: '2026-06-01',
-        endDate: '',
         source: 'all',
       });
       expect(result.current.totalPatients).toBe(23);
@@ -84,8 +82,8 @@ describe('usePatients', () => {
       act(() => result.current.setFilters('source', 'telegram'));
       await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ source: 'telegram' })));
 
-      act(() => result.current.setFilters('startDate', undefined));
-      await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ startDate: undefined })));
+      act(() => result.current.setFilters('startDate', '2026-06-01'));
+      await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ startDate: '2026-06-01' })));
 
       act(() => result.current.setPage(1));
       await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 })));
