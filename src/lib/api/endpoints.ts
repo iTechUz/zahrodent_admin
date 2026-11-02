@@ -22,6 +22,7 @@ import type { AuthTokens } from './auth-token';
 import type {
   DashboardAnalytics,
   MonthlyAnalyticsRow,
+  DailyAnalyticsRow,
   ServiceStats,
   SourceAnalyticsRow,
 } from '@/shared/types';
@@ -141,7 +142,8 @@ export const doctorsApi = {
   list: (params?: ListParams & { specialty?: string }) =>
     apiRequest<PaginatedResponse<Doctor>>(`/doctors${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; activeToday: number; totalVisits: number }>('/doctors/stats'),
-  efficiency: () => apiRequest<DoctorEfficiencyStats[]>('/doctors/efficiency'),
+  efficiency: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<DoctorEfficiencyStats[]>(`/doctors/efficiency${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Doctor>(`/doctors/${id}`),
   create: (body: DoctorCreatePayload) =>
     apiRequest<Doctor>('/doctors', { method: 'POST', body: JSON.stringify(body) }),
@@ -187,7 +189,8 @@ export const visitsApi = {
 export const servicesApi = {
   list: (params?: ListParams & { category?: string }) =>
     apiRequest<PaginatedResponse<Service>>(`/services${qs(params ?? {})}`),
-  stats: () => apiRequest<ServiceStats>('/services/stats'),
+  stats: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<ServiceStats>(`/services/stats${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Service>(`/services/${id}`),
   create: (body: Omit<Service, 'id'>) =>
     apiRequest<Service>('/services', { method: 'POST', body: JSON.stringify(body) }),
@@ -224,9 +227,13 @@ export const analyticsApi = {
   dashboard: (params?: { date?: string; startDate?: string; endDate?: string }) =>
     apiRequest<DashboardAnalytics>(`/analytics/dashboard${qs(params ?? {})}`),
   /** Oldest → newest month buckets. Money fields are null for non-admins. */
-  monthly: (params?: { months?: number }) =>
+  monthly: (params?: { months?: number; startDate?: string; endDate?: string }) =>
     apiRequest<MonthlyAnalyticsRow[]>(`/analytics/monthly${qs(params ?? {})}`),
-  sources: () => apiRequest<SourceAnalyticsRow[]>('/analytics/sources'),
+  /** One row per day of startDate..endDate (max 92 days), empty days included. */
+  daily: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<DailyAnalyticsRow[]>(`/analytics/daily${qs(params ?? {})}`),
+  sources: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<SourceAnalyticsRow[]>(`/analytics/sources${qs(params ?? {})}`),
 };
 
 export const notificationsApi = {

@@ -1,6 +1,6 @@
 import { PageHeader } from '@/shared/components/PageHeader';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAnalytics, ANALYTICS_PERIOD_OPTIONS } from '../hooks/useAnalytics';
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { 
   GrowthChart, 
@@ -14,8 +14,8 @@ import { TrendingUp, Users, Activity, DollarSign } from 'lucide-react';
 
 export default function AnalyticsPage() {
   const {
-    months,
-    setMonths,
+    range,
+    setRange,
     colors,
     canViewPayments,
     serviceStats,
@@ -43,20 +43,7 @@ export default function AnalyticsPage() {
       <PageHeader 
         title="Tahlillar" 
         description="Klinika samaradorligi va ko'rsatkichlari" 
-        action={
-          <Select value={String(months)} onValueChange={(v) => setMonths(Number(v))}>
-            <SelectTrigger className="w-[180px]" aria-label="Davr">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ANALYTICS_PERIOD_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={String(o.value)}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
+        action={<DateRangeFilter startDate={range.startDate} endDate={range.endDate} onChange={setRange} />}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
