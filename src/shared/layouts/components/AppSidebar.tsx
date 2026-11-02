@@ -53,7 +53,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         </div>
         {(!collapsed || isMobile) && (
           <div className="overflow-hidden">
-            <h1 className="font-display font-bold text-sm text-sidebar-primary-foreground leading-tight truncate">Zahro Dental</h1>
+            <p className="font-display font-bold text-sm text-sidebar-primary-foreground leading-tight truncate">Zahro Dental</p>
             <p className="text-[10px] text-sidebar-foreground/60 leading-tight">Boshqaruv tizimi</p>
           </div>
         )}
@@ -104,6 +104,8 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <div className="p-2 border-t border-sidebar-border shrink-0">
           <button
             onClick={onToggle}
+            aria-label={collapsed ? 'Menyuni yoyish' : 'Menyuni yig\'ish'}
+            title={collapsed ? 'Menyuni yoyish' : 'Menyuni yig\'ish'}
             className="flex items-center justify-center w-full py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
           >
             <ChevronLeft className={cn('w-4 h-4 transition-transform duration-300', collapsed && 'rotate-180')} />

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { Service } from '@/shared/types';
@@ -63,10 +63,16 @@ export const useServices = () => {
 
   const dialog = useDialogState<Service>(ServiceModuleService.initialState());
 
-  const categories = useMemo(() => {
-    // Ideally fetch these from a dedicated categories API
-    return CATEGORIES;
-  }, []);
+  // No categories API: every category seen in loaded rows (defaults until data arrives) (services may use others, e.g. "Estetika")
+  const [seenCategories, setSeenCategories] = useState<string[]>([]);
+  useEffect(() => {
+    setSeenCategories((prev) => {
+      const next = new Set(prev);
+      table.data.forEach((s) => s.category && next.add(s.category));
+      return next.size === prev.length ? prev : [...next];
+    });
+  }, [table.data]);
+  const categories = useMemo(() => (seenCategories.length ? seenCategories : CATEGORIES), [seenCategories]);
 
   const groupedServices = useMemo(() => {
     return table.data.reduce(

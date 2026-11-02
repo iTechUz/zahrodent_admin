@@ -142,7 +142,7 @@ export const DataTable = memo(<T extends { id?: string | number }>({
                 return (
                   <th
                     key={i}
-                    className={`text-left px-4 py-3 font-medium text-muted-foreground ${column.className || ''}`}
+                    className={`text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap ${column.className || ''}`}
                     aria-sort={sortable ? ariaSort(sort, column.sortKey) : undefined}
                   >
                     {sortable ? (

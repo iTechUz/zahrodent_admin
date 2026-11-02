@@ -96,7 +96,7 @@ function DoctorsPageContent() {
         } 
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1 mb-2">
         <StatCard 
           title="Jami shifokorlar" 
           value={stats?.total ?? 0} 
@@ -148,7 +148,7 @@ function DoctorsPageContent() {
         {activeTab === 'list' && (
           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-1 justify-end">
             <div className="relative w-full max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <Input 
                 placeholder="Shifokor ismi yoki telefon bo'yicha..." 
                 className="pl-9" 
@@ -224,6 +224,7 @@ function DoctorsPageContent() {
                       <TableCell>{d.phone}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
+                          {workingDays.length === 0 && <span className="text-xs text-muted-foreground">Jadval kiritilmagan</span>}
                           {workingDays.map(day => (
                             <Badge key={day} variant="outline" className="text-[10px] px-1 py-0 h-4">
                               {day}
@@ -234,7 +235,7 @@ function DoctorsPageContent() {
                       <TableCell className="text-right font-medium">
                         {eff?.uniquePatients || 0}
                       </TableCell>
-                      <TableCell className="text-right font-semibold text-success">
+                      <TableCell className={`text-right font-semibold tabular-nums ${eff?.totalRevenue ? 'text-success' : 'text-muted-foreground'}`}>
                         {formatUzS(eff?.totalRevenue || 0)}
                       </TableCell>
                       <TableCell>

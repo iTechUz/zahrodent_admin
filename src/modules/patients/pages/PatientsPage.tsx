@@ -157,7 +157,7 @@ function PatientsPageContent() {
         } 
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1 mb-2">
         <StatCard 
           title="Jami bemorlar" 
           value={stats?.total ?? 0} 
@@ -180,7 +180,7 @@ function PatientsPageContent() {
       <div className="flex flex-col xl:flex-row gap-3 items-start xl:items-center justify-between">
         <div className="flex flex-wrap gap-2 w-full xl:w-auto items-center">
           <div className="relative w-full md:w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input 
               placeholder="Ism, familiya yoki telefon..." 
               className="pl-9 h-10" 
@@ -191,14 +191,16 @@ function PatientsPageContent() {
 
           <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border">
             <Input 
-              type="date" 
+              type="date"
+              aria-label="Boshlanish sanasi" 
               className="w-[140px] h-8 text-xs border-none bg-transparent" 
               value={filters.startDate || ''} 
               onChange={(e) => setFilters('startDate', e.target.value || undefined)}
             />
             <span className="text-muted-foreground text-xs">—</span>
             <Input 
-              type="date" 
+              type="date"
+              aria-label="Tugash sanasi" 
               className="w-[140px] h-8 text-xs border-none bg-transparent" 
               value={filters.endDate || ''} 
               onChange={(e) => setFilters('endDate', e.target.value || undefined)}

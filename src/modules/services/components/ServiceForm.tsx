@@ -141,7 +141,7 @@ export const ServiceForm = ({
                       className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring" 
                       {...field}
                     >
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      {[...new Set([...CATEGORIES, ...(editing?.category ? [editing.category] : [])])].map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </FormControl>
                   <FormMessage />

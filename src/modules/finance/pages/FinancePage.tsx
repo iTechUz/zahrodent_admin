@@ -168,7 +168,7 @@ export function FinancePageContent() {
         </TabsList>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
         <StatCard
           title="Umumiy daromad"
           value={formatUzS(totalRevenue)}
@@ -242,7 +242,7 @@ export function FinancePageContent() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             placeholder="Bemor yoki tavsif bo'yicha qidirish..."
             className="pl-9"
@@ -253,14 +253,16 @@ export function FinancePageContent() {
 
         <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border h-10">
           <Input 
-            type="date" 
+            type="date"
+            aria-label="Boshlanish sanasi" 
             className="w-[140px] h-8 text-xs border-none bg-transparent" 
             value={filters.startDate || ''} 
             onChange={(e) => setFilters('startDate', e.target.value || undefined)}
           />
           <span className="text-muted-foreground text-xs">—</span>
           <Input 
-            type="date" 
+            type="date"
+            aria-label="Tugash sanasi" 
             className="w-[140px] h-8 text-xs border-none bg-transparent" 
             value={filters.endDate || ''} 
             onChange={(e) => setFilters('endDate', e.target.value || undefined)}

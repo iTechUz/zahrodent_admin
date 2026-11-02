@@ -44,7 +44,7 @@ export default function PharmacyPage() {
 
       <form onSubmit={onSubmit} className="flex gap-2 max-w-xl">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -57,6 +57,18 @@ export default function PharmacyPage() {
           Qidirish
         </Button>
       </form>
+
+      {term.length < 4 && (
+        <div className="text-center py-16 text-muted-foreground max-w-md mx-auto">
+          <Pill className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <h3 className="text-lg font-semibold text-foreground">Retseptni qidiring</h3>
+          <p className="text-sm">Bemor aytgan 8 belgili kodni yoki uning telefon raqamini kiriting — faol retseptlar shu yerda chiqadi.</p>
+        </div>
+      )}
+
+      {term.length >= 4 && isFetching && (
+        <p className="text-sm text-muted-foreground" role="status">Qidirilmoqda…</p>
+      )}
 
       {term.length >= 4 && !isFetching && data?.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">

@@ -81,7 +81,7 @@ function ServicesPageContent() {
         } 
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1 mb-2">
         <StatCard 
           title="Jami xizmatlar" 
           value={stats?.totalCount ?? 0} 
@@ -104,7 +104,7 @@ function ServicesPageContent() {
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input 
             placeholder="Xizmat qidirish..." 
             className="pl-9" 
@@ -181,7 +181,7 @@ function ServicesPageContent() {
                     <TableCell className="text-right">
                       {detailed?.patients || 0}
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-success">
+                    <TableCell className={`text-right font-semibold tabular-nums ${detailed?.revenue ? 'text-success' : 'text-muted-foreground'}`}>
                       {formatUzS(detailed?.revenue || 0)}
                     </TableCell>
                     {hasRowActions && (

@@ -16,7 +16,7 @@ export function StatCard({ title, value, icon, trend, trendUp, className }: Stat
     <div className={cn('bg-card rounded-xl border border-border p-4 sm:p-5 flex items-start justify-between premium-shadow hover:glow transition-all duration-300', className)}>
       <div className="space-y-1 sm:space-y-2 min-w-0">
         <p className="text-sm text-muted-foreground font-medium">{title}</p>
-        <p className="text-xl sm:text-2xl font-display font-bold text-card-foreground tabular-nums">{value}</p>
+        <p className="text-lg sm:text-2xl break-words font-display font-bold text-card-foreground tabular-nums">{value}</p>
         {trend && (
           <p
             className={cn(
@@ -29,7 +29,7 @@ export function StatCard({ title, value, icon, trend, trendUp, className }: Stat
           </p>
         )}
       </div>
-      <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center text-accent-foreground shrink-0">
+      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-accent flex items-center justify-center text-accent-foreground shrink-0">
         {icon}
       </div>
     </div>
