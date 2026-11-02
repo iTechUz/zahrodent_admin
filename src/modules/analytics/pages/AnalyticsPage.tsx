@@ -1,4 +1,5 @@
 import { PageHeader } from '@/shared/components/PageHeader';
+import { EmptyState } from '@/shared/components/EmptyState';
 import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { QueryErrorState } from '@/shared/components/QueryErrorState';
@@ -53,7 +54,7 @@ export default function AnalyticsPage() {
             <Users className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold">Bemorlar o'sishi</h3>
           </div>
-          <GrowthChart data={monthlyPatients} />
+          {monthlyPatients.some((m) => m.count > 0) ? <GrowthChart data={monthlyPatients} /> : <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />}
         </div>
 
         {/* Daromad o'sishi */}
@@ -62,7 +63,9 @@ export default function AnalyticsPage() {
             <TrendingUp className="w-4 h-4 text-success" />
             <h3 className="text-sm font-semibold">Daromad o'sishi (mln so'm)</h3>
           </div>
-          {canViewPayments ? (
+          {canViewPayments && !revenueGrowth.some((r) => r.revenue > 0) ? (
+            <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />
+          ) : canViewPayments ? (
             <RevenueChart data={revenueGrowth} />
           ) : (
             <p className="text-sm text-muted-foreground py-12 text-center">
@@ -77,7 +80,7 @@ export default function AnalyticsPage() {
             <Activity className="w-4 h-4 text-warning" />
             <h3 className="text-sm font-semibold">Qabul konversiyasi</h3>
           </div>
-          <ConversionChart data={conversionData} />
+          {conversionData.some((c) => c.booked > 0) ? <ConversionChart data={conversionData} /> : <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />}
           <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full" style={{ background: 'hsl(210,80%,52%)' }} />
@@ -93,7 +96,7 @@ export default function AnalyticsPage() {
         {/* Manba pie */}
         <div className="bg-card rounded-xl border border-border p-5">
           <h3 className="text-sm font-semibold mb-4">Qabul manbalari</h3>
-          <SourcePieChart data={sourceData} colors={colors} />
+          {sourceData.length > 0 ? <SourcePieChart data={sourceData} colors={colors} /> : <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />}
           <div className="flex flex-wrap gap-3 mt-2">
             {sourceData.map((s, i) => (
               <div key={s.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
