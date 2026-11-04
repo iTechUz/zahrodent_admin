@@ -18,6 +18,7 @@ function renderAt(path: string) {
           <Route path="/finance" element={<div>FINANCE</div>} />
           <Route path="/users" element={<div>USERS</div>} />
           <Route path="/leads" element={<div>LEADS</div>} />
+          <Route path="/pharmacy" element={<div>PHARMACY</div>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -47,6 +48,9 @@ describe('ProtectedRoute', () => {
     ['doctor', '/patients', 'PATIENTS'],
     ['doctor', '/patients/p1', 'PATIENT PROFILE'],
     ['receptionist', '/leads', 'LEADS'],
+    ['pharmacist', '/pharmacy', 'PHARMACY'],
+    ['pharmacist', '/', 'PHARMACY'],
+    ['admin', '/pharmacy', 'PHARMACY'],
   ])('%s may open %s', (role, path, text) => {
     loginAs(role);
     renderAt(path);
@@ -59,6 +63,7 @@ describe('ProtectedRoute', () => {
     ['doctor', '/doctors/d1'],
     ['receptionist', '/finance'],
     ['receptionist', '/users'],
+    ['receptionist', '/pharmacy'],
   ])('%s is sent to the dashboard from %s', (role, path) => {
     loginAs(role);
     renderAt(path);

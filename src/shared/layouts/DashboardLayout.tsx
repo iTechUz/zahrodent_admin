@@ -29,7 +29,7 @@ export function DashboardLayout() {
           </SheetContent>
         </Sheet>
         <header className="h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-4 gap-3 shrink-0 sticky top-0 z-30">
-          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
+          <Button variant="ghost" size="icon" tooltip="Menyu" onClick={() => setMobileOpen(true)}>
             <Menu className="w-5 h-5" />
           </Button>
           <Topbar />

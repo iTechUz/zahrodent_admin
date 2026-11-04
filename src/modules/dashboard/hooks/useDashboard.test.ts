@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { analyticsApi, bookingsApi, doctorsApi, patientsApi, paymentsApi, visitsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { resetApiMock } from '@/test/api-mock';
@@ -33,6 +33,12 @@ const monthly: MonthlyAnalyticsRow[] = [
   { month: '2026-06', newPatients: 40, bookings: 80, completedBookings: 70, revenue: 48_000_000, expenses: 0 },
 ];
 
+const daily = [
+  { date: '2026-06-15', newPatients: 1, bookings: 2, completedBookings: 1, revenue: 100, expenses: 0 },
+  { date: '2026-06-16', newPatients: 0, bookings: 0, completedBookings: 0, revenue: 0, expenses: 0 },
+  { date: '2026-06-17', newPatients: 3, bookings: 4, completedBookings: 3, revenue: 900, expenses: 0 },
+];
+
 const recent = [
   { id: 'b1', patientId: 'p1', doctorId: 'd1', date: '2026-06-17', time: '10:00', status: 'pending', source: 'telegram' },
   { id: 'b2', patientId: 'p2', doctorId: 'd2', date: '2026-06-17', time: '09:00', status: 'completed', source: 'phone' },
@@ -50,6 +56,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-06-17T12:00:00.000Z'));
   vi.mocked(analyticsApi.dashboard).mockResolvedValue(dashboard);
   vi.mocked(analyticsApi.monthly).mockResolvedValue(monthly);
+  vi.mocked(analyticsApi.daily).mockResolvedValue(daily);
   vi.mocked(analyticsApi.sources).mockResolvedValue([
     { source: 'telegram', count: 2 },
     { source: 'walk-in', count: 1 },
@@ -75,8 +82,10 @@ describe('useDashboard (admin)', () => {
   it('uses the backend aggregates — no client-side aggregation over truncated lists', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17' });
-    expect(analyticsApi.monthly).toHaveBeenCalledWith({ months: 6 });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
+    // default period = this month → per-day series; monthly(2) feeds the month-over-month hint
+    expect(analyticsApi.daily).toHaveBeenCalledWith({ startDate: '2026-06-01' });
+    expect(analyticsApi.monthly).toHaveBeenCalledWith({ months: 2 });
     expect(analyticsApi.sources).toHaveBeenCalled();
     // no bulk list scans any more
     expect(paymentsApi.list).not.toHaveBeenCalled();
@@ -108,18 +117,33 @@ describe('useDashboard (admin)', () => {
     vi.setSystemTime(new Date('2026-06-16T19:30:00.000Z')); // 00:30 on 06-17 in Tashkent
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17' });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
   });
 
-  it('builds the 6-month chart series from /analytics/monthly', async () => {
+  it('builds the chart series for the selected period (this month → per day)', async () => {
     const { result } = setup();
-    await waitFor(() => expect(result.current.patientGrowth).toHaveLength(6));
-    expect(result.current.patientGrowth.map((p) => p.month)).toEqual(['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn']);
-    expect(result.current.patientGrowth.map((p) => p.patients)).toEqual([10, 0, 5, 7, 20, 40]);
-    expect(result.current.revenueData.slice(-2)).toEqual([
-      { month: 'May', revenue: 24_000_000 },
-      { month: 'Iyn', revenue: 48_000_000 },
+    await waitFor(() => expect(result.current.patientGrowth).toHaveLength(3));
+    expect(result.current.granularity).toBe('day');
+    expect(result.current.patientGrowth).toEqual([
+      { month: '15.06', patients: 1 },
+      { month: '16.06', patients: 0 },
+      { month: '17.06', patients: 3 },
     ]);
+    expect(result.current.revenueData.at(-1)).toEqual({ month: '17.06', revenue: 900 });
+  });
+
+  it('a long period switches the charts to per-month and re-queries everything', async () => {
+    const { result } = setup();
+    await waitFor(() => expect(result.current.patientGrowth).toHaveLength(3));
+    act(() => result.current.setRange({ startDate: '2026-01-01', endDate: undefined }));
+    await waitFor(() => expect(result.current.patientGrowth).toHaveLength(6));
+    expect(result.current.granularity).toBe('month');
+    expect(result.current.patientGrowth.map((p) => p.month)).toEqual(['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn']);
+    expect(analyticsApi.monthly).toHaveBeenCalledWith({ startDate: '2026-01-01' });
+    expect(analyticsApi.sources).toHaveBeenLastCalledWith({ startDate: '2026-01-01' });
+    expect(analyticsApi.dashboard).toHaveBeenLastCalledWith({ date: '2026-06-17', startDate: '2026-01-01' });
+    // month-over-month only for "this month"
+    expect(result.current.revenueTrend).toBeNull();
   });
 
   it('source pie from /analytics/sources', async () => {
@@ -190,9 +214,10 @@ describe('useDashboard (admin)', () => {
     const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
     expect(keys).toEqual(
       expect.arrayContaining([
-        ['analytics', 'dashboard', '2026-06-17'],
-        ['analytics', 'monthly', 6],
-        ['analytics', 'sources'],
+        ['analytics', 'dashboard', '2026-06-17', { startDate: '2026-06-01' }],
+        ['analytics', 'daily', { startDate: '2026-06-01' }],
+        ['analytics', 'monthly', 2],
+        ['analytics', 'sources', { startDate: '2026-06-01' }],
         ['bookings', 'list', { limit: 5 }],
         ['doctors', 'lookup', {}],
         ['patients', 'p1'],

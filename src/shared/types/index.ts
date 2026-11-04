@@ -163,6 +163,29 @@ export interface Notification {
   status: 'sent' | 'delivered' | 'failed';
 }
 
+export interface BookingStatusLogEntry {
+  id: string;
+  bookingId: string;
+  fromStatus: BookingStatus;
+  toStatus: BookingStatus;
+  reason: string | null;
+  changedByName: string;
+  createdAt: string;
+}
+
+export type TelegramLogStatus = 'pending' | 'sent' | 'failed';
+
+export interface TelegramLog {
+  id: string;
+  kind: string;
+  text: string;
+  status: TelegramLogStatus;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  sentAt: string | null;
+}
+
 export interface DoctorEfficiencyStats {
   id: string;
   firstName: string;
@@ -215,6 +238,11 @@ export interface MonthlyAnalyticsRow {
   expenses: number | null;
 }
 
+/** GET /analytics/daily — one row per day (`YYYY-MM-DD`), oldest first */
+export interface DailyAnalyticsRow extends Omit<MonthlyAnalyticsRow, 'month'> {
+  date: string;
+}
+
 /** GET /analytics/sources */
 export interface SourceAnalyticsRow {
   source: string;
@@ -234,4 +262,32 @@ export interface Lead {
   source: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type PrescriptionStatus = 'issued' | 'dispensed' | 'cancelled';
+
+export interface PrescriptionItem {
+  id?: string;
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  quantity?: string;
+  instructions?: string;
+}
+
+export interface Prescription {
+  id: string;
+  code: string;
+  patientId: string;
+  doctorId: string;
+  visitId?: string;
+  status: PrescriptionStatus;
+  notes: string;
+  validUntil: string;
+  createdAt: string;
+  dispensedAt: string | null;
+  patient?: { firstName: string; lastName: string; age: number };
+  doctor?: { firstName: string; lastName: string; specialty: string };
+  items: PrescriptionItem[];
 }

@@ -185,8 +185,9 @@ export function monthOverMonthHint(current: number, previous: number): { text: s
 /* Backend-aggregated analytics (/analytics/monthly, /analytics/sources) */
 /* ------------------------------------------------------------------ */
 
-/** `YYYY-MM` → short Uzbek month label */
+/** `YYYY-MM` → short Uzbek month label; a full `YYYY-MM-DD` day → `DD.MM` */
 export function monthLabel(key: string): string {
+  if (key.length === 10) return `${key.slice(8, 10)}.${key.slice(5, 7)}`;
   const m = Number(key.slice(5, 7));
   return MONTHS_UZ[m - 1] ?? key;
 }

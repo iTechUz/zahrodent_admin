@@ -2,6 +2,7 @@ import {
   BookingSchema,
   DoctorSchema,
   PatientCommentSchema,
+  PatientDialogSchema,
   PatientSchema,
   PaymentSchema,
   ServiceSchema,
@@ -66,10 +67,12 @@ describe('PatientSchema', () => {
     expect(r.source).toBe('walk-in');
   });
 
-  it('requires first/last name, address, workplace', () => {
+  it('requires first/last name and workplace; address is optional', () => {
     const r = PatientSchema.safeParse({ ...ok, firstName: '' });
     expect(firstError(r)).toBe('Ism kiritilishi shart');
-    expect(firstError(PatientSchema.safeParse({ ...ok, address: '' }))).toBe('Manzil kiritilishi shart');
+    expect(PatientSchema.safeParse({ ...ok, address: '' }).success).toBe(true);
+    const { address: _a, ...noAddress } = ok;
+    expect(PatientSchema.safeParse(noAddress).success).toBe(true);
     expect(firstError(PatientSchema.safeParse({ ...ok, workplace: '' }))).toBe('Ish joyi kiritilishi shart');
   });
 
@@ -82,6 +85,25 @@ describe('PatientSchema', () => {
 
   it('rejects unknown sources', () => {
     expect(PatientSchema.safeParse({ ...ok, source: 'instagram' }).success).toBe(false);
+  });
+});
+
+describe('PatientDialogSchema (quick create)', () => {
+  const ok = { fullName: 'Ali Valiyev', phone: '+998901112233', birthYear: '1995', workplace: 'IT' };
+
+  it('accepts only the 4 base fields', () => {
+    const r = PatientDialogSchema.parse(ok);
+    expect(r.birthYear).toBe(1995);
+    expect(r.source).toBe('walk-in');
+  });
+
+  it('needs both name and surname in one input', () => {
+    expect(firstError(PatientDialogSchema.safeParse({ ...ok, fullName: 'Ali' }))).toBe('Ism va familiyani kiriting');
+  });
+
+  it('rejects a future or too old birth year', () => {
+    expect(PatientDialogSchema.safeParse({ ...ok, birthYear: '2999' }).success).toBe(false);
+    expect(PatientDialogSchema.safeParse({ ...ok, birthYear: '1800' }).success).toBe(false);
   });
 });
 

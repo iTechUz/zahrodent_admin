@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, UserPlus, Stethoscope, CreditCard } from 'lucide-react';
@@ -8,6 +8,8 @@ import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments, roleAccess } from '@/shared/config/roles';
 import { clinicToday } from '@/shared/lib/date-utils';
+import { ALL_TIME_START, usePeriodAnalytics } from '@/shared/hooks/usePeriodAnalytics';
+import { detectPreset, presetLabel, presetRange, type DateRange } from '@/shared/components/DateRangeFilter';
 import {
   lastTwoMonths,
   monthlyPatientSeries,
@@ -17,7 +19,6 @@ import {
 } from '@/shared/lib/reporting';
 import type { Doctor, Patient } from '@/shared/types';
 
-export const DASHBOARD_MONTHS = 6;
 export const RECENT_BOOKINGS_LIMIT = 5;
 
 /**
@@ -31,22 +32,29 @@ export const useDashboard = () => {
   const navigate = useNavigate();
   const today = clinicToday();
 
+  // period for the "month" figures and charts; default = this month
+  const [range, setRange] = useState<DateRange>(() => presetRange('month'));
+  const isThisMonth = detectPreset(range) === 'month';
+  // the backend treats "no dates" as this month, so "all time" is an explicit early start
+  const period = useMemo(
+    () => (range.startDate || range.endDate ? range : { startDate: ALL_TIME_START }),
+    [range],
+  );
+
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.analyticsDashboard(today),
-    queryFn: () => analyticsApi.dashboard({ date: today }),
+    queryKey: queryKeys.analyticsDashboard(today, period),
+    queryFn: () => analyticsApi.dashboard({ date: today, ...period }),
     enabled: authed,
+    placeholderData: keepPreviousData,
   });
 
-  const monthlyQuery = useQuery({
-    queryKey: queryKeys.analyticsMonthly(DASHBOARD_MONTHS),
-    queryFn: () => analyticsApi.monthly({ months: DASHBOARD_MONTHS }),
-    enabled: authed,
-  });
-
-  const sourcesQuery = useQuery({
-    queryKey: queryKeys.analyticsSources,
-    queryFn: () => analyticsApi.sources(),
-    enabled: authed,
+  // charts + source split follow the selected period (per day ≤ 92 days, else per month)
+  const series = usePeriodAnalytics(range, authed);
+  // this month vs last month hint needs the last two calendar months regardless of the period
+  const trendQuery = useQuery({
+    queryKey: queryKeys.analyticsMonthly(2),
+    queryFn: () => analyticsApi.monthly({ months: 2 }),
+    enabled: authed && isThisMonth,
   });
 
   const recentParams = { limit: RECENT_BOOKINGS_LIMIT };
@@ -89,16 +97,18 @@ export const useDashboard = () => {
   }, [doctorsQuery.data]);
 
   const stats = dashboardQuery.data;
-  const monthly = useMemo(() => monthlyQuery.data ?? [], [monthlyQuery.data]);
+  const monthly = series.rows;
+  const trendRows = useMemo(() => trendQuery.data ?? [], [trendQuery.data]);
 
   const patientGrowth = useMemo(() => monthlyPatientSeries(monthly), [monthly]);
   const revenueData = useMemo(() => monthlyRevenueSeries(monthly), [monthly]);
-  const sourceData = useMemo(() => sourceChartData(sourcesQuery.data ?? []), [sourcesQuery.data]);
+  const sourceData = useMemo(() => sourceChartData(series.sources), [series.sources]);
 
-  const newMom = lastTwoMonths(monthly, 'newPatients');
-  const revMom = lastTwoMonths(monthly, 'revenue');
-  const newPatientsTrend = monthOverMonthHint(newMom.current, newMom.previous);
-  const revenueTrend = canViewPayments ? monthOverMonthHint(revMom.current, revMom.previous) : null;
+  const newMom = lastTwoMonths(trendRows, 'newPatients');
+  const revMom = lastTwoMonths(trendRows, 'revenue');
+  // month-over-month only makes sense for the current month
+  const newPatientsTrend = isThisMonth ? monthOverMonthHint(newMom.current, newMom.previous) : null;
+  const revenueTrend = canViewPayments && isThisMonth ? monthOverMonthHint(revMom.current, revMom.previous) : null;
 
   const quickActions = useMemo(() => {
     const routes = role ? roleAccess[role] : [];
@@ -113,9 +123,13 @@ export const useDashboard = () => {
       .map(({ allowed: _allowed, ...a }) => a);
   }, [role]);
 
-  const isLoading = dashboardQuery.isLoading || monthlyQuery.isLoading || sourcesQuery.isLoading;
+  const isLoading = dashboardQuery.isLoading || series.isLoading;
 
   return {
+    range,
+    setRange,
+    periodLabel: presetLabel(range),
+    granularity: series.granularity,
     // headline figures (backend aggregates)
     totalPatients: stats?.totalPatients ?? 0,
     newPatients: stats?.newPatientsThisMonth ?? 0,
@@ -148,8 +162,8 @@ export const useDashboard = () => {
     error: dashboardQuery.error,
     refetch: () => {
       dashboardQuery.refetch();
-      monthlyQuery.refetch();
-      sourcesQuery.refetch();
+      series.refetch();
+      trendQuery.refetch();
       recentQuery.refetch();
     },
   };

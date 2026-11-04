@@ -31,6 +31,7 @@ import { patientsApi } from '@/lib/api/endpoints';
 import { toast } from 'sonner';
 import { sortBy } from '@/lib/api/sort-fields';
 import { useState } from "react";
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
 
 function PatientsPageContent() {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ function PatientsPageContent() {
     filters,
     setFilters,
     toggleDebtOnly,
+    doctors,
     sort,
     setSort,
     modalOpen,
@@ -190,21 +192,14 @@ function PatientsPageContent() {
             />
           </div>
 
-          <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border">
-            <Input 
-              type="date" 
-              className="w-[140px] h-8 text-xs border-none bg-transparent" 
-              value={filters.startDate || ''} 
-              onChange={(e) => setFilters('startDate', e.target.value || undefined)}
-            />
-            <span className="text-muted-foreground text-xs">—</span>
-            <Input 
-              type="date" 
-              className="w-[140px] h-8 text-xs border-none bg-transparent" 
-              value={filters.endDate || ''} 
-              onChange={(e) => setFilters('endDate', e.target.value || undefined)}
-            />
-          </div>
+          <DateRangeFilter
+            startDate={filters.startDate}
+            endDate={filters.endDate}
+            onChange={(r) => {
+              setFilters('startDate', r.startDate);
+              setFilters('endDate', r.endDate);
+            }}
+          />
 
           <Select 
             value={filters.source || 'all'} 
@@ -219,6 +214,23 @@ function PatientsPageContent() {
               {BOOKING_SOURCES.map((s) => (
                 <SelectItem key={s} value={s}>
                   {BOOKING_SOURCE_LABELS[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filters.doctorId || 'all'}
+            onValueChange={(val) => setFilters('doctorId', val === 'all' ? undefined : val)}
+          >
+            <SelectTrigger className="w-[190px] h-10" aria-label="Shifokor">
+              <SelectValue placeholder="Shifokor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Barcha shifokorlar</SelectItem>
+              {doctors.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.firstName} {d.lastName}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -8,10 +8,10 @@ import { useDialogState } from '@/shared/hooks/useDialogState';
 import { PatientService } from '../services/patient.service';
 import { PatientSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
-import { patientsApi, type PatientUpdatePayload } from '@/lib/api/endpoints';
+import { patientsApi, doctorsApi, type PatientUpdatePayload } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
-import { getMonthToDateRange } from '@/shared/lib/date-utils';
 
 type PatientFormValues = z.infer<typeof PatientSchema>;
 
@@ -20,20 +20,22 @@ export const usePatients = () => {
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const mtd = getMonthToDateRange();
-
   const table = useServerTable<
     Patient,
-    { source?: string; startDate?: string; endDate?: string; debtOnly?: string }
+    { source?: string; startDate?: string; endDate?: string; debtOnly?: string; doctorId?: string }
   >({
     queryKey: queryKeys.patients,
     fetchFn: (params) => patientsApi.list(params),
-    initialFilters: { 
-      startDate: mtd.startDate, 
-      endDate: mtd.endDate,
-      source: 'all'
-    },
+    // No default date range: it is by registration date and hid every older patient
+    initialFilters: { source: 'all' },
     perPage: 10,
+  });
+
+  // doctor filter options (GET /doctors is open to every staff role)
+  const { data: doctorsData } = useQuery({
+    queryKey: queryKeys.doctorsLookup(),
+    queryFn: () => fetchAllPages(doctorsApi.list),
+    enabled: authed,
   });
 
   const { data: stats } = useQuery({
@@ -139,6 +141,7 @@ export const usePatients = () => {
     filters: table.filters,
     setFilters: table.setFilters,
     toggleDebtOnly,
+    doctors: doctorsData?.data ?? [],
     sort: table.sort,
     setSort: table.setSort,
     modalOpen: dialog.isOpen,

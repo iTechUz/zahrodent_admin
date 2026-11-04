@@ -15,11 +15,32 @@ export const PatientSchema = z.object({
   lastName: requiredString('Familiya'),
   phone: phoneSchema,
   age: positiveNumber('Yosh').pipe(z.number().max(120, "Yosh 120 dan oshmasligi kerak")),
-  // backend CreatePatientDto: MinLength(3)
-  address: requiredString('Manzil').min(3, "Manzil kamida 3 ta belgidan iborat bo'lishi kerak"),
+  // optional: filled in later (quick create only needs name, phone, age, workplace)
+  address: z.union([z.literal(''), z.string().min(3, "Manzil kamida 3 ta belgidan iborat bo'lishi kerak")]).optional(),
   workplace: requiredString('Ish joyi'),
   assignedDoctorId: z.string().optional(),
   source: z.enum(['walk-in', 'telegram', 'website', 'phone']).default('walk-in'),
+  notes: z.string().optional(),
+});
+
+/** Quick-create / edit dialog: one "Ism Familya" input + birth year (stored as age). */
+export const PatientDialogSchema = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .refine((v) => v.split(/\s+/).filter(Boolean).length >= 2, 'Ism va familiyani kiriting'),
+  phone: phoneSchema,
+  birthYear: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
+    z
+      .number({ required_error: "Tug'ilgan yil kiritilishi shart", invalid_type_error: "Tug'ilgan yil son bo'lishi shart" })
+      .int("Tug'ilgan yil butun son bo'lishi shart")
+      .refine((y) => y <= new Date().getFullYear() && y >= new Date().getFullYear() - 120, "Tug'ilgan yil noto'g'ri"),
+  ),
+  workplace: requiredString('Ish joyi'),
+  address: PatientSchema.shape.address,
+  assignedDoctorId: z.string().optional(),
+  source: PatientSchema.shape.source,
   notes: z.string().optional(),
 });
 
@@ -97,6 +118,8 @@ export const PatientCommentSchema = z.object({
 
 export type PatientFormValues = z.infer<typeof PatientSchema>;
 export type PatientFormInput = z.input<typeof PatientSchema>;
+export type PatientDialogValues = z.infer<typeof PatientDialogSchema>;
+export type PatientDialogInput = z.input<typeof PatientDialogSchema>;
 export type BookingFormValues = z.infer<typeof BookingSchema>;
 export type ServiceFormValues = z.infer<typeof ServiceSchema>;
 export type ServiceFormInput = z.input<typeof ServiceSchema>;

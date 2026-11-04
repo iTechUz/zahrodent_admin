@@ -1,4 +1,6 @@
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
+import { EmptyState } from '@/shared/components/EmptyState';
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
 import { 
   Users, 
   CalendarDays, 
@@ -49,6 +51,10 @@ function DashboardPageContent() {
     isError,
     error,
     refetch,
+    range,
+    setRange,
+    periodLabel,
+    granularity,
   } = useDashboard();
 
   if (isLoading) return <DashboardSkeleton />;
@@ -68,6 +74,9 @@ function DashboardPageContent() {
           {new Date().toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long', timeZone: CLINIC_TIME_ZONE })}
         </div>
       </div>
+
+      {/* Davr: "Daromad" va "Yangi bemorlar" kartalari hamda grafiklar shu davr bo'yicha */}
+      <DateRangeFilter startDate={range.startDate} endDate={range.endDate} onChange={setRange} />
 
       {/* Tezkor amallar */}
       {quickActions.length > 0 && (
@@ -100,14 +109,14 @@ function DashboardPageContent() {
           trendUp={completedToday > 0}
         />
         <StatCard
-          title="Daromad (shu oy)"
+          title={`Daromad (${periodLabel.toLowerCase()})`}
           value={canViewPayments ? formatUzS(monthRevenue) : '—'}
           icon={<DollarSign className="w-5 h-5" />}
           trend={canViewPayments ? revenueTrend?.text : "Faqat admin ko'radi"}
           trendUp={canViewPayments ? revenueTrend?.up : undefined}
         />
         <StatCard
-          title="Yangi bemorlar"
+          title={`Yangi bemorlar (${periodLabel.toLowerCase()})`}
           value={newPatients}
           icon={<CalendarDays className="w-5 h-5" />}
           trend={newPatientsTrend?.text}
@@ -155,8 +164,11 @@ function DashboardPageContent() {
         <div className="bg-card rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold">Bemorlar o'sishi</h3>
+            <h3 className="text-sm font-semibold">Bemorlar o'sishi <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}{granularity === 'day' ? ' (kunlik)' : ' (oylik)'}</span></h3>
           </div>
+          {!patientGrowth.some((p) => p.patients > 0) ? (
+            <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />
+          ) : (
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={patientGrowth}>
               <defs>
@@ -172,14 +184,17 @@ function DashboardPageContent() {
               <Area type="monotone" dataKey="patients" stroke="hsl(174, 62%, 38%)" fill="url(#colorPatients)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         <div className="bg-card rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold">Daromad dinamikasi</h3>
+            <h3 className="text-sm font-semibold">Daromad dinamikasi <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}</span></h3>
           </div>
-          {canViewPayments ? (
+          {canViewPayments && !revenueData.some((r) => r.revenue > 0) ? (
+            <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />
+          ) : canViewPayments ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" vertical={false} />
@@ -202,8 +217,11 @@ function DashboardPageContent() {
         <div className="bg-card rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <Activity className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold">Qabul manbalari</h3>
+            <h3 className="text-sm font-semibold">Qabul manbalari <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}</span></h3>
           </div>
+          {sourceData.length === 0 ? (
+            <EmptyState title="Tanlangan davr uchun ma'lumotlar mavjud emas" description="Boshqa davrni tanlab ko'ring." />
+          ) : (
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={sourceData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="value">
@@ -214,6 +232,7 @@ function DashboardPageContent() {
               <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
             </PieChart>
           </ResponsiveContainer>
+          )}
           <div className="flex flex-wrap gap-3 mt-2">
             {sourceData.map((s) => (
               <div key={s.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">

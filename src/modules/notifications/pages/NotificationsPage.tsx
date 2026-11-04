@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBulkSms, DatePreset } from '../hooks/useBulkSms';
+import { TelegramDeliveryAlert } from '../components/TelegramDeliveryAlert';
 
 const notifStatusLabels: Record<string, string> = {
   sent: 'Yuborilgan', delivered: 'Yetkazilgan', failed: 'Xatolik',
@@ -240,7 +241,7 @@ function BulkSmsTab() {
         <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
           <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={toggleSelectAll} className="h-8 w-8 hover:bg-primary/5">
+              <Button variant="ghost" size="icon" tooltip="Hammasini belgilash" onClick={toggleSelectAll} className="h-8 w-8 hover:bg-primary/5">
                 {selectedIds.length === recipients.length && recipients.length > 0 ? (
                   <CheckSquare className="w-5 h-5 text-primary" />
                 ) : (
@@ -443,6 +444,8 @@ function NotificationsPageContent() {
         title="Bildirishnomalar"
         description="Mijozlar bilan aloqa va SMS eslatmalar markazi"
       />
+
+      <TelegramDeliveryAlert />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard 

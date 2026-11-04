@@ -12,7 +12,9 @@ describe('canAccessPayments', () => {
 
 describe('roleAccess', () => {
   it('every role can reach the dashboard and settings', () => {
-    for (const routes of Object.values(roleAccess)) {
+    // pharmacist has no dashboard/settings: '/' redirects to /pharmacy (ProtectedRoute)
+    for (const [role, routes] of Object.entries(roleAccess)) {
+      if (role === 'pharmacist') continue;
       expect(routes).toContain('/');
       expect(routes).toContain('/settings');
     }
@@ -36,6 +38,22 @@ describe('roleAccess', () => {
     );
     expect(roleAccess.doctor).not.toContain('/leads');
     expect(roleAccess.doctor).not.toContain('/notifications');
+  });
+});
+
+describe('pharmacist', () => {
+  it('only reaches the pharmacy desk', () => {
+    expect([...roleAccess.pharmacist].sort()).toEqual(['/', '/pharmacy']);
+    expect(roleAccess.admin).toContain('/pharmacy');
+    expect(roleAccess.doctor).not.toContain('/pharmacy');
+  });
+
+  it('prescriptions permissions match the backend', () => {
+    expect(can('doctor', 'prescriptions.write')).toBe(true);
+    expect(can('receptionist', 'prescriptions.write')).toBe(false);
+    expect(can('pharmacist', 'prescriptions.read')).toBe(false);
+    expect(can('pharmacist', 'pharmacy.use')).toBe(true);
+    expect(can('doctor', 'pharmacy.use')).toBe(false);
   });
 });
 

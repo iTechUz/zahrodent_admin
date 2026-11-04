@@ -9,6 +9,7 @@ const STAFF: UserRole[] = ['admin', 'doctor', 'receptionist'];
 const FRONT_DESK: UserRole[] = ['admin', 'receptionist'];
 const ADMIN: UserRole[] = ['admin'];
 const DOCTOR_WRITE: UserRole[] = ['admin', 'doctor'];
+const PHARMACY: UserRole[] = ['admin', 'pharmacist'];
 
 /**
  * Action → roles allowed by the backend `@Roles(...)` guards (zahrodent_backend
@@ -32,6 +33,10 @@ export const permissions = {
   'visits.read': STAFF,
   'visits.create': DOCTOR_WRITE,
   'visits.update': DOCTOR_WRITE,
+
+  'prescriptions.read': STAFF,
+  'prescriptions.write': DOCTOR_WRITE, // doctor: only own patients (backend scopes)
+  'pharmacy.use': PHARMACY,
 
   'doctors.read': STAFF,
   'doctors.create': ADMIN,
@@ -82,15 +87,19 @@ export const roleAccess: Record<UserRole, string[]> = {
     '/analytics',
     '/notifications',
     '/leads',
+    '/pharmacy',
     '/settings',
     '/users',
   ],
   doctor: ['/', '/bookings', '/patients', '/settings'],
   receptionist: ['/', '/bookings', '/patients', '/services', '/notifications', '/leads', '/settings'],
+  // Pharmacy staff only see the prescription desk; '/' redirects there (ProtectedRoute).
+  pharmacist: ['/', '/pharmacy'],
 };
 
 export const roleConfig: Record<UserRole, { label: string; color: string }> = {
   admin: { label: 'Administrator', color: 'bg-primary/15 text-primary border-primary/30' },
   doctor: { label: 'Shifokor', color: 'bg-info/15 text-info border-info/30' },
   receptionist: { label: 'Qabulxona', color: 'bg-warning/15 text-warning border-warning/30' },
+  pharmacist: { label: 'Apteka', color: 'bg-success/15 text-success border-success/30' },
 };

@@ -67,7 +67,7 @@ const DataTableRow = memo(<T extends { id?: string | number }>({
         <td className="px-4 py-3 text-right">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" tooltip="Amallar">
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>

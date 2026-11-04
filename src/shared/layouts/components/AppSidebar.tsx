@@ -1,7 +1,7 @@
 import { useLocation, Link } from 'react-router-dom';
 import {
   LayoutDashboard, CalendarDays, Users, Stethoscope,
-  DollarSign, BarChart3, Bell, Settings, ChevronLeft, Sparkles, ClipboardList, ShieldCheck, MessageSquare
+  DollarSign, BarChart3, Bell, Settings, ChevronLeft, Sparkles, ClipboardList, ShieldCheck, MessageSquare, Pill
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useStore } from '@/store/useStore';
@@ -17,6 +17,7 @@ const allNavItems = [
   { title: 'Shifokorlar', path: '/doctors', icon: Stethoscope },
   { title: 'Xizmatlar', path: '/services', icon: ClipboardList },
   { title: 'Murojaatlar', path: '/leads', icon: MessageSquare },
+  { title: 'Apteka', path: '/pharmacy', icon: Pill },
   { title: 'Moliya', path: '/finance', icon: DollarSign },
   { title: 'Tahlillar', path: '/analytics', icon: BarChart3 },
   { title: 'Bildirishnomalar', path: '/notifications', icon: Bell },

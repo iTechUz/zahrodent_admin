@@ -21,7 +21,7 @@ function vendorChunk(id: string): string | undefined {
 export default defineConfig({
   server: {
     host: "0.0.0.0",
-    port: 8070,
+    port: 8071,
     allowedHosts: true,
     strictPort: true,
   },

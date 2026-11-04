@@ -1,4 +1,4 @@
-import { Bell, Moon, Sun, User, LogOut, Settings, Search } from 'lucide-react';
+import { Bell, CircleHelp, Moon, Sun, User, LogOut, Settings, Search } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,8 +9,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { roleAccess, roleConfig } from '@/shared/config/roles';
+import { guideUrlFor } from '@/shared/config/guide';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -32,6 +33,8 @@ export function Topbar() {
   });
   const unread = (notificationsRes?.data ?? []).filter((n) => n.status === 'sent').length;
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const openGuide = () => window.open(guideUrlFor(pathname), '_blank', 'noopener,noreferrer');
   const canOpenNotifications = !!currentUser && roleAccess[currentUser.role].includes('/notifications');
   const openNotifications = () => {
     if (canOpenNotifications) navigate('/notifications');
@@ -51,10 +54,13 @@ export function Topbar() {
             {roleConfig[currentUser.role].label}
           </Badge>
         )}
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleDarkMode}>
+        <Button variant="ghost" size="icon" tooltip={darkMode ? "Yorug' rejim" : "Qorong'i rejim"} className="h-8 w-8" onClick={toggleDarkMode}>
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </Button>
-        <Button variant="ghost" size="icon" className="relative h-8 w-8" onClick={openNotifications} disabled={!canOpenNotifications}>
+        <Button variant="ghost" size="icon" tooltip="Qo'llanma" className="h-8 w-8" onClick={openGuide}>
+          <CircleHelp className="w-4 h-4" />
+        </Button>
+        <Button variant="ghost" size="icon" tooltip="Bildirishnomalar" className="relative h-8 w-8" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
           {unread > 0 && (
             <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">
@@ -64,7 +70,7 @@ export function Topbar() {
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+            <Button variant="ghost" size="icon" tooltip="Profil" className="rounded-full h-8 w-8">
               <div className="w-7 h-7 rounded-full gradient-primary flex items-center justify-center">
                 <User className="w-3.5 h-3.5 text-primary-foreground" />
               </div>
@@ -110,10 +116,13 @@ export function Topbar() {
             {roleConfig[currentUser.role].label}
           </Badge>
         )}
-        <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="relative">
+        <Button variant="ghost" size="icon" tooltip={darkMode ? "Yorug' rejim" : "Qorong'i rejim"} onClick={toggleDarkMode} className="relative">
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </Button>
-        <Button variant="ghost" size="icon" className="relative" onClick={openNotifications} disabled={!canOpenNotifications}>
+        <Button variant="ghost" size="icon" tooltip="Qo'llanma" onClick={openGuide}>
+          <CircleHelp className="w-4 h-4" />
+        </Button>
+        <Button variant="ghost" size="icon" tooltip="Bildirishnomalar" className="relative" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
           {unread > 0 && (
             <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">
@@ -123,7 +132,7 @@ export function Topbar() {
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
+            <Button variant="ghost" size="icon" tooltip="Profil" className="rounded-full">
               <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">
                 <User className="w-4 h-4 text-primary-foreground" />
               </div>

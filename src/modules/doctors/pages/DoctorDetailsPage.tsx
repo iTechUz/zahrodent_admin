@@ -115,6 +115,7 @@ function DoctorDetailsContent() {
             <Button 
               variant="ghost" 
               size="icon" 
+              tooltip="Shifokorlar ro'yxatiga qaytish"
               onClick={() => navigate('/doctors')} 
               className="rounded-full bg-background/50 hover:bg-background border border-border/50 shrink-0"
             >

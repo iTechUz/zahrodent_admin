@@ -33,17 +33,25 @@ export const queryKeys = {
   doctorsLookup: lookupKey('doctors'),
   doctorsStats: ['doctors', 'stats'] as const,
   doctorsEfficiency: ['doctors', 'efficiency'] as const,
+  doctorsEfficiencyPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['doctors', 'efficiency', period] as const,
 
   visits: ['visits'] as const,
   visit: (id: string) => ['visits', id] as const,
   visitsList: listKey('visits'),
   visitsLookup: lookupKey('visits'),
 
+  prescriptions: ['prescriptions'] as const,
+  prescriptionsByPatient: (patientId: string) => ['prescriptions', 'patient', patientId] as const,
+  pharmacySearch: (q: string) => ['prescriptions', 'pharmacy', q] as const,
+
   services: ['services'] as const,
   service: (id: string) => ['services', id] as const,
   servicesList: listKey('services'),
   servicesLookup: lookupKey('services'),
   servicesStats: ['services', 'stats'] as const,
+  servicesStatsPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['services', 'stats', period] as const,
 
   payments: ['payments'] as const,
   payment: (id: string) => ['payments', id] as const,
@@ -55,10 +63,20 @@ export const queryKeys = {
   notifications: ['notifications'] as const,
   notificationsList: listKey('notifications'),
 
+  notificationLogs: ['notification-logs'] as const,
+  notificationLogsSummary: ['notification-logs', 'summary'] as const,
+  bookingStatusLog: (id: string) => ['bookings', id, 'status-log'] as const,
+
   settings: ['settings'] as const,
 
   analytics: ['analytics'] as const,
-  analyticsDashboard: (date: string) => ['analytics', 'dashboard', date] as const,
+  analyticsDashboard: (date: string, period?: { startDate?: string; endDate?: string }) =>
+    (period ? ['analytics', 'dashboard', date, period] : ['analytics', 'dashboard', date]) as readonly unknown[],
   analyticsMonthly: (months: number) => ['analytics', 'monthly', months] as const,
+  analyticsMonthlyPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['analytics', 'monthly', 'period', period] as const,
+  analyticsDaily: (period: { startDate?: string; endDate?: string }) => ['analytics', 'daily', period] as const,
   analyticsSources: ['analytics', 'sources'] as const,
+  analyticsSourcesPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['analytics', 'sources', period] as const,
 };

@@ -2,6 +2,7 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { useState } from 'react';
 import { useLeads } from '../hooks/useLeads';
 import { PageHeader } from '@/shared/components/PageHeader';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Lead, LeadStatus } from '@/shared/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,8 @@ import { exportToExcel } from '@/shared/lib/excel';
 import { leadsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { DataTable, Column } from '@/shared/components/DataTable';
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
+import { BOOKING_SOURCES, BOOKING_SOURCE_LABELS } from '@/shared/constants';
 import { formatDate } from '@/shared/lib/formatters';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { toast } from 'sonner';
@@ -64,6 +67,7 @@ export default function LeadsPage() {
     search,
     setSearch,
     filters,
+    setFilters,
     setStatusFilter,
     page,
     setPage,
@@ -75,6 +79,7 @@ export default function LeadsPage() {
   
   const navigate = useNavigate();
   const [view, setView] = useState<'board' | 'table'>('board');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   
   // Lead Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -194,7 +199,7 @@ export default function LeadsPage() {
       accessor: (l) => (
         <div className="flex items-center gap-2">
           <span>{l.phone}</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(l.phone)}>
+          <Button variant="ghost" size="icon" tooltip="Raqamni nusxalash" className="h-6 w-6" onClick={() => copyToClipboard(l.phone)}>
             <Copy className="w-3 h-3" />
           </Button>
         </div>
@@ -234,13 +239,13 @@ export default function LeadsPage() {
       header: 'Amallar',
       accessor: (l) => (
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => handleOpenForm(l)}>
+          <Button variant="ghost" size="icon" tooltip="Tahrirlash" className="h-8 w-8 text-blue-600" onClick={() => handleOpenForm(l)}>
             <Plus className="w-4 h-4 rotate-45" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" onClick={() => handleConvertToPatient(l)}>
+          <Button variant="ghost" size="icon" tooltip="Bemorga aylantirish" className="h-8 w-8 text-green-600" onClick={() => handleConvertToPatient(l)}>
             <CalendarPlus className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteLead(l.id)}>
+          <Button variant="ghost" size="icon" tooltip="O'chirish" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(l.id)}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -281,7 +286,31 @@ export default function LeadsPage() {
           />
         </div>
         
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <DateRangeFilter
+            startDate={filters.startDate}
+            endDate={filters.endDate}
+            onChange={(r) => {
+              setFilters('startDate', r.startDate);
+              setFilters('endDate', r.endDate);
+            }}
+          />
+          <div className="flex-1 md:w-44">
+            <Select
+              value={filters.source || 'all'}
+              onValueChange={(v) => setFilters('source', v === 'all' ? undefined : v)}
+            >
+              <SelectTrigger className="rounded-xl border-none bg-background/50" aria-label="Manba">
+                <SelectValue placeholder="Barcha manbalar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Barcha manbalar</SelectItem>
+                {BOOKING_SOURCES.map((s) => (
+                  <SelectItem key={s} value={s}>{BOOKING_SOURCE_LABELS[s]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex-1 md:w-48">
             <Select value={filters.status || 'all'} onValueChange={setStatusFilter}>
               <SelectTrigger className="rounded-xl border-none bg-background/50">
@@ -411,12 +440,12 @@ export default function LeadsPage() {
 
                                         <div className="flex items-center justify-between pt-3 border-t border-dashed">
                                           <div className="flex items-center gap-1">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-green-500/10 hover:text-green-600 transition-colors" asChild onClick={(e) => e.stopPropagation()}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-green-500/10 hover:text-green-600 transition-colors" asChild title="WhatsApp'da yozish" aria-label="WhatsApp'da yozish" onClick={(e) => e.stopPropagation()}>
                                               <a href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer">
                                                 <MessageCircle className="w-4 h-4" />
                                               </a>
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-sky-500/10 hover:text-sky-600 transition-colors" asChild title="Telegramda yozish" onClick={(e) => e.stopPropagation()}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-sky-500/10 hover:text-sky-600 transition-colors" asChild title="Telegramda yozish" aria-label="Telegramda yozish" onClick={(e) => e.stopPropagation()}>
                                               <a href={`https://t.me/${lead.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer">
                                                 <Send className="w-4 h-4" />
                                               </a>
@@ -429,7 +458,7 @@ export default function LeadsPage() {
                                               size="icon" 
                                               className="h-8 w-8 rounded-lg text-blue-600 hover:bg-blue-600/10 transition-colors" 
                                               onClick={(e) => { e.stopPropagation(); handleOpenForm(lead); }} 
-                                              title="Tahrirlash"
+                                              tooltip="Tahrirlash"
                                             >
                                               <Plus className="w-4 h-4 rotate-45" />
                                             </Button>
@@ -437,8 +466,8 @@ export default function LeadsPage() {
                                               variant="ghost" 
                                               size="icon" 
                                               className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-colors" 
-                                              onClick={(e) => { e.stopPropagation(); deleteLead(lead.id); }} 
-                                              title="O'chirish"
+                                              onClick={(e) => { e.stopPropagation(); setDeleteId(lead.id); }} 
+                                              tooltip="O'chirish"
                                             >
                                               <Trash2 className="w-4 h-4" />
                                             </Button>
@@ -631,6 +660,17 @@ export default function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!deleteId}
+        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+        onConfirm={() => {
+          if (deleteId) deleteLead(deleteId);
+          setDeleteId(null);
+        }}
+        title="Murojaatni o'chirasizmi?"
+        description="Murojaat butunlay o'chiriladi va uni qaytarib bo'lmaydi."
+      />
     </div>
   );
 }

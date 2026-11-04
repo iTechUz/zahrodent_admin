@@ -7,9 +7,14 @@ import type {
   Service,
   Notification,
   NotificationRecipient,
+  BookingStatusLogEntry,
+  TelegramLog,
+  TelegramLogStatus,
   DoctorEfficiencyStats,
   PatientComment,
   Lead,
+  Prescription,
+  PrescriptionItem,
 } from '@/shared/types';
 import type { SessionUser } from '@/shared/types/auth';
 import type { ClinicSettings } from '@/shared/types';
@@ -17,6 +22,7 @@ import type { AuthTokens } from './auth-token';
 import type {
   DashboardAnalytics,
   MonthlyAnalyticsRow,
+  DailyAnalyticsRow,
   ServiceStats,
   SourceAnalyticsRow,
 } from '@/shared/types';
@@ -98,7 +104,13 @@ export type ListParams = {
 
 export const patientsApi = {
   list: (
-    params?: ListParams & { source?: string; startDate?: string; endDate?: string; debtOnly?: string | boolean },
+    params?: ListParams & {
+      source?: string;
+      startDate?: string;
+      endDate?: string;
+      debtOnly?: string | boolean;
+      doctorId?: string;
+    },
   ) => apiRequest<PaginatedResponse<Patient>>(`/patients${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; newThisMonth: number; topSource: string }>('/patients/stats'),
   /** `includeDeleted` (admin only) also returns an archived (soft-deleted) patient. */
@@ -130,7 +142,8 @@ export const doctorsApi = {
   list: (params?: ListParams & { specialty?: string }) =>
     apiRequest<PaginatedResponse<Doctor>>(`/doctors${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; activeToday: number; totalVisits: number }>('/doctors/stats'),
-  efficiency: () => apiRequest<DoctorEfficiencyStats[]>('/doctors/efficiency'),
+  efficiency: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<DoctorEfficiencyStats[]>(`/doctors/efficiency${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Doctor>(`/doctors/${id}`),
   create: (body: DoctorCreatePayload) =>
     apiRequest<Doctor>('/doctors', { method: 'POST', body: JSON.stringify(body) }),
@@ -156,8 +169,10 @@ export const bookingsApi = {
   get: (id: string) => apiRequest<Booking>(`/bookings/${id}`),
   create: (body: Omit<Booking, 'id' | 'createdAt'> & { createdAt?: string }) =>
     apiRequest<Booking>('/bookings', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id: string, body: Partial<Booking>) =>
+  /** `statusReason` is shown to the patient on cancel and kept in the status log. */
+  update: (id: string, body: Partial<Booking> & { statusReason?: string }) =>
     apiRequest<Booking>(`/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  statusLog: (id: string) => apiRequest<BookingStatusLogEntry[]>(`/bookings/${id}/status-log`),
   remove: (id: string) => apiRequest<{ id: string }>(`/bookings/${id}`, { method: 'DELETE' }),
 };
 
@@ -174,7 +189,8 @@ export const visitsApi = {
 export const servicesApi = {
   list: (params?: ListParams & { category?: string }) =>
     apiRequest<PaginatedResponse<Service>>(`/services${qs(params ?? {})}`),
-  stats: () => apiRequest<ServiceStats>('/services/stats'),
+  stats: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<ServiceStats>(`/services/stats${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Service>(`/services/${id}`),
   create: (body: Omit<Service, 'id'>) =>
     apiRequest<Service>('/services', { method: 'POST', body: JSON.stringify(body) }),
@@ -208,12 +224,16 @@ export const paymentsApi = {
 
 export const analyticsApi = {
   /** Headline figures; `date` = clinic "today" (YYYY-MM-DD). Money fields are null for non-admins. */
-  dashboard: (params?: { date?: string }) =>
+  dashboard: (params?: { date?: string; startDate?: string; endDate?: string }) =>
     apiRequest<DashboardAnalytics>(`/analytics/dashboard${qs(params ?? {})}`),
   /** Oldest → newest month buckets. Money fields are null for non-admins. */
-  monthly: (params?: { months?: number }) =>
+  monthly: (params?: { months?: number; startDate?: string; endDate?: string }) =>
     apiRequest<MonthlyAnalyticsRow[]>(`/analytics/monthly${qs(params ?? {})}`),
-  sources: () => apiRequest<SourceAnalyticsRow[]>('/analytics/sources'),
+  /** One row per day of startDate..endDate (max 92 days), empty days included. */
+  daily: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<DailyAnalyticsRow[]>(`/analytics/daily${qs(params ?? {})}`),
+  sources: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<SourceAnalyticsRow[]>(`/analytics/sources${qs(params ?? {})}`),
 };
 
 export const notificationsApi = {
@@ -235,6 +255,13 @@ export const notificationsApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+};
+
+export const notificationLogsApi = {
+  list: (params?: ListParams & { status?: TelegramLogStatus; kind?: string }) =>
+    apiRequest<PaginatedResponse<TelegramLog>>(`/notification-logs${qs(params ?? {})}`),
+  summary: () => apiRequest<{ failed24h: number; pending: number }>('/notification-logs/summary'),
+  retry: (id: string) => apiRequest<TelegramLog>(`/notification-logs/${id}/retry`, { method: 'POST', body: '{}' }),
 };
 
 export const usersApi = {
@@ -265,7 +292,7 @@ export const usersApi = {
 };
 
 export const leadsApi = {
-  list: (params?: ListParams & { startDate?: string; endDate?: string; status?: string }) =>
+  list: (params?: ListParams & { startDate?: string; endDate?: string; status?: string; source?: string }) =>
     apiRequest<PaginatedResponse<Lead>>(`/leads${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Lead>(`/leads/${id}`),
   create: (body: Partial<Lead>) =>
@@ -275,4 +302,21 @@ export const leadsApi = {
   updateStatus: (id: string, status: Lead['status']) =>
     apiRequest<Lead>(`/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   remove: (id: string) => apiRequest<{ id: string }>(`/leads/${id}`, { method: 'DELETE' }),
+};
+
+export const prescriptionsApi = {
+  list: (params?: ListParams & { patientId?: string; status?: string }) =>
+    apiRequest<PaginatedResponse<Prescription>>(`/prescriptions${qs(params ?? {})}`),
+  create: (body: {
+    patientId: string;
+    doctorId?: string;
+    visitId?: string;
+    items: PrescriptionItem[];
+    notes?: string;
+    validDays?: number;
+  }) => apiRequest<Prescription>('/prescriptions', { method: 'POST', body: JSON.stringify(body) }),
+  cancel: (id: string) => apiRequest<Prescription>(`/prescriptions/${id}/cancel`, { method: 'PATCH' }),
+  pharmacySearch: (q: string) =>
+    apiRequest<Prescription[]>(`/prescriptions/pharmacy/search${qs({ q })}`),
+  dispense: (id: string) => apiRequest<Prescription>(`/prescriptions/${id}/dispense`, { method: 'POST' }),
 };

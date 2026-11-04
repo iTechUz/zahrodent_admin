@@ -3,6 +3,7 @@ import {
   bookingsApi,
   doctorsApi,
   leadsApi,
+  prescriptionsApi,
   loginRequest,
   notificationsApi,
   patientsApi,
@@ -454,5 +455,20 @@ describe('leadsApi (backend: leads.controller.ts)', () => {
   it('updateStatus → PATCH /leads/:id/status { status }', async () => {
     await leadsApi.updateStatus('l1', 'converted');
     expect(lastCall()).toMatchObject({ path: '/leads/l1/status', method: 'PATCH', body: { status: 'converted' } });
+  });
+});
+
+describe('prescriptionsApi', () => {
+  it('pharmacySearch', async () => {
+    await prescriptionsApi.pharmacySearch('ABCD2345');
+    expect(lastCall()).toMatchObject({ path: '/prescriptions/pharmacy/search?q=ABCD2345', method: 'GET' });
+  });
+  it('dispense', async () => {
+    await prescriptionsApi.dispense('r1');
+    expect(lastCall()).toMatchObject({ path: '/prescriptions/r1/dispense', method: 'POST' });
+  });
+  it('cancel', async () => {
+    await prescriptionsApi.cancel('r1');
+    expect(lastCall()).toMatchObject({ path: '/prescriptions/r1/cancel', method: 'PATCH' });
   });
 });

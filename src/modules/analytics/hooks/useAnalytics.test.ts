@@ -68,8 +68,9 @@ describe('useAnalytics (admin)', () => {
   it('uses the backend aggregates instead of listing (and truncating) raw rows', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.doctorEfficiency).toHaveLength(1));
-    expect(analyticsApi.monthly).toHaveBeenCalledWith({ months: 6 });
-    expect(analyticsApi.sources).toHaveBeenCalled();
+    // default period: this + 5 previous months (> 92 days → monthly rows)
+    expect(analyticsApi.monthly).toHaveBeenCalledWith({ startDate: '2026-01-01' });
+    expect(analyticsApi.sources).toHaveBeenCalledWith({ startDate: '2026-01-01' });
     expect(bookingsApi.list).not.toHaveBeenCalled();
     expect(patientsApi.list).not.toHaveBeenCalled();
     expect(paymentsApi.list).not.toHaveBeenCalled();
