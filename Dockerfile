@@ -23,15 +23,15 @@ FROM nginx:1.31.8-alpine3.24
 # snapshot — keeps the Trivy CRITICAL gate in CD green.
 RUN apk upgrade --no-cache
 
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+# PORT konteyner env'idan: nginx entrypoint template'dan conf.d/default.conf yaratadi.
+COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY docker/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
 RUN chmod +x /docker-entrypoint.d/40-env-config.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 8070
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1:8070/healthz || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:${PORT}/healthz || exit 1
 
 # nginx image entrypoint runs /docker-entrypoint.d/*.sh, then starts nginx
 CMD ["nginx", "-g", "daemon off;"]
