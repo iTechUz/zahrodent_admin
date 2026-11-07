@@ -4,6 +4,7 @@ import {
   clinicMonthKey,
   clinicMonthStart,
   clinicToday,
+  clinicPeriodRange,
   getMonthToDateRange,
   toClinicDate,
 } from './date-utils';
@@ -66,5 +67,15 @@ describe('addMonthsToDate', () => {
     expect(addMonthsToDate('2026-01-31', 1)).toBe('2026-02-28');
     expect(addMonthsToDate('2026-12-15', 1)).toBe('2027-01-15');
     expect(addMonthsToDate('2026-03-31', -1)).toBe('2026-02-28');
+  });
+});
+
+describe('clinicPeriodRange', () => {
+  const now = new Date('2026-06-17T10:00:00Z'); // Wednesday
+
+  it('today / week (Mon–Sun) / month bounds', () => {
+    expect(clinicPeriodRange('today', now)).toEqual({ startDate: '2026-06-17', endDate: '2026-06-17' });
+    expect(clinicPeriodRange('week', now)).toEqual({ startDate: '2026-06-15', endDate: '2026-06-21' });
+    expect(clinicPeriodRange('month', now)).toEqual({ startDate: '2026-06-01', endDate: '2026-06-30' });
   });
 });

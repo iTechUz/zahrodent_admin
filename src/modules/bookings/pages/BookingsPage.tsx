@@ -20,6 +20,7 @@ import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { Booking } from '@/shared/types';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { formatDate } from '@/shared/lib/formatters';
+import { clinicPeriodRange } from '@/shared/lib/date-utils';
 import { StatCard } from '@/shared/components/StatCard';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
@@ -182,14 +183,20 @@ function BookingsPageContent() {
                 type="date" 
                 className="w-[140px] h-8 text-xs border-none bg-transparent" 
                 value={filters.startDate || ''} 
-                onChange={(e) => setFilters('startDate', e.target.value || undefined)}
+                onChange={(e) => {
+                  setFilters('startDate', e.target.value || undefined);
+                  setFilters('dateRange', 'all');
+                }}
               />
               <span className="text-muted-foreground text-xs">—</span>
               <Input 
                 type="date" 
                 className="w-[140px] h-8 text-xs border-none bg-transparent" 
                 value={filters.endDate || ''} 
-                onChange={(e) => setFilters('endDate', e.target.value || undefined)}
+                onChange={(e) => {
+                  setFilters('endDate', e.target.value || undefined);
+                  setFilters('dateRange', 'all');
+                }}
               />
             </div>
 
@@ -197,10 +204,10 @@ function BookingsPageContent() {
               value={filters.dateRange || 'all'} 
               onValueChange={(val) => {
                 setFilters('dateRange', val);
-                if (val !== 'all') {
-                  setFilters('startDate', undefined);
-                  setFilters('endDate', undefined);
-                }
+                // keep the date pickers in sync with the chosen period
+                const range = val === 'all' ? undefined : clinicPeriodRange(val as 'today' | 'week' | 'month');
+                setFilters('startDate', range?.startDate);
+                setFilters('endDate', range?.endDate);
               }}
             >
               <SelectTrigger className="w-[160px] h-10">
