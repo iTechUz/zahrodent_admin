@@ -26,6 +26,7 @@ interface TransactionFormProps {
   editing: Payment | null;
   patients: Patient[];
   onSave: (data: PaymentFormValues) => void;
+  isPending?: boolean;
 }
 
 export const TransactionForm = ({ 
@@ -33,7 +34,8 @@ export const TransactionForm = ({
   onOpenChange, 
   editing, 
   patients, 
-  onSave 
+  onSave,
+  isPending = false,
 }: TransactionFormProps) => {
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(PaymentSchema),
@@ -199,7 +201,7 @@ export const TransactionForm = ({
               )}
             />
 
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" disabled={isPending}>
               {editing ? "Yangilash" : "Qayd etish"}
             </Button>
           </form>

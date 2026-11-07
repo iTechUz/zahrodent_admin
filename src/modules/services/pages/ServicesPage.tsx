@@ -50,6 +50,7 @@ function ServicesPageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     handleDelete,
     isLoading,
     error,
@@ -180,7 +181,7 @@ function ServicesPageContent() {
                       {formatUzS(s.price)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {detailed?.patients || 0}
+                      {detailed?.patientCount || 0}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-success">
                       {formatUzS(detailed?.revenue || 0)}
@@ -252,12 +253,15 @@ function ServicesPageContent() {
         onOpenChange={setModalOpen} 
         editing={editing} 
         onSave={handleSave} 
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog 
         open={!!deleteId} 
         onOpenChange={() => setDeleteId(null)} 
         onConfirm={handleDelete} 
+        title="Xizmatni o'chirasizmi?"
+        description="Agar xizmat qabul yoki tashriflarda ishlatilgan bo'lsa, tizim o'chirishga ruxsat bermasligi mumkin. O'chirishga ruxsat berilsa, tarixda faqat xizmat nomi qoladi."
       />
     </div>
   );

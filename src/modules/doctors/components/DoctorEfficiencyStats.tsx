@@ -8,7 +8,8 @@ import {
   Target, 
   CreditCard, 
   Award,
-  CalendarCheck
+  CalendarCheck,
+  ClipboardCheck
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
@@ -28,7 +29,7 @@ export function DoctorEfficiencyStats() {
     );
   }
 
-  const maxRevenue = Math.max(...(stats?.map(s => s.totalRevenue) || [1]));
+  const maxRevenue = Math.max(...(stats?.map(s => s.totalRevenue) || [1])) || 1;
 
   return (
     <div className="space-y-6">
@@ -63,11 +64,16 @@ export function DoctorEfficiencyStats() {
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <StatMini 
                   icon={<Users className="w-3.5 h-3.5" />} 
                   label="Bemorlar" 
-                  value={doctor.totalVisits} 
+                  value={doctor.uniquePatients ?? 0} 
+                />
+                <StatMini 
+                  icon={<ClipboardCheck className="w-3.5 h-3.5" />} 
+                  label="Tashriflar" 
+                  value={doctor.totalVisits ?? 0} 
                 />
                 <StatMini 
                   icon={<CalendarCheck className="w-3.5 h-3.5" />} 
@@ -81,7 +87,7 @@ export function DoctorEfficiencyStats() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground flex items-center gap-1">
-                      <CreditCard className="w-3 h-3" /> Daromad
+                      <CreditCard className="w-3 h-3" /> Hisoblangan
                     </span>
                     <span className="font-bold text-primary">{formatCurrency(doctor.totalRevenue)}</span>
                   </div>
@@ -148,7 +154,7 @@ function ProgressBar({ value, color }: { value: number, color: 'primary' | 'succ
     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
       <div 
         className={cn("h-full transition-all duration-500 ease-out", bgClasses[color])} 
-        style={{ width: `${Math.max(5, value)}%` }}
+        style={{ width: `${Math.min(100, Math.max(5, value))}%` }}
       />
     </div>
   );

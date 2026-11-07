@@ -15,6 +15,8 @@ export const PatientSchema = z.object({
   lastName: requiredString('Familiya'),
   phone: phoneSchema,
   age: positiveNumber('Yosh').pipe(z.number().max(120, "Yosh 120 dan oshmasligi kerak")),
+  /** optional: sent together with the derived age when the form collects a birth year */
+  birthYear: z.number().int().optional(),
   // optional: filled in later (quick create only needs name, phone, age, workplace)
   address: z.union([z.literal(''), z.string().min(3, "Manzil kamida 3 ta belgidan iborat bo'lishi kerak")]).optional(),
   workplace: requiredString('Ish joyi'),

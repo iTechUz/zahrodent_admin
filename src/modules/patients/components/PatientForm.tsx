@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { doctorsApi, patientsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
+import { patientBirthYear } from '@/shared/lib/patient-age';
 import * as z from 'zod';
 
 type PatientDialogValues = z.infer<typeof PatientDialogSchema>;
@@ -37,9 +38,10 @@ interface PatientFormProps {
   onOpenChange: (open: boolean) => void;
   editing: Patient | null;
   onSave: (data: PatientFormValues) => void;
+  isPending?: boolean;
 }
 
-export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientFormProps) => {
+export const PatientForm = ({ open, onOpenChange, editing, onSave, isPending = false }: PatientFormProps) => {
   const form = useForm<PatientDialogInput>({
     resolver: zodResolver(PatientDialogSchema),
     defaultValues: emptyValues(),
@@ -70,7 +72,7 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
       form.reset({
         fullName: `${editing.firstName} ${editing.lastName}`.trim(),
         phone: editing.phone,
-        birthYear: editing.age != null ? new Date().getFullYear() - editing.age : '',
+        birthYear: patientBirthYear(editing) ?? '',
         workplace: editing.workplace || '',
         address: editing.address || '',
         assignedDoctorId: assignedDoctorId || '',
@@ -91,7 +93,9 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
       ...rest,
       firstName: unchanged ? editing.firstName : firstName,
       lastName: unchanged ? editing.lastName : lastParts.join(' '),
+      // age stays for backends/readers that still use it; birthYear is the source of truth
       age: new Date().getFullYear() - birthYear,
+      birthYear,
     } as PatientFormValues);
   };
 
@@ -237,7 +241,7 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
                 )}
               />
             )}
-            <Button type="submit" className="w-full h-11 text-base font-semibold">
+            <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isPending}>
               {editing ? "Yangilash" : "Qo'shish"}
             </Button>
           </form>

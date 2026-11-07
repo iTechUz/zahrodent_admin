@@ -80,6 +80,8 @@ export const useDoctors = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.visits });
       queryClient.invalidateQueries({ queryKey: queryKeys.patients }); // balance
+      queryClient.invalidateQueries({ queryKey: queryKeys.doctors }); // efficiency + stats
+      queryClient.invalidateQueries({ queryKey: queryKeys.services }); // service stats
       queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success('Tashrif saqlandi');
     },
@@ -89,6 +91,7 @@ export const useDoctors = () => {
 
   const handleSaveDoctor = useCallback(
     (data: DoctorFormValues) => {
+      if (saveDoctorMut.isPending) return;
       const { daysOffText, schedule, ...rest } = data;
       const daysOff = daysOffText
         ?.split(',')
@@ -100,7 +103,7 @@ export const useDoctors = () => {
         ...(daysOff != null && daysOff.length > 0 ? { daysOff } : {}),
       } as DoctorCreatePayload;
       const id = dialog.editingItem?.id;
-      saveDoctorMut.mutate(id ? { id, body } : { body }, { onSettled: () => dialog.closeDialog() });
+      saveDoctorMut.mutate(id ? { id, body } : { body }, { onSuccess: () => dialog.closeDialog() });
     },
     [dialog, saveDoctorMut],
   );
@@ -119,6 +122,7 @@ export const useDoctors = () => {
 
   const handleSaveVisit = useCallback(
     (data: VisitFormValues) => {
+      if (saveVisitMut.isPending) return;
       if (!selectedDoctor) {
         toast.error('Iltimos, shifokorni tanlang');
         return;
@@ -127,7 +131,7 @@ export const useDoctors = () => {
       if (editingVisit) {
         saveVisitMut.mutate(
           { id: editingVisit.id, body: data as Partial<Visit> },
-          { onSettled: () => setVisitModal(false) },
+          { onSuccess: () => setVisitModal(false) },
         );
       } else {
         saveVisitMut.mutate(
@@ -142,7 +146,7 @@ export const useDoctors = () => {
               notes: data.notes ?? '',
             } as Omit<Visit, 'id'>,
           },
-          { onSettled: () => setVisitModal(false) },
+          { onSuccess: () => setVisitModal(false) },
         );
       }
     },
@@ -150,6 +154,8 @@ export const useDoctors = () => {
   );
 
   return {
+    isSavingDoctor: saveDoctorMut.isPending,
+    isSavingVisit: saveVisitMut.isPending,
     doctors: table.data,
     totalDoctors: table.totalCount,
     totalPages: table.totalPages,

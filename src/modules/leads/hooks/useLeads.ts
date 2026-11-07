@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { leadsApi } from '@/lib/api/endpoints';
+import { queryKeys } from '@/lib/api/query-keys';
 import { toast } from 'sonner';
 import { Lead } from '@/shared/types';
 import { useServerTable } from '@/shared/hooks/useServerTable';
@@ -28,7 +29,20 @@ export const useLeads = () => {
     mutationFn: ({ id, status }: { id: string; status: Lead['status'] }) => leadsApi.updateStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      // a converted lead creates a patient
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success("Murojaat holati yangilandi");
+    },
+  });
+
+  /** "Bemorga aylantirish": status → converted (the backend creates the patient). Errors are toasted globally. */
+  const convertMut = useMutation({
+    mutationFn: (id: string) => leadsApi.updateStatus(id, 'converted'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
     },
   });
 
@@ -58,6 +72,8 @@ export const useLeads = () => {
     refetch: table.refetch,
     updateStatus: updateStatusMut.mutate,
     isUpdating: updateStatusMut.isPending,
+    convertToPatient: convertMut.mutate,
+    isConverting: convertMut.isPending,
     createLead: useMutation({
       mutationFn: leadsApi.create,
       onSuccess: () => {

@@ -110,4 +110,26 @@ describe('useLeads', () => {
     expect(api.remove.mock.calls[0][0]).toBe('l1');
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['leads'] });
   });
+
+  it('convertToPatient sets status "converted", invalidates leads/patients/analytics and reports the result', async () => {
+    api.updateStatus.mockResolvedValue({ ...lead, status: 'converted' });
+    const { result, invalidate } = setup();
+    const onSuccess = vi.fn();
+    act(() => result.current.convertToPatient('l1', { onSuccess }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(api.updateStatus).toHaveBeenCalledWith('l1', 'converted');
+    const keys = invalidate.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0]);
+    expect(keys).toEqual(expect.arrayContaining(['leads', 'patients', 'analytics']));
+  });
+
+  it('convertToPatient failure invalidates nothing and does not call onSuccess', async () => {
+    api.updateStatus.mockRejectedValue(new Error('409'));
+    const { result, invalidate } = setup();
+    const onSuccess = vi.fn();
+    act(() => result.current.convertToPatient('l1', { onSuccess }));
+    await waitFor(() => expect(result.current.isConverting).toBe(false));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
+  });
 });

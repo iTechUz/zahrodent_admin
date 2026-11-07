@@ -9,7 +9,7 @@ import { BOOKING_STATUS_LABELS } from '@/shared/constants';
 
 const REASON_MAX = 300;
 
-/** Asks for an optional reason before a booking is cancelled (the patient sees it in Telegram). */
+/** Asks for the reason before a booking is cancelled (required by the backend; the patient sees it in Telegram). */
 export function CancelReasonDialog({
   open,
   onOpenChange,
@@ -20,6 +20,7 @@ export function CancelReasonDialog({
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState('');
+  const canConfirm = reason.trim().length > 0;
   useEffect(() => {
     if (open) setReason('');
   }, [open]);
@@ -34,7 +35,8 @@ export function CancelReasonDialog({
           Sabab bemorga Telegram orqali yuboriladi (agar bot ulangan bo'lsa).
         </p>
         <Textarea
-          placeholder="Sabab (ixtiyoriy)"
+          placeholder="Sabab (majburiy)"
+          aria-label="Bekor qilish sababi"
           maxLength={REASON_MAX}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -43,7 +45,7 @@ export function CancelReasonDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Ortga
           </Button>
-          <Button variant="destructive" onClick={() => onConfirm(reason)}>
+          <Button variant="destructive" disabled={!canConfirm} onClick={() => canConfirm && onConfirm(reason.trim())}>
             Bekor qilish
           </Button>
         </DialogFooter>

@@ -81,7 +81,7 @@ export const useAnalytics = () => {
         return {
           name: service?.name || "Noma'lum",
           revenue: s.revenue,
-          patients: s.patients,
+          patients: s.patientCount,
         };
       }) || []
     );

@@ -15,6 +15,7 @@ import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments } from '@/shared/config/roles';
 import { clinicToday } from '@/shared/lib/date-utils';
+import { patientBirthYear } from '@/shared/lib/patient-age';
 
 export const usePatientProfile = (
   patientId: string | undefined,
@@ -185,11 +186,20 @@ export const usePatientProfile = (
     visitId: '' as string,
   });
 
-  const totalPaid = patientPayments.filter((p) => p.status === 'paid' || p.status === 'partial').reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const totalDue = patientVisits.reduce((s, v) => s + (Number(v.price) || 0), 0);
+  // Same rules as the backend balance: only INCOME rows count as paid, only COMPLETED visits count as due.
+  const totalPaid = patientPayments
+    .filter((p) => p.type !== 'EXPENSE' && (p.status === 'paid' || p.status === 'partial'))
+    .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const completedDue = patientVisits
+    .filter((v) => v.status === 'completed')
+    .reduce((s, v) => s + (Number(v.price) || 0), 0);
   // Debt/credit come only from the backend balance (INCOME paid+partial − (completed visit price − discount));
   // it covers every row and is also correct for roles that cannot list payments. Never recomputed here.
-  const balance = typeof patient?.balance === 'number' ? patient.balance : 0;
+  const hasBalance = typeof patient?.balance === 'number';
+  const balance = hasBalance ? (patient!.balance as number) : 0;
+  // "Jami" is derived from the backend balance when it is known (so discounts are included and
+  // Jami − To'langan = Qarz always holds on the cards); otherwise the completed-visit sum.
+  const totalDue = hasBalance ? totalPaid - balance : completedDue;
   const totalDebt = Math.max(0, -balance);
   const credit = Math.max(0, balance);
 
@@ -215,7 +225,7 @@ export const usePatientProfile = (
       {
         id: patient.id,
         // "" = no doctor selected → null unassigns on the backend
-        body: { ...rest, age, assignedDoctorId: rest.assignedDoctorId || null },
+        body: { ...rest, age, birthYear: year, assignedDoctorId: rest.assignedDoctorId || null },
       },
       {
         onSuccess: () => {
@@ -256,7 +266,7 @@ export const usePatientProfile = (
   };
 
   const handleVisitSave = () => {
-    if (!patient) return;
+    if (!patient || createVisitMut.isPending || createPaymentMut.isPending) return;
     if (!visitForm.doctorId) {
       toast.error('Shifokorni tanlang');
       return;
@@ -275,21 +285,28 @@ export const usePatientProfile = (
       },
       {
         onSuccess: (newVisit) => {
-          if (visitForm.shouldPayNow && visitForm.payAmount) {
-            createPaymentMut.mutate({
-              patientId: patient.id,
-              amount: Number(visitForm.payAmount),
-              method: visitForm.payMethod,
-              status: 'paid',
-              type: 'INCOME',
-              date: today,
-              description: `${today} - Tashrif uchun to'lov`,
-              visitId: newVisit.id,
-            });
+          if (canManagePayments && visitForm.shouldPayNow && visitForm.payAmount) {
+            createPaymentMut.mutate(
+              {
+                patientId: patient.id,
+                amount: Number(visitForm.payAmount),
+                method: visitForm.payMethod,
+                status: 'paid',
+                type: 'INCOME',
+                date: today,
+                description: `${today} - Tashrif uchun to'lov`,
+                visitId: newVisit.id,
+              },
+              {
+                onSuccess: () => toast.success("Tashrif muvaffaqiyatli saqlandi"),
+                onError: () =>
+                  toast.error("Tashrif saqlandi, lekin to'lov qayd etilmadi. To'lovni alohida qayd eting."),
+              },
+            );
+          } else {
+            toast.success("Tashrif muvaffaqiyatli saqlandi");
           }
-          toast.success("Tashrif muvaffaqiyatli saqlandi");
-        },
-        onSettled: () => {
+          // keep the form (and what was typed) when the save fails
           setVisitModal(false);
           setVisitForm(emptyVisitForm());
         },
@@ -303,7 +320,7 @@ export const usePatientProfile = (
   };
 
   const handlePaymentSave = () => {
-    if (!patient) return;
+    if (!patient || createPaymentMut.isPending) return;
     if (!payForm.amount || !payForm.description) {
       toast.error("Majburiy maydonlarni to'ldiring");
       return;
@@ -322,7 +339,7 @@ export const usePatientProfile = (
         visitId: payForm.visitId && patientVisits.some((v) => v.id === payForm.visitId) ? payForm.visitId : undefined,
       },
       {
-        onSettled: () => {
+        onSuccess: () => {
           setPaymentModal(false);
           setPayForm({ amount: '', method: 'cash', status: 'paid', description: '', visitId: '' });
         },
@@ -335,7 +352,7 @@ export const usePatientProfile = (
     setEditForm({
       firstName: patient.firstName,
       lastName: patient.lastName,
-      birthYear: String(new Date().getFullYear() - patient.age),
+      birthYear: String(patientBirthYear(patient) ?? ''),
       phone: patient.phone,
       address: patient.address || '',
       workplace: patient.workplace || '',
@@ -346,16 +363,20 @@ export const usePatientProfile = (
     setEditOpen(true);
   };
 
-  const getVisitBalance = useCallback((visitId: string, visitPrice: number) => {
+  /** INCOME paid/partial payments linked to the visit */
+  const getVisitPaid = useCallback((visitId: string) => patientPayments
+    .filter(p => p.visitId === visitId && p.type !== 'EXPENSE' && (p.status === 'paid' || p.status === 'partial'))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0), [patientPayments]);
+
+  /** Per-visit debt; a visit that is not completed yet is not a debt (same rule as the patient balance). */
+  const getVisitBalance = useCallback((visitId: string, visitPrice: number, status: Visit['status'] = 'completed') => {
+    if (status !== 'completed') return 0;
     const price = Number(visitPrice) || 0;
-    const linkedPaid = patientPayments
-      .filter(p => p.visitId === visitId && (p.status === 'paid' || p.status === 'partial'))
-      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    return Math.max(0, price - linkedPaid);
-  }, [patientPayments]);
+    return Math.max(0, price - getVisitPaid(visitId));
+  }, [getVisitPaid]);
 
   const openPaymentForVisit = (visit: Visit) => {
-    const balance = getVisitBalance(visit.id, visit.price);
+    const balance = getVisitBalance(visit.id, visit.price, visit.status);
     const doctor = doctors.find(d => d.id === visit.doctorId);
     setPayForm({
       amount: String(balance),
@@ -408,7 +429,10 @@ export const usePatientProfile = (
     handleToothSave,
     handleVisitSave,
     handlePaymentSave,
+    isSavingVisit: createVisitMut.isPending || createPaymentMut.isPending,
+    isSavingPayment: createPaymentMut.isPending,
     getVisitBalance,
+    getVisitPaid,
     openPaymentForVisit,
     comments,
     handleAddComment,

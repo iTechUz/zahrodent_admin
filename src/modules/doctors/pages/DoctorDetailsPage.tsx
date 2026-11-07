@@ -49,6 +49,8 @@ function DoctorDetailsContent() {
     setModalOpen,
     editing,
     handleSaveDoctor,
+    isSavingDoctor,
+    isSavingVisit,
     patients,
     visitModal,
     setVisitModal,
@@ -176,21 +178,21 @@ function DoctorDetailsContent() {
           title="Jami bemorlar"
           value={doctorEfficiency?.uniquePatients || 0}
           icon={<Users className="w-5 h-5 text-primary" />}
-          trend="Unique patients"
+          trend="Noyob bemorlar"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
-          title="Umumiy tushum"
+          title="Hisoblangan tushum"
           value={formatUzS(doctorEfficiency?.totalRevenue || 0)}
           icon={<CreditCard className="w-5 h-5 text-success" />}
-          trend="Total revenue"
+          trend="Yakunlangan tashriflar bo'yicha"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
           title="Tashriflar"
           value={totalVisits}
           icon={<ClipboardList className="w-5 h-5 text-info" />}
-          trend="Total visits"
+          trend="Yakunlangan tashriflar"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
@@ -319,6 +321,7 @@ function DoctorDetailsContent() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleSaveDoctor}
+        isPending={isSavingDoctor}
         editing={editing}
       />
 
@@ -329,6 +332,7 @@ function DoctorDetailsContent() {
         doctor={selectedDoctor}
         patients={patients}
         onSave={handleSaveVisit}
+        isPending={isSavingVisit}
       />
     </div>
   );

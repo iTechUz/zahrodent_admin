@@ -21,6 +21,8 @@ export interface Patient {
   firstName: string;
   lastName: string;
   age: number;
+  /** optional: when present the age is derived from it (age is then only a fallback) */
+  birthYear?: number | null;
   phone: string;
   address: string;
   workplace: string;
@@ -202,7 +204,7 @@ export interface DoctorEfficiencyStats {
 export interface ServiceStatsDetail {
   serviceId: string;
   revenue: number;
-  patients: number;
+  patientCount: number;
 }
 
 export interface ServiceStats {

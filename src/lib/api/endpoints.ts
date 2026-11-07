@@ -213,7 +213,9 @@ export const paymentsApi = {
   ) =>
     apiRequest<PaginatedResponse<Payment>>(`/payments${qs(params ?? {})}`),
   stats: () => apiRequest<{ totalRevenue: number; pendingAmount: number; todayRevenue: number }>('/payments/stats'),
-  doctorStats: () => apiRequest<{ doctorId: string; total: number }[]>('/payments/doctor-stats'),
+  /** Cash actually collected per doctor (paid INCOME); optional period (backend may ignore it on older versions). */
+  doctorStats: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<{ doctorId: string; total: number }[]>(`/payments/doctor-stats${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Payment>(`/payments/${id}`),
   create: (body: Omit<Payment, 'id'> & { date?: string }) =>
     apiRequest<Payment>('/payments', { method: 'POST', body: JSON.stringify(body) }),
