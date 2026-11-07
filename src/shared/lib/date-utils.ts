@@ -57,3 +57,19 @@ export const getMonthToDateRange = (now: Date = new Date()) => ({
   startDate: clinicMonthStart(now),
   endDate: '',
 });
+
+/**
+ * Inclusive `YYYY-MM-DD` bounds of a quick period (clinic time zone); the week runs Mon–Sun like the backend's
+ * `relativeDateRange`. Used to keep the date inputs in sync with a "Bugun / Shu hafta / Shu oy" select.
+ */
+export function clinicPeriodRange(period: 'today' | 'week' | 'month', now: Date = new Date()) {
+  const today = clinicToday(now);
+  if (period === 'today') return { startDate: today, endDate: today };
+  if (period === 'week') {
+    const weekday = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7; // 0 = Mon
+    const startDate = addDaysToDate(today, -weekday);
+    return { startDate, endDate: addDaysToDate(startDate, 6) };
+  }
+  const startDate = clinicMonthStart(now);
+  return { startDate, endDate: addDaysToDate(addMonthsToDate(startDate, 1), -1) };
+}
