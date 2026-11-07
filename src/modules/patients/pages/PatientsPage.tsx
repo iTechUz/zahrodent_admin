@@ -57,6 +57,7 @@ function PatientsPageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     handleDelete,
     isLoading,
     error,
@@ -295,6 +296,7 @@ function PatientsPageContent() {
         onOpenChange={setModalOpen} 
         editing={editing}  
         onSave={handleSave} 
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog

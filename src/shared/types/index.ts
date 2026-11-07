@@ -202,7 +202,7 @@ export interface DoctorEfficiencyStats {
 export interface ServiceStatsDetail {
   serviceId: string;
   revenue: number;
-  patients: number;
+  patientCount: number;
 }
 
 export interface ServiceStats {

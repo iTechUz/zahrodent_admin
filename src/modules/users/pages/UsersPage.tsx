@@ -41,6 +41,7 @@ export function UsersPageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     setDeleteId,
     deleteId,
     handleDelete,
@@ -203,6 +204,7 @@ export function UsersPageContent() {
         onOpenChange={setModalOpen}
         editing={editing}
         onSave={handleSave}
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog

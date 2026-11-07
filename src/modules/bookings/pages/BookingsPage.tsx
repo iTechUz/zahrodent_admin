@@ -52,6 +52,7 @@ function BookingsPageContent() {
     handleDelete,
     handleStatusChange,
     handleSave,
+    isSaving,
     isLoading,
     error,
     refetch,
@@ -315,6 +316,7 @@ function BookingsPageContent() {
         doctors={doctors}
         services={services}
         onSave={handleSave}
+        isPending={isSaving}
       />
 
       <BookingDetails 

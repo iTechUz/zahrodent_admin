@@ -66,13 +66,15 @@ interface ServiceFormProps {
   onOpenChange: (open: boolean) => void;
   editing: Service | null;
   onSave: (data: ServiceFormValues) => void;
+  isPending?: boolean;
 }
 
 export const ServiceForm = ({ 
   open, 
   onOpenChange, 
   editing, 
-  onSave 
+  onSave,
+  isPending = false,
 }: ServiceFormProps) => {
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(ServiceSchema),
@@ -189,7 +191,7 @@ export const ServiceForm = ({
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" disabled={isPending}>
               {editing ? "Yangilash" : "Qo'shish"}
             </Button>
           </form>

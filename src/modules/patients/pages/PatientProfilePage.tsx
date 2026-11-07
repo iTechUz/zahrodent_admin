@@ -82,6 +82,8 @@ export default function PatientProfilePage() {
     handleToothSave,
     handleVisitSave,
     handlePaymentSave,
+    isSavingVisit,
+    isSavingPayment,
     getVisitBalance,
     openPaymentForVisit,
     canManagePayments,
@@ -573,6 +575,7 @@ export default function PatientProfilePage() {
             <div><Label>Davolash</Label><Textarea placeholder="Bajarilgan davolash..." value={visitForm.treatment} onChange={e => setVisitForm({ ...visitForm, treatment: e.target.value })} /></div>
             <div><Label>Izoh</Label><Textarea placeholder="Qo'shimcha izoh..." value={visitForm.notes} onChange={e => setVisitForm({ ...visitForm, notes: e.target.value })} /></div>
             
+            {canManagePayments && (
             <div className="p-4 rounded-xl bg-muted/40 border border-border/50 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -607,8 +610,9 @@ export default function PatientProfilePage() {
                 </div>
               )}
             </div>
+            )}
 
-            <Button className="w-full h-12 gap-2 text-primary-foreground font-bold" onClick={handleVisitSave}>
+            <Button className="w-full h-12 gap-2 text-primary-foreground font-bold" onClick={handleVisitSave} disabled={isSavingVisit}>
               Tashrifni saqlash <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
@@ -728,7 +732,7 @@ export default function PatientProfilePage() {
               </div>
 
               <div className="pt-2">
-                <Button className="w-full h-11" onClick={handlePaymentSave}>
+                <Button className="w-full h-11" onClick={handlePaymentSave} disabled={isSavingPayment}>
                   To'lovni saqlash
                 </Button>
               </div>

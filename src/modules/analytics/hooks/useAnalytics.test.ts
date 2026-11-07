@@ -53,8 +53,8 @@ beforeEach(() => {
     categoriesCount: 1,
     avgPrice: 1,
     detailed: [
-      { serviceId: 's1', revenue: 500, patients: 3 },
-      { serviceId: 'gone', revenue: 100, patients: 1 },
+      { serviceId: 's1', revenue: 500, patientCount: 3 },
+      { serviceId: 'gone', revenue: 100, patientCount: 1 },
     ],
   } as never);
   vi.mocked(doctorsApi.efficiency).mockResolvedValue(efficiency);
@@ -137,8 +137,8 @@ describe('useAnalytics (admin)', () => {
 
   it('servicesApi.stats() is typed with `detailed` (no `any` needed)', async () => {
     const stats = await servicesApi.stats();
-    const detailed: { serviceId: string; revenue: number; patients: number }[] | undefined = stats.detailed;
-    expect(detailed?.[0]).toEqual({ serviceId: 's1', revenue: 500, patients: 3 });
+    const detailed: { serviceId: string; revenue: number; patientCount: number }[] | undefined = stats.detailed;
+    expect(detailed?.[0]).toEqual({ serviceId: 's1', revenue: 500, patientCount: 3 });
   });
 });
 

@@ -50,6 +50,7 @@ function ServicesPageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     handleDelete,
     isLoading,
     error,
@@ -180,7 +181,7 @@ function ServicesPageContent() {
                       {formatUzS(s.price)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {detailed?.patients || 0}
+                      {detailed?.patientCount || 0}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-success">
                       {formatUzS(detailed?.revenue || 0)}
@@ -252,6 +253,7 @@ function ServicesPageContent() {
         onOpenChange={setModalOpen} 
         editing={editing} 
         onSave={handleSave} 
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog 

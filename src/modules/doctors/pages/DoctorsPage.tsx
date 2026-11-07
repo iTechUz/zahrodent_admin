@@ -67,6 +67,8 @@ function DoctorsPageContent() {
     openCreate,
     openEdit,
     handleSaveDoctor,
+    isSavingDoctor,
+    isSavingVisit,
     handleDeleteDoctor,
     openVisitForm,
     handleSaveVisit,
@@ -313,6 +315,7 @@ function DoctorsPageContent() {
         onOpenChange={setModalOpen} 
         editing={editing} 
         onSave={handleSaveDoctor} 
+        isPending={isSavingDoctor}
       />
 
       <DoctorVisitForm 
@@ -322,6 +325,7 @@ function DoctorsPageContent() {
         doctor={selectedDoctor} 
         patients={patients} 
         onSave={handleSaveVisit} 
+        isPending={isSavingVisit}
       />
 
       <ConfirmDeleteDialog 

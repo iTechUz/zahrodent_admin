@@ -256,7 +256,7 @@ export const usePatientProfile = (
   };
 
   const handleVisitSave = () => {
-    if (!patient) return;
+    if (!patient || createVisitMut.isPending || createPaymentMut.isPending) return;
     if (!visitForm.doctorId) {
       toast.error('Shifokorni tanlang');
       return;
@@ -275,19 +275,27 @@ export const usePatientProfile = (
       },
       {
         onSuccess: (newVisit) => {
-          if (visitForm.shouldPayNow && visitForm.payAmount) {
-            createPaymentMut.mutate({
-              patientId: patient.id,
-              amount: Number(visitForm.payAmount),
-              method: visitForm.payMethod,
-              status: 'paid',
-              type: 'INCOME',
-              date: today,
-              description: `${today} - Tashrif uchun to'lov`,
-              visitId: newVisit.id,
-            });
+          if (canManagePayments && visitForm.shouldPayNow && visitForm.payAmount) {
+            createPaymentMut.mutate(
+              {
+                patientId: patient.id,
+                amount: Number(visitForm.payAmount),
+                method: visitForm.payMethod,
+                status: 'paid',
+                type: 'INCOME',
+                date: today,
+                description: `${today} - Tashrif uchun to'lov`,
+                visitId: newVisit.id,
+              },
+              {
+                onSuccess: () => toast.success("Tashrif muvaffaqiyatli saqlandi"),
+                onError: () =>
+                  toast.error("Tashrif saqlandi, lekin to'lov qayd etilmadi. To'lovni alohida qayd eting."),
+              },
+            );
+          } else {
+            toast.success("Tashrif muvaffaqiyatli saqlandi");
           }
-          toast.success("Tashrif muvaffaqiyatli saqlandi");
         },
         onSettled: () => {
           setVisitModal(false);
@@ -303,7 +311,7 @@ export const usePatientProfile = (
   };
 
   const handlePaymentSave = () => {
-    if (!patient) return;
+    if (!patient || createPaymentMut.isPending) return;
     if (!payForm.amount || !payForm.description) {
       toast.error("Majburiy maydonlarni to'ldiring");
       return;
@@ -408,6 +416,8 @@ export const usePatientProfile = (
     handleToothSave,
     handleVisitSave,
     handlePaymentSave,
+    isSavingVisit: createVisitMut.isPending || createPaymentMut.isPending,
+    isSavingPayment: createPaymentMut.isPending,
     getVisitBalance,
     openPaymentForVisit,
     comments,

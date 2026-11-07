@@ -61,6 +61,7 @@ export function FinancePageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     handleDelete,
     isLoading,
     error,
@@ -369,6 +370,7 @@ export function FinancePageContent() {
         editing={editing}
         patients={patients}
         onSave={handleSave}
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog

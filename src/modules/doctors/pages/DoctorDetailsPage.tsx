@@ -49,6 +49,8 @@ function DoctorDetailsContent() {
     setModalOpen,
     editing,
     handleSaveDoctor,
+    isSavingDoctor,
+    isSavingVisit,
     patients,
     visitModal,
     setVisitModal,
@@ -319,6 +321,7 @@ function DoctorDetailsContent() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleSaveDoctor}
+        isPending={isSavingDoctor}
         editing={editing}
       />
 
@@ -329,6 +332,7 @@ function DoctorDetailsContent() {
         doctor={selectedDoctor}
         patients={patients}
         onSave={handleSaveVisit}
+        isPending={isSavingVisit}
       />
     </div>
   );

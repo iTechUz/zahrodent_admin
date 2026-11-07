@@ -81,6 +81,7 @@ export const useServices = () => {
 
   const handleSave = useCallback(
     (data: ServiceFormValues) => {
+      if (createMut.isPending || updateMut.isPending) return;
       if (dialog.editingItem) {
         updateMut.mutate(
           { id: dialog.editingItem.id, body: data as Partial<Service> },
@@ -100,6 +101,7 @@ export const useServices = () => {
   }, [deleteId, deleteMut]);
 
   return {
+    isSaving: createMut.isPending || updateMut.isPending,
     services: table.data,
     totalCount: table.totalCount,
     totalPages: table.totalPages,

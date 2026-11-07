@@ -81,6 +81,8 @@ export const useFinance = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.paymentsDoctorStats });
     queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
     // patient balance / debt depends on payments
+    queryClient.invalidateQueries({ queryKey: queryKeys.doctors });
+    queryClient.invalidateQueries({ queryKey: queryKeys.services });
     queryClient.invalidateQueries({ queryKey: queryKeys.patients });
   };
 
@@ -113,6 +115,7 @@ export const useFinance = () => {
 
   const handleSave = useCallback(
     (data: PaymentFormValues) => {
+      if (createMut.isPending || updateMut.isPending) return;
       if (dialog.editingItem) {
         updateMut.mutate(
           { id: dialog.editingItem.id, body: data as Partial<Payment> },
@@ -147,6 +150,7 @@ export const useFinance = () => {
     .sort((a, b) => b.total - a.total);
 
   return {
+    isSaving: createMut.isPending || updateMut.isPending,
     payments: table.data,
     totalCount: table.totalCount,
     totalPages: table.totalPages,

@@ -244,6 +244,8 @@ export function DraggableBookingCalendar() {
       bookingsApi.update(id, { date }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookingsStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success('Qabul sanasi yangilandi');
     },
     onError: (err) => {

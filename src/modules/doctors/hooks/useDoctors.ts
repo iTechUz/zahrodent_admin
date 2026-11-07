@@ -80,6 +80,8 @@ export const useDoctors = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.visits });
       queryClient.invalidateQueries({ queryKey: queryKeys.patients }); // balance
+      queryClient.invalidateQueries({ queryKey: queryKeys.doctors }); // efficiency + stats
+      queryClient.invalidateQueries({ queryKey: queryKeys.services }); // service stats
       queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success('Tashrif saqlandi');
     },
@@ -89,6 +91,7 @@ export const useDoctors = () => {
 
   const handleSaveDoctor = useCallback(
     (data: DoctorFormValues) => {
+      if (saveDoctorMut.isPending) return;
       const { daysOffText, schedule, ...rest } = data;
       const daysOff = daysOffText
         ?.split(',')
@@ -119,6 +122,7 @@ export const useDoctors = () => {
 
   const handleSaveVisit = useCallback(
     (data: VisitFormValues) => {
+      if (saveVisitMut.isPending) return;
       if (!selectedDoctor) {
         toast.error('Iltimos, shifokorni tanlang');
         return;
@@ -150,6 +154,8 @@ export const useDoctors = () => {
   );
 
   return {
+    isSavingDoctor: saveDoctorMut.isPending,
+    isSavingVisit: saveVisitMut.isPending,
     doctors: table.data,
     totalDoctors: table.totalCount,
     totalPages: table.totalPages,

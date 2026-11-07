@@ -72,6 +72,8 @@ export const useBookings = () => {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+    queryClient.invalidateQueries({ queryKey: queryKeys.doctors });
+    queryClient.invalidateQueries({ queryKey: queryKeys.services });
     queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
   };
 
@@ -103,6 +105,7 @@ export const useBookings = () => {
 
   const handleSave = useCallback(
     (data: BookingFormValues) => {
+      if (createMut.isPending || updateMut.isPending) return;
       if (dialog.editingItem) {
         updateMut.mutate(
           { id: dialog.editingItem.id, body: data as Partial<Booking> },
@@ -154,6 +157,7 @@ export const useBookings = () => {
     openEdit: (b: Booking) => dialog.openEdit(b, BookingService.mapToForm),
     patients,
     doctors,
+    isSaving: createMut.isPending || updateMut.isPending,
     deleteId,
     setDeleteId,
     viewBooking,

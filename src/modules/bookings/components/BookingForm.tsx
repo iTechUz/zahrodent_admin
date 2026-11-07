@@ -40,6 +40,7 @@ interface BookingFormProps {
   doctors: Doctor[];
   services: Service[];
   onSave: (data: BookingFormValues) => void;
+  isPending?: boolean;
 }
 
 export const BookingForm = ({ 
@@ -49,7 +50,8 @@ export const BookingForm = ({
   patients, 
   doctors, 
   services,
-  onSave 
+  onSave,
+  isPending = false,
 }: BookingFormProps) => {
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(BookingSchema),
@@ -260,7 +262,7 @@ export const BookingForm = ({
               )}
             />
 
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" disabled={isPending}>
               {editing ? "Yangilash" : "Yaratish"}
             </Button>
           </form>

@@ -37,9 +37,10 @@ interface PatientFormProps {
   onOpenChange: (open: boolean) => void;
   editing: Patient | null;
   onSave: (data: PatientFormValues) => void;
+  isPending?: boolean;
 }
 
-export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientFormProps) => {
+export const PatientForm = ({ open, onOpenChange, editing, onSave, isPending = false }: PatientFormProps) => {
   const form = useForm<PatientDialogInput>({
     resolver: zodResolver(PatientDialogSchema),
     defaultValues: emptyValues(),
@@ -237,7 +238,7 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave }: PatientForm
                 )}
               />
             )}
-            <Button type="submit" className="w-full h-11 text-base font-semibold">
+            <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isPending}>
               {editing ? "Yangilash" : "Qo'shish"}
             </Button>
           </form>
