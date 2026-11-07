@@ -39,6 +39,7 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
 
 import { PhoneInput } from '@/components/ui/phone-input';
 import { formatDateTime } from '@/shared/lib/formatters';
+import { patientAge } from '@/shared/lib/patient-age';
 
 const fmt = (n: number) => new Intl.NumberFormat('uz-UZ').format(n);
 
@@ -85,6 +86,7 @@ export default function PatientProfilePage() {
     isSavingVisit,
     isSavingPayment,
     getVisitBalance,
+    getVisitPaid,
     openPaymentForVisit,
     canManagePayments,
     canAddVisit,
@@ -154,7 +156,7 @@ export default function PatientProfilePage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-display font-bold">{patient.firstName} {patient.lastName}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
-              <span>{patient.age} yosh</span>
+              <span>{patientAge(patient)} yosh</span>
               <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{patient.phone}</span>
               <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{patient.createdAt}</span>
               <SourceBadge source={patient.source} />
@@ -280,15 +282,15 @@ export default function PatientProfilePage() {
                     </div>
                     <div className="px-3 py-1.5 rounded-lg bg-success/5 border border-success/10 text-center min-w-[80px]">
                       <p className="text-[9px] text-success/70 uppercase font-bold">To'langan</p>
-                      <p className="text-sm font-bold text-success">{fmt((Number(v.price) || 0) - getVisitBalance(v.id, Number(v.price) || 0))}</p>
+                      <p className="text-sm font-bold text-success">{fmt(getVisitPaid(v.id))}</p>
                     </div>
-                    {getVisitBalance(v.id, v.price) > 0 && (
+                    {getVisitBalance(v.id, v.price, v.status) > 0 && (
                       <div className="px-3 py-1.5 rounded-lg bg-destructive/5 border border-destructive/10 text-center min-w-[80px]">
                         <p className="text-[9px] text-destructive/70 uppercase font-bold">Qarz</p>
-                        <p className="text-sm font-bold text-destructive">{fmt(getVisitBalance(v.id, v.price))}</p>
+                        <p className="text-sm font-bold text-destructive">{fmt(getVisitBalance(v.id, v.price, v.status))}</p>
                       </div>
                     )}
-                    {getVisitBalance(v.id, v.price) === 0 && (
+                    {v.status === 'completed' && getVisitBalance(v.id, v.price, v.status) === 0 && (
                       <div className="p-1.5 rounded-full bg-success/10 text-success">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
@@ -314,7 +316,7 @@ export default function PatientProfilePage() {
                   </div>
                   
                   <div className="flex items-end justify-end gap-2">
-                    {canManagePayments && getVisitBalance(v.id, v.price) > 0 && (
+                    {canManagePayments && getVisitBalance(v.id, v.price, v.status) > 0 && (
                       <Button 
                         size="sm" 
                         variant="default" 
@@ -632,7 +634,7 @@ export default function PatientProfilePage() {
                 if (payForm.visitId && payForm.visitId !== 'none') {
                   const visit = patientVisits.find(v => v.id === payForm.visitId);
                   if (visit) {
-                    currentDebt = getVisitBalance(visit.id, Number(visit.price) || 0);
+                    currentDebt = getVisitBalance(visit.id, Number(visit.price) || 0, visit.status);
                     contextStr = "Tashrif qarzi";
                   }
                 }
@@ -705,7 +707,7 @@ export default function PatientProfilePage() {
                   const val = v === 'none' ? '' : v;
                   const visit = patientVisits.find(vis => vis.id === val);
                   if (visit) {
-                    const balance = getVisitBalance(visit.id, visit.price);
+                    const balance = getVisitBalance(visit.id, visit.price, visit.status);
                     setPayForm({ 
                       ...payForm, 
                       visitId: val, 
@@ -720,7 +722,7 @@ export default function PatientProfilePage() {
                   <SelectContent>
                     <SelectItem value="none">Hech qaysi (Umumiy to'lov)</SelectItem>
                     {patientVisits.map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.date} — {v.treatment?.slice(0, 30) || 'Tashrif'} ({fmt(getVisitBalance(v.id, v.price))} so'm qolgan)</SelectItem>
+                        <SelectItem key={v.id} value={v.id}>{v.date} — {v.treatment?.slice(0, 30) || 'Tashrif'} ({fmt(getVisitBalance(v.id, v.price, v.status))} so'm qolgan)</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -260,6 +260,8 @@ function ServicesPageContent() {
         open={!!deleteId} 
         onOpenChange={() => setDeleteId(null)} 
         onConfirm={handleDelete} 
+        title="Xizmatni o'chirasizmi?"
+        description="Agar xizmat qabul yoki tashriflarda ishlatilgan bo'lsa, tizim o'chirishga ruxsat bermasligi mumkin. O'chirishga ruxsat berilsa, tarixda faqat xizmat nomi qoladi."
       />
     </div>
   );

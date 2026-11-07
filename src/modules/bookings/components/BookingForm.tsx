@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { CancelReasonDialog } from './BookingStatusDialogs';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useForm } from 'react-hook-form';
@@ -32,6 +33,11 @@ export function pastBookingDateError(date: string, isEdit: boolean, today: strin
   return !isEdit && !!date && date < today ? PAST_BOOKING_DATE_ERROR : null;
 }
 
+/** Cancelling an existing booking through the edit form must collect a reason first (backend requires statusReason). */
+export function needsCancelReason(editing: Pick<Booking, 'status'> | null, nextStatus: BookingStatus): boolean {
+  return !!editing && editing.status !== 'cancelled' && nextStatus === 'cancelled';
+}
+
 interface BookingFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,7 +45,7 @@ interface BookingFormProps {
   patients: Patient[];
   doctors: Doctor[];
   services: Service[];
-  onSave: (data: BookingFormValues) => void;
+  onSave: (data: BookingFormValues, statusReason?: string) => void;
   isPending?: boolean;
 }
 
@@ -94,12 +100,21 @@ export const BookingForm = ({
   }, [editing, form, open]);
 
   const today = clinicToday();
+  // cancelling via the edit form needs a reason (backend: statusReason required) → ask before saving
+  const [pendingCancel, setPendingCancel] = useState<BookingFormValues | null>(null);
+  useEffect(() => {
+    if (!open) setPendingCancel(null);
+  }, [open]);
 
   const handleSubmit = (values: BookingFormValues) => {
     // backend rejects new bookings in the past (400) — catch it before the request
     const dateError = pastBookingDateError(values.date, !!editing, today);
     if (dateError) {
       form.setError('date', { message: dateError });
+      return;
+    }
+    if (needsCancelReason(editing, values.status)) {
+      setPendingCancel(values);
       return;
     }
     onSave(values);
@@ -268,6 +283,14 @@ export const BookingForm = ({
           </form>
         </Form>
       </DialogContent>
+      <CancelReasonDialog
+        open={!!pendingCancel}
+        onOpenChange={(o) => !o && setPendingCancel(null)}
+        onConfirm={(reason) => {
+          if (pendingCancel) onSave(pendingCancel, reason);
+          setPendingCancel(null);
+        }}
+      />
     </Dialog>
   );
 };

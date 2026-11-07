@@ -50,7 +50,7 @@ export const useUsers = () => {
       const id = dialog.editingItem?.id;
       saveMut.mutate(
         { id, body: data },
-        { onSettled: () => dialog.closeDialog() }
+        { onSuccess: () => dialog.closeDialog() }
       );
     },
     [dialog, saveMut]

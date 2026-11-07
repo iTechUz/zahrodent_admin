@@ -103,7 +103,7 @@ export const useDoctors = () => {
         ...(daysOff != null && daysOff.length > 0 ? { daysOff } : {}),
       } as DoctorCreatePayload;
       const id = dialog.editingItem?.id;
-      saveDoctorMut.mutate(id ? { id, body } : { body }, { onSettled: () => dialog.closeDialog() });
+      saveDoctorMut.mutate(id ? { id, body } : { body }, { onSuccess: () => dialog.closeDialog() });
     },
     [dialog, saveDoctorMut],
   );
@@ -131,7 +131,7 @@ export const useDoctors = () => {
       if (editingVisit) {
         saveVisitMut.mutate(
           { id: editingVisit.id, body: data as Partial<Visit> },
-          { onSettled: () => setVisitModal(false) },
+          { onSuccess: () => setVisitModal(false) },
         );
       } else {
         saveVisitMut.mutate(
@@ -146,7 +146,7 @@ export const useDoctors = () => {
               notes: data.notes ?? '',
             } as Omit<Visit, 'id'>,
           },
-          { onSettled: () => setVisitModal(false) },
+          { onSuccess: () => setVisitModal(false) },
         );
       }
     },

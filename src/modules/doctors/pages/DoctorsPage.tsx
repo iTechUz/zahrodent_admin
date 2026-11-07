@@ -113,10 +113,10 @@ function DoctorsPageContent() {
           trendUp={true}
         />
         <StatCard 
-          title="Jami tashriflar" 
+          title="Tashriflar" 
           value={stats?.totalVisits ?? 0} 
           icon={<ClipboardCheck className="w-5 h-5 text-info" />} 
-          trend="Tizimdagi jami"
+          trend="Yakunlangan tashriflar (jami)"
         />
       </div>
 
@@ -201,8 +201,8 @@ function DoctorsPageContent() {
                   </SortableTableHead>
                   <TableHead>Telefon</TableHead>
                   <TableHead>Ish kunlari</TableHead>
-                  <TableHead className="text-right">Bemorlar</TableHead>
-                  <TableHead className="text-right">Daromad</TableHead>
+                  <TableHead className="text-right" title="Noyob bemorlar soni">Bemorlar</TableHead>
+                  <TableHead className="text-right" title="Yakunlangan tashriflar bo'yicha hisoblangan summa (kassaga tushganidan farq qilishi mumkin)">Hisoblangan</TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>

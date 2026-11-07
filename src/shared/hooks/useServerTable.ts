@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, keepPreviousData, type QueryKey } from '@tanstack/react-query';
 import type { SortOrder } from '@/lib/api/endpoints';
+import { normalizeSearch } from '@/shared/lib/formatters';
 
 export interface SortState {
   sortBy?: string;
@@ -65,7 +66,7 @@ export const useServerTable = <T extends object, F extends object>({
       setSearchInput(val);
       clearTimeout(debounceRef.current);
       const apply = () => {
-        const next = val.trim();
+        const next = normalizeSearch(val);
         if (next === appliedRef.current) return; // e.g. only whitespace changed
         appliedRef.current = next;
         setAppliedSearch(next); // batched with the page reset → a single request

@@ -12,6 +12,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -116,6 +117,9 @@ export function UserForm({ open, onOpenChange, editing, onSave, isPending = fals
                       <SelectItem value="admin">Administrator</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormDescription>
+                    Shifokorlar bu yerda emas, «Shifokorlar» sahifasida qo'shiladi.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

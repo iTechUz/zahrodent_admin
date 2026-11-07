@@ -36,6 +36,16 @@ export const useLeads = () => {
     },
   });
 
+  /** "Bemorga aylantirish": status → converted (the backend creates the patient). Errors are toasted globally. */
+  const convertMut = useMutation({
+    mutationFn: (id: string) => leadsApi.updateStatus(id, 'converted'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+    },
+  });
+
   const deleteMut = useMutation({
     mutationFn: leadsApi.remove,
     onSuccess: () => {
@@ -62,6 +72,8 @@ export const useLeads = () => {
     refetch: table.refetch,
     updateStatus: updateStatusMut.mutate,
     isUpdating: updateStatusMut.isPending,
+    convertToPatient: convertMut.mutate,
+    isConverting: convertMut.isPending,
     createLead: useMutation({
       mutationFn: leadsApi.create,
       onSuccess: () => {

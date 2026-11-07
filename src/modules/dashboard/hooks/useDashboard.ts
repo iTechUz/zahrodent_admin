@@ -7,19 +7,20 @@ import { analyticsApi, bookingsApi, doctorsApi, patientsApi } from '@/lib/api/en
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can, canAccessPayments, roleAccess } from '@/shared/config/roles';
-import { clinicToday } from '@/shared/lib/date-utils';
+import { addMonthsToDate, clinicMonthStart, clinicToday } from '@/shared/lib/date-utils';
 import { ALL_TIME_START, usePeriodAnalytics } from '@/shared/hooks/usePeriodAnalytics';
 import { detectPreset, presetLabel, presetRange, type DateRange } from '@/shared/components/DateRangeFilter';
 import {
-  lastTwoMonths,
   monthlyPatientSeries,
   monthlyRevenueSeries,
   monthOverMonthHint,
   sourceChartData,
 } from '@/shared/lib/reporting';
-import type { Doctor, Patient } from '@/shared/types';
+import type { DailyAnalyticsRow, Doctor, Patient } from '@/shared/types';
 
 export const RECENT_BOOKINGS_LIMIT = 5;
+/** The month-over-month hint compares the same day-of-month range; in the first days it is too noisy → hidden. */
+export const MOM_MIN_DAY = 6;
 
 /**
  * Dashboard figures come from the backend aggregates (/analytics/*) — nothing is
@@ -50,11 +51,24 @@ export const useDashboard = () => {
 
   // charts + source split follow the selected period (per day ≤ 92 days, else per month)
   const series = usePeriodAnalytics(range, authed);
-  // this month vs last month hint needs the last two calendar months regardless of the period
-  const trendQuery = useQuery({
-    queryKey: queryKeys.analyticsMonthly(2),
-    queryFn: () => analyticsApi.monthly({ months: 2 }),
-    enabled: authed && isThisMonth,
+  // this month vs last month hint: month-to-date vs the SAME day-of-month range of the previous month
+  // (a partial month against a full one would always look like a drop)
+  const momEnabled = isThisMonth && Number(today.slice(8, 10)) >= MOM_MIN_DAY;
+  const monthStart = clinicMonthStart();
+  const currentMtd = useMemo(() => ({ startDate: monthStart, endDate: today }), [monthStart, today]);
+  const previousMtd = useMemo(
+    () => ({ startDate: addMonthsToDate(monthStart, -1), endDate: addMonthsToDate(today, -1) }),
+    [monthStart, today],
+  );
+  const currentMtdQuery = useQuery({
+    queryKey: queryKeys.analyticsDaily(currentMtd),
+    queryFn: () => analyticsApi.daily(currentMtd),
+    enabled: authed && momEnabled,
+  });
+  const previousMtdQuery = useQuery({
+    queryKey: queryKeys.analyticsDaily(previousMtd),
+    queryFn: () => analyticsApi.daily(previousMtd),
+    enabled: authed && momEnabled,
   });
 
   const recentParams = { limit: RECENT_BOOKINGS_LIMIT };
@@ -98,17 +112,22 @@ export const useDashboard = () => {
 
   const stats = dashboardQuery.data;
   const monthly = series.rows;
-  const trendRows = useMemo(() => trendQuery.data ?? [], [trendQuery.data]);
 
   const patientGrowth = useMemo(() => monthlyPatientSeries(monthly), [monthly]);
   const revenueData = useMemo(() => monthlyRevenueSeries(monthly), [monthly]);
   const sourceData = useMemo(() => sourceChartData(series.sources), [series.sources]);
 
-  const newMom = lastTwoMonths(trendRows, 'newPatients');
-  const revMom = lastTwoMonths(trendRows, 'revenue');
-  // month-over-month only makes sense for the current month
-  const newPatientsTrend = isThisMonth ? monthOverMonthHint(newMom.current, newMom.previous) : null;
-  const revenueTrend = canViewPayments && isThisMonth ? monthOverMonthHint(revMom.current, revMom.previous) : null;
+  const sum = (rows: DailyAnalyticsRow[] | undefined, field: 'newPatients' | 'revenue') =>
+    (rows ?? []).reduce((s, r) => s + Number(r[field] ?? 0), 0);
+  // month-over-month only makes sense for the current month, once enough days have passed, and once both ranges loaded
+  const momReady = momEnabled && !!currentMtdQuery.data && !!previousMtdQuery.data;
+  const newPatientsTrend = momReady
+    ? monthOverMonthHint(sum(currentMtdQuery.data, 'newPatients'), sum(previousMtdQuery.data, 'newPatients'))
+    : null;
+  const revenueTrend =
+    momReady && canViewPayments
+      ? monthOverMonthHint(sum(currentMtdQuery.data, 'revenue'), sum(previousMtdQuery.data, 'revenue'))
+      : null;
 
   const quickActions = useMemo(() => {
     const routes = role ? roleAccess[role] : [];
@@ -163,7 +182,8 @@ export const useDashboard = () => {
     refetch: () => {
       dashboardQuery.refetch();
       series.refetch();
-      trendQuery.refetch();
+      currentMtdQuery.refetch();
+      previousMtdQuery.refetch();
       recentQuery.refetch();
     },
   };

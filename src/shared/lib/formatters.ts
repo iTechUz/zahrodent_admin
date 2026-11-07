@@ -39,3 +39,11 @@ export const formatUzS = (amount: number): string => {
 /** "Firstname Lastname" of a doctor (the Doctor type has no `name` field). */
 export const doctorFullName = (d: { firstName?: string; lastName?: string } | null | undefined): string =>
   d ? `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim() : '';
+
+/**
+ * Search text sent to the backend: trimmed, inner whitespace collapsed, and the Unicode apostrophe
+ * variants (’ ʻ ʼ ‘ ` ´) normalised to ASCII ' so "G‘ulomqodirov" finds "G'ulomqodirov".
+ * Phone-like queries are left as typed (the backend normalises digits itself).
+ */
+export const normalizeSearch = (value: string): string =>
+  value.replace(/[‘’ʻʼʹ`´]/g, "'").replace(/\s+/g, ' ').trim();
