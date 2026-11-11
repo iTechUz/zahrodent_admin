@@ -178,13 +178,19 @@ export const usePatientProfile = (
 
   const [paymentModal, setPaymentModal] = useState(false);
 
-  const [payForm, setPayForm] = useState({
+  const emptyPayForm = () => ({
     amount: '',
     method: 'cash' as PaymentMethod,
     status: 'paid' as PaymentStatus,
     description: '',
     visitId: '' as string,
   });
+  const [payForm, setPayForm] = useState(emptyPayForm);
+  /** Opens the dialog from scratch — never with what was typed/prefilled the previous time. */
+  const openPayment = () => {
+    setPayForm(emptyPayForm());
+    setPaymentModal(true);
+  };
 
   // Same rules as the backend balance: only INCOME rows count as paid, only COMPLETED visits count as due.
   const totalPaid = patientPayments
@@ -196,6 +202,8 @@ export const usePatientProfile = (
   // Debt/credit come only from the backend balance (INCOME paid+partial − (completed visit price − discount));
   // it covers every row and is also correct for roles that cannot list payments. Never recomputed here.
   const hasBalance = typeof patient?.balance === 'number';
+  /** Money (debt/paid boxes) is only meaningful when the role may load payments AND the backend sent the money fields. */
+  const showMoney = canManagePayments && hasBalance;
   const balance = hasBalance ? (patient!.balance as number) : 0;
   // "Jami" is derived from the backend balance when it is known (so discounts are included and
   // Jami − To'langan = Qarz always holds on the cards); otherwise the completed-visit sum.
@@ -203,8 +211,12 @@ export const usePatientProfile = (
   const totalDebt = Math.max(0, -balance);
   const credit = Math.max(0, balance);
 
+  /** Per-field messages of the edit form (field name → message); empty when valid. */
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+
   const handleEditSave = () => {
-    if (!patient) return;
+    if (!patient || updatePatientMut.isPending) return;
+    setEditErrors({});
     // same rules as the patients-list form (phone format, age 1–120, address ≥ 3 …)
     const { birthYear, ...rest } = editForm;
     const year = Number(birthYear);
@@ -213,12 +225,18 @@ export const usePatientProfile = (
     // age is what the backend stores; derived from the birth year (placeholder 1 only so the other fields get validated first)
     const age = yearOk ? thisYear - year : 1;
     const parsed = PatientSchema.safeParse({ ...rest, age, assignedDoctorId: rest.assignedDoctorId || undefined });
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? "Majburiy maydonlarni to'ldiring");
-      return;
-    }
-    if (!yearOk) {
-      toast.error("Tug'ilgan yil noto'g'ri");
+    if (!parsed.success || !yearOk) {
+      const errors: Record<string, string> = {};
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          const key = issue.path[0] === 'age' ? 'birthYear' : String(issue.path[0] ?? '');
+          if (key && !errors[key]) errors[key] = issue.message;
+        }
+      }
+      // the placeholder age (1) hides the real birth-year problem until the other fields are valid
+      if (!yearOk && !errors.birthYear) errors.birthYear = "Tug'ilgan yil noto'g'ri";
+      setEditErrors(errors);
+      toast.error(parsed.success ? "Tug'ilgan yil noto'g'ri" : (parsed.error.issues[0]?.message ?? "Majburiy maydonlarni to'ldiring"));
       return;
     }
     updatePatientMut.mutate(
@@ -231,6 +249,7 @@ export const usePatientProfile = (
         onSuccess: () => {
           toast.success("Bemor ma'lumotlari yangilandi");
           setEditOpen(false);
+          setEditErrors({});
         },
       },
     );
@@ -246,7 +265,7 @@ export const usePatientProfile = (
   };
 
   const handleToothSave = () => {
-    if (!patient || selectedTooth === null) return;
+    if (!patient || selectedTooth === null || updatePatientMut.isPending) return;
     const toothChart = { ...(patient.toothChart || {}) };
     toothChart[selectedTooth] = {
       toothNumber: selectedTooth,
@@ -314,9 +333,10 @@ export const usePatientProfile = (
     );
   };
 
-  const handleAddComment = (content: string) => {
-    if (!content.trim()) return;
-    addCommentMut.mutate(content);
+  /** `onSuccess` lets the caller clear its input only after the comment was really saved. */
+  const handleAddComment = (content: string, onSuccess?: () => void) => {
+    if (!content.trim() || addCommentMut.isPending) return;
+    addCommentMut.mutate(content, { onSuccess: () => onSuccess?.() });
   };
 
   const handlePaymentSave = () => {
@@ -341,7 +361,7 @@ export const usePatientProfile = (
       {
         onSuccess: () => {
           setPaymentModal(false);
-          setPayForm({ amount: '', method: 'cash', status: 'paid', description: '', visitId: '' });
+          setPayForm(emptyPayForm());
         },
       },
     );
@@ -349,6 +369,7 @@ export const usePatientProfile = (
 
   const openEdit = () => {
     if (!patient) return;
+    setEditErrors({});
     setEditForm({
       firstName: patient.firstName,
       lastName: patient.lastName,
@@ -400,6 +421,7 @@ export const usePatientProfile = (
     canRestore,
     restore: () => restoreMut.mutateAsync(),
     isRestoring: restoreMut.isPending,
+    showMoney,
     totalPaid,
     totalDue,
     totalDebt,
@@ -423,6 +445,9 @@ export const usePatientProfile = (
     setPaymentModal,
     payForm,
     setPayForm,
+    openPayment,
+    editErrors,
+    isSavingPatient: updatePatientMut.isPending,
     handleEditSave,
     openEdit,
     openToothEdit,

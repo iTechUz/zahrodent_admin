@@ -16,7 +16,8 @@ import { PatientForm } from '../components/PatientForm';
 import { DataTable, Column } from '@/shared/components/DataTable';
 import { Patient } from '@/shared/types';
 import { SourceBadge } from '@/shared/components/StatusBadge';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { PhoneLink } from '@/shared/components/PhoneLink';
 import { formatDate, formatCurrency } from '@/shared/lib/formatters';
 import { StatCard } from '@/shared/components/StatCard';
 import { Users, UserPlus, Target } from 'lucide-react';
@@ -62,6 +63,9 @@ function PatientsPageContent() {
     handleSave,
     isSaving,
     handleDelete,
+    debtConfirm,
+    cancelArchiveWithDebt,
+    confirmArchiveWithDebt,
     isLoading,
     error,
     refetch,
@@ -69,6 +73,13 @@ function PatientsPageContent() {
   } = usePatients();
 
   const can = useCan();
+
+  // ?new=1 (dashboard quick action) opens the create dialog right away
+  const wantsNew = searchParams.get('new') === '1';
+  useEffect(() => {
+    if (wantsNew && can('patients.create')) openCreate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsNew]);
 
   // deep link, e.g. from "Bemorga aylantirish" on the leads page: /patients?search=+998...
   const initialSearch = searchParams.get('search');
@@ -87,15 +98,15 @@ function PatientsPageContent() {
             {p.firstName[0]}{p.lastName[0]}
           </div>
           <div>
-            <span className="font-medium text-primary hover:underline cursor-pointer" onClick={() => navigate(`/patients/${p.id}`)}>
+            <Link to={`/patients/${p.id}`} className="font-medium text-primary hover:underline">
               {p.firstName} {p.lastName}
-            </span>
+            </Link>
           </div>
         </div>
       )
     },
     { header: 'Yosh', accessor: (p) => `${patientAge(p)} yosh`, sortKey: sortBy('patients', 'age') },
-    { header: 'Telefon', accessor: 'phone' },
+    { header: 'Telefon', accessor: (p) => <PhoneLink phone={p.phone} /> },
     { 
       header: 'Shifokor', 
       accessor: (p) => p.assignedDoctor ? `Dr. ${p.assignedDoctor.firstName} ${p.assignedDoctor.lastName}` : '—'
@@ -137,7 +148,7 @@ function PatientsPageContent() {
         'Manba': BOOKING_SOURCE_LABELS[p.source as keyof typeof BOOKING_SOURCE_LABELS] || p.source,
         'Balans': p.balance || 0,
         'Shifokor': p.assignedDoctor ? `Dr. ${p.assignedDoctor.firstName} ${p.assignedDoctor.lastName}` : '—',
-        "Ro'yxatdan o'tgan sana": p.createdAt
+        "Ro'yxatdan o'tgan sana": formatDate(p.createdAt)
       }));
 
       await exportToExcel(exportData, `Bemorlar_Ro'yxati_${clinicToday()}`);
@@ -158,7 +169,7 @@ function PatientsPageContent() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExport} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
-              Excel Export
+              Excel'ga yuklash
             </Button>
             {can('patients.create') && (
               <Button onClick={openCreate}>
@@ -316,6 +327,16 @@ function PatientsPageContent() {
         title="Bemorni arxivlaysizmi?"
         description="Bemor ro'yxatlardan olib tashlanadi va arxivlanadi. Tashriflar, to'lovlar va qabullar tarixi saqlanib qoladi — administrator uni qayta tiklay oladi."
         confirmLabel="Arxivlash"
+      />
+
+      {/* 409 from DELETE /patients/:id: the patient still owes money → confirm, then retry with ?force=true */}
+      <ConfirmDeleteDialog
+        open={!!debtConfirm}
+        onOpenChange={(o) => !o && cancelArchiveWithDebt()}
+        onConfirm={confirmArchiveWithDebt}
+        title="Bemorda qarz bor"
+        description={`${debtConfirm?.message ?? ''} Baribir arxivlaysizmi?`.trim()}
+        confirmLabel="Baribir arxivlash"
       />
     </div>
   );

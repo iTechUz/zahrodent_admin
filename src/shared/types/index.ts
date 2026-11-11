@@ -82,6 +82,8 @@ export interface Doctor {
   avatar?: string;
   schedule?: DoctorSchedule[];
   daysOff?: string[];
+  /** false = deactivated (hidden from pickers); older backends omit it → treat as active */
+  isActive?: boolean;
 }
 
 export interface DoctorSchedule {
@@ -89,6 +91,9 @@ export interface DoctorSchedule {
   startTime: string;
   endTime: string;
   isWorking: boolean;
+  /** optional lunch break inside the working day (HH:mm) */
+  breakStart?: string;
+  breakEnd?: string;
 }
 
 export interface Service {

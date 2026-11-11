@@ -11,6 +11,9 @@ import { z } from 'zod';
 import { patientsApi, doctorsApi, type PatientUpdatePayload } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
+import { ApiError } from '@/lib/api/client';
+import { reportMutationError } from '@/lib/api/query-client';
+import { formatUzS } from '@/shared/lib/formatters';
 
 
 type PatientFormValues = z.infer<typeof PatientSchema>;
@@ -76,14 +79,30 @@ export const usePatients = () => {
   });
 
   // soft delete: the patient is archived, visits/payments/bookings history stays
+  const [debtConfirm, setDebtConfirm] = useState<{ id: string; message: string } | null>(null);
   const deleteMut = useMutation({
-    mutationFn: patientsApi.remove,
-    onSuccess: (_, id) => {
+    mutationFn: ({ id, force }: { id: string; force?: boolean }) =>
+      force ? patientsApi.remove(id, { force: true }) : patientsApi.remove(id),
+    onSuccess: (_, { id }) => {
       invalidate();
+      setDebtConfirm(null);
       toast.success('Bemor arxivlandi', {
         description: "Tarix (tashriflar, to'lovlar, qabullar) saqlanib qoldi",
         action: { label: 'Qaytarish', onClick: () => restoreMut.mutate(id) },
       });
+    },
+    onError: (err, { id, force }) => {
+      // 409 = the patient still owes money → ask, then retry with ?force=true
+      if (!force && err instanceof ApiError && err.status === 409) {
+        const row = table.data.find((p) => p.id === id);
+        const debt = typeof row?.balance === 'number' && row.balance < 0 ? -row.balance : 0;
+        setDebtConfirm({
+          id,
+          message: debt > 0 ? `Bemorning qarzi ${formatUzS(debt)}.` : err.message,
+        });
+        return;
+      }
+      reportMutationError(err);
     },
   });
 
@@ -126,9 +145,14 @@ export const usePatients = () => {
 
   const handleDelete = useCallback(() => {
     if (deleteId) {
-      deleteMut.mutate(deleteId, { onSettled: () => setDeleteId(null) });
+      deleteMut.mutate({ id: deleteId }, { onSettled: () => setDeleteId(null) });
     }
   }, [deleteId, deleteMut]);
+
+  /** "Baribir arxivlaysizmi?" confirmed → the same DELETE with ?force=true */
+  const confirmArchiveWithDebt = useCallback(() => {
+    if (debtConfirm && !deleteMut.isPending) deleteMut.mutate({ id: debtConfirm.id, force: true });
+  }, [debtConfirm, deleteMut]);
 
   return {
     patients: table.data,
@@ -153,6 +177,10 @@ export const usePatients = () => {
     deleteId,
     setDeleteId,
     handleDelete,
+    debtConfirm,
+    cancelArchiveWithDebt: () => setDebtConfirm(null),
+    confirmArchiveWithDebt,
+    isArchiving: deleteMut.isPending,
     isLoading: table.isLoading,
     error: table.error,
     refetch: table.refetch,

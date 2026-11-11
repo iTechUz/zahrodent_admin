@@ -9,3 +9,5 @@ export * from './QueryErrorState';
 export * from './PatientNameLabel';
 export * from './SortableHeader';
 export * from './DateRangeFilter';
+export * from './PatientSelect';
+export * from './PhoneLink';

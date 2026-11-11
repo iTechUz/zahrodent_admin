@@ -149,6 +149,25 @@ describe('usePatientProfile', () => {
       expect(result.current.totalDebt).toBe(250000);
     });
 
+    it('showMoney: only for roles that can load payments AND when the backend sent the balance', async () => {
+      pApi.get.mockResolvedValue({ ...patient, balance: -1000 });
+      const admin = setup();
+      await waitFor(() => expect(admin.result.current.showMoney).toBe(true));
+      admin.unmount();
+
+      pApi.get.mockResolvedValue(patient); // money fields absent
+      const noBalance = setup();
+      await ready(noBalance.result);
+      expect(noBalance.result.current.showMoney).toBe(false);
+      noBalance.unmount();
+
+      loginAs('doctor');
+      pApi.get.mockResolvedValue({ ...patient, balance: -1000 });
+      const doctorHook = setup();
+      await ready(doctorHook.result);
+      expect(doctorHook.result.current.showMoney).toBe(false);
+    });
+
     it('missing balance → no debt shown (not a client-side guess)', async () => {
       vApi.list.mockResolvedValue(paginated([visit('v1', 500000)]));
       const { result } = setup();
@@ -263,6 +282,36 @@ describe('usePatientProfile', () => {
       act(() => result.current.handleEditSave());
       expect(toastMock.error).toHaveBeenCalledWith('Ism kiritilishi shart');
       expect(pApi.update).not.toHaveBeenCalled();
+    });
+
+    it('handleEditSave exposes per-field errors (address is optional, workplace is required)', async () => {
+      const { result } = setup();
+      await ready(result);
+      act(() => result.current.openEdit());
+      act(() => result.current.setEditForm({ ...result.current.editForm, address: '', workplace: '', firstName: '' }));
+      act(() => result.current.handleEditSave());
+      expect(result.current.editErrors).toEqual({
+        firstName: 'Ism kiritilishi shart',
+        workplace: 'Ish joyi kiritilishi shart',
+      });
+      expect(result.current.editErrors.address).toBeUndefined();
+      // reopening clears them
+      act(() => result.current.openEdit());
+      expect(result.current.editErrors).toEqual({});
+    });
+
+    it('a double click does not send two updates (isSavingPatient disables the button, handler ignores re-entry)', async () => {
+      let resolve!: (p: Patient) => void;
+      pApi.update.mockReturnValue(new Promise<Patient>((r) => (resolve = r)));
+      const { result } = setup();
+      await ready(result);
+      act(() => result.current.openEdit());
+      act(() => result.current.handleEditSave());
+      await waitFor(() => expect(result.current.isSavingPatient).toBe(true));
+      act(() => result.current.handleEditSave());
+      expect(pApi.update).toHaveBeenCalledTimes(1);
+      await act(async () => resolve(patient));
+      await waitFor(() => expect(result.current.isSavingPatient).toBe(false));
     });
 
     it('handleEditSave rejects a bad phone and an impossible birth year', async () => {
@@ -482,6 +531,17 @@ describe('usePatientProfile', () => {
     });
   });
 
+  describe('payment dialog', () => {
+    it('openPayment resets stale data from the previous time', async () => {
+      const { result } = setup();
+      await ready(result);
+      act(() => result.current.setPayForm({ amount: '999', method: 'card', status: 'paid', description: 'eski', visitId: 'v1' }));
+      act(() => result.current.openPayment());
+      expect(result.current.paymentModal).toBe(true);
+      expect(result.current.payForm).toEqual({ amount: '', method: 'cash', status: 'paid', description: '', visitId: '' });
+    });
+  });
+
   describe('payment visit link', () => {
     it("only this patient's visits can be linked; an unknown visitId is dropped", async () => {
       vApi.list.mockResolvedValue(paginated([visit('v1', 1000)]));
@@ -516,6 +576,19 @@ describe('usePatientProfile', () => {
       await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Izoh qo'shildi"));
       expect(pApi.addComment).toHaveBeenCalledWith('p1', { content: 'Nazorat 2 haftadan keyin' });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['patients', 'p1', 'comments'] });
+    });
+
+    it('onSuccess runs only after the save succeeded; a failure keeps the caller input', async () => {
+      pApi.addComment.mockRejectedValueOnce(new Error('500')).mockResolvedValueOnce({ id: 'c1' } as never);
+      const { result } = setup();
+      await ready(result);
+      const cleared = vi.fn();
+      act(() => result.current.handleAddComment('Matn', cleared));
+      await waitFor(() => expect(pApi.addComment).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(result.current.isAddingComment).toBe(false));
+      expect(cleared).not.toHaveBeenCalled();
+      act(() => result.current.handleAddComment('Matn', cleared));
+      await waitFor(() => expect(cleared).toHaveBeenCalledTimes(1));
     });
 
     it('exposes loaded comments', async () => {

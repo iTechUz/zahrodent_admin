@@ -147,6 +147,14 @@ describe('patientsApi (backend: patients.controller.ts)', () => {
     expect(c.body).toBeUndefined();
   });
 
+  it('remove with force → DELETE /patients/:id?force=true (confirmed archive of a patient with debt)', async () => {
+    await patientsApi.remove('p1', { force: true });
+    expect(lastCall()).toMatchObject({ path: '/patients/p1?force=true', method: 'DELETE' });
+    apiRequestMock.mockClear();
+    await patientsApi.remove('p1', { force: false });
+    expect(lastCall().path).toBe('/patients/p1');
+  });
+
   it('getComments → GET /patients/:id/comments', async () => {
     await patientsApi.getComments('p1');
     expect(lastCall()).toMatchObject({ path: '/patients/p1/comments', method: 'GET' });
@@ -162,6 +170,11 @@ describe('doctorsApi (backend: doctors.controller.ts)', () => {
   it('list → GET /doctors?specialty=', async () => {
     await doctorsApi.list({ page: 0, limit: 100, specialty: 'Terapevt' });
     expect(lastCall()).toMatchObject({ path: '/doctors?page=0&limit=100&specialty=Terapevt', method: 'GET' });
+  });
+
+  it('list can ask for deactivated doctors → ?includeInactive=true', async () => {
+    await doctorsApi.list({ includeInactive: true });
+    expect(lastCall().path).toBe('/doctors?includeInactive=true');
   });
 
   it('stats → GET /doctors/stats', async () => {

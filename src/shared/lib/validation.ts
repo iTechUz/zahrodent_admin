@@ -79,6 +79,9 @@ export const doctorScheduleSlotSchema = z.object({
   startTime: z.string(),
   endTime: z.string(),
   isWorking: z.boolean(),
+  /** optional lunch break (HH:mm) — both or none */
+  breakStart: z.string().optional(),
+  breakEnd: z.string().optional(),
 });
 
 export const DoctorSchema = z
@@ -101,6 +104,23 @@ export const DoctorSchema = z
           message: 'Ish kunlari uchun boshlanish va tugash vaqtini kiriting',
           path: ['schedule', index, 'startTime'],
         });
+      }
+      const bs = slot.breakStart?.trim();
+      const be = slot.breakEnd?.trim();
+      if (slot.isWorking && (bs || be)) {
+        if (!bs || !be) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Tanaffus uchun boshlanish va tugash vaqtini kiriting',
+            path: ['schedule', index, 'breakEnd'],
+          });
+        } else if (bs >= be) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Tanaffus tugashi boshlanishidan keyin bo'lishi kerak",
+            path: ['schedule', index, 'breakEnd'],
+          });
+        }
       }
     });
   });

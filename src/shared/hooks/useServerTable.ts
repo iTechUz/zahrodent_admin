@@ -96,6 +96,13 @@ export const useServerTable = <T extends object, F extends object>({
 
   const totalPages = Math.ceil((data?.total ?? 0) / perPage);
 
+  // The last row of the last page was deleted/archived → the page no longer exists and would render
+  // empty without a pager. Fall back to the new last page.
+  useEffect(() => {
+    if (isPlaceholderData || !data || data.total <= 0) return;
+    if (page >= totalPages) setPage(totalPages - 1);
+  }, [data, isPlaceholderData, page, totalPages]);
+
   return {
     data: data?.data ?? [],
     totalCount: data?.total ?? 0,

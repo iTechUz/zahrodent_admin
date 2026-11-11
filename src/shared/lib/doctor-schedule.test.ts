@@ -1,4 +1,11 @@
-import { DOCTOR_WEEKDAY_LABELS, defaultDoctorSchedule, normalizeDoctorSchedule } from './doctor-schedule';
+import {
+  DOCTOR_WEEKDAY_LABELS,
+  defaultDoctorSchedule,
+  doctorDayInfo,
+  isInBreak,
+  normalizeDoctorSchedule,
+  scheduleDayIndex,
+} from './doctor-schedule';
 
 describe('DOCTOR_WEEKDAY_LABELS', () => {
   it('starts the week on Monday (0 = Du)', () => {
@@ -55,5 +62,57 @@ describe('normalizeDoctorSchedule', () => {
   it('ignores out-of-range days', () => {
     const out = normalizeDoctorSchedule([{ day: 9, startTime: '01:00', endTime: '02:00', isWorking: true }]);
     expect(out).toEqual(defaultDoctorSchedule());
+  });
+});
+
+describe('lunch break (optional)', () => {
+  it('keeps breakStart/breakEnd (trimmed to HH:mm) only when both are present; old schedules are unchanged', () => {
+    const out = normalizeDoctorSchedule([
+      { day: 0, startTime: '09:00', endTime: '18:00', isWorking: true, breakStart: '13:00:00', breakEnd: '14:00' },
+      { day: 1, startTime: '09:00', endTime: '18:00', isWorking: true, breakStart: '13:00' },
+      { day: 2, startTime: '09:00', endTime: '18:00', isWorking: true },
+    ]);
+    expect(out[0]).toEqual({ day: 0, startTime: '09:00', endTime: '18:00', isWorking: true, breakStart: '13:00', breakEnd: '14:00' });
+    expect(out[1]).not.toHaveProperty('breakStart');
+    expect(out[2]).toEqual({ day: 2, startTime: '09:00', endTime: '18:00', isWorking: true });
+  });
+});
+
+describe('scheduleDayIndex', () => {
+  it('maps a date to 0 = Du … 6 = Ya', () => {
+    expect(scheduleDayIndex('2026-06-15')).toBe(0); // Monday
+    expect(scheduleDayIndex('2026-06-17')).toBe(2); // Wednesday
+    expect(scheduleDayIndex('2026-06-21')).toBe(6); // Sunday
+  });
+});
+
+describe('doctorDayInfo', () => {
+  const schedule = normalizeDoctorSchedule([
+    { day: 2, startTime: '09:00', endTime: '18:00', isWorking: true, breakStart: '13:00', breakEnd: '14:00' },
+  ]);
+  it('returns null without data to show', () => {
+    expect(doctorDayInfo(undefined, '2026-06-17')).toBeNull();
+    expect(doctorDayInfo({ schedule: [] }, '2026-06-17')).toBeNull();
+    expect(doctorDayInfo({ schedule }, '')).toBeNull();
+  });
+  it('day off wins, then rest weekday, then working hours with the break', () => {
+    expect(doctorDayInfo({ schedule, daysOff: ['2026-06-17'] }, '2026-06-17')).toEqual({ kind: 'day-off' });
+    expect(doctorDayInfo({ schedule }, '2026-06-16')).toEqual({ kind: 'not-working' });
+    expect(doctorDayInfo({ schedule }, '2026-06-17')).toEqual({
+      kind: 'working',
+      startTime: '09:00',
+      endTime: '18:00',
+      breakStart: '13:00',
+      breakEnd: '14:00',
+    });
+  });
+});
+
+describe('isInBreak', () => {
+  it('is true from breakStart up to (excluding) breakEnd', () => {
+    expect(isInBreak('13:00', '13:00', '14:00')).toBe(true);
+    expect(isInBreak('13:59', '13:00', '14:00')).toBe(true);
+    expect(isInBreak('14:00', '13:00', '14:00')).toBe(false);
+    expect(isInBreak('13:30')).toBe(false);
   });
 });

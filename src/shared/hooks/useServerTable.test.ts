@@ -198,4 +198,28 @@ describe('useServerTable', () => {
     expect(result.current.data).toEqual([]);
     expect(result.current.totalPages).toBe(0);
   });
+
+  it('clamps page to the last page when the current page no longer exists', async () => {
+    let total = 25;
+    const fetchFn = vi.fn(async (params: { page: number }) => ({ data: total > 20 || params.page < 2 ? [{ id: params.page }] : [], total }));
+    const { wrapper, queryClient } = createWrapper();
+    const { result } = renderHook(
+      () => useServerTable<Row, Filters>({ queryKey: ['clamp'], fetchFn, perPage: 10 }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.totalPages).toBe(3));
+    act(() => result.current.setPage(2));
+    await waitFor(() => expect(result.current.page).toBe(2));
+    total = 20; // last row of page 3 removed
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['clamp'] });
+    });
+    await waitFor(() => expect(result.current.page).toBe(1));
+  });
+
+  it('does not touch page when total is 0', async () => {
+    const { result } = setup({ total: 0 });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.page).toBe(0);
+  });
 });

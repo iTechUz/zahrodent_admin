@@ -244,6 +244,57 @@ describe('usePatients', () => {
       await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Bemor arxivdan tiklandi'));
     });
 
+    it('409 (patient owes money) opens the debt confirmation with the server message and shows no error toast', async () => {
+      api.remove.mockRejectedValue(new ApiError(409, "Bemorning qarzi 150 000 so'm"));
+      const { wrapper } = createWrapper(createQueryClient());
+      const { result } = renderHook(() => usePatients(), { wrapper });
+      act(() => result.current.setDeleteId('p1'));
+      act(() => result.current.handleDelete());
+      await waitFor(() => expect(result.current.debtConfirm).toEqual({ id: 'p1', message: "Bemorning qarzi 150 000 so'm" }));
+      expect(toastMock.error).not.toHaveBeenCalled();
+      expect(result.current.deleteId).toBeNull();
+    });
+
+    it('confirming the debt dialog retries with force=true, then keeps the undo toast', async () => {
+      api.remove.mockRejectedValueOnce(new ApiError(409, 'qarz bor')).mockResolvedValueOnce({ id: 'p1' });
+      const { wrapper } = createWrapper(createQueryClient());
+      const { result } = renderHook(() => usePatients(), { wrapper });
+      act(() => result.current.setDeleteId('p1'));
+      act(() => result.current.handleDelete());
+      await waitFor(() => expect(result.current.debtConfirm).not.toBeNull());
+      act(() => result.current.confirmArchiveWithDebt());
+      await waitFor(() => expect(api.remove).toHaveBeenCalledTimes(2));
+      expect(api.remove).toHaveBeenLastCalledWith('p1', { force: true });
+      await waitFor(() => expect(result.current.debtConfirm).toBeNull());
+      expect(toastMock.success).toHaveBeenCalledWith(
+        'Bemor arxivlandi',
+        expect.objectContaining({ action: expect.objectContaining({ label: 'Qaytarish' }) }),
+      );
+    });
+
+    it('cancelling the debt dialog does nothing more', async () => {
+      api.remove.mockRejectedValue(new ApiError(409, 'qarz bor'));
+      const { wrapper } = createWrapper(createQueryClient());
+      const { result } = renderHook(() => usePatients(), { wrapper });
+      act(() => result.current.setDeleteId('p1'));
+      act(() => result.current.handleDelete());
+      await waitFor(() => expect(result.current.debtConfirm).not.toBeNull());
+      act(() => result.current.cancelArchiveWithDebt());
+      expect(result.current.debtConfirm).toBeNull();
+      expect(api.remove).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses the known balance of the row for the message ("Bemorning qarzi X so\'m")', async () => {
+      api.list.mockResolvedValue(paginated([{ ...patient, balance: -250000 }]));
+      api.remove.mockRejectedValue(new ApiError(409, 'server text'));
+      const { wrapper } = createWrapper(createQueryClient());
+      const { result } = renderHook(() => usePatients(), { wrapper });
+      await waitFor(() => expect(result.current.patients).toHaveLength(1));
+      act(() => result.current.setDeleteId('p1'));
+      act(() => result.current.handleDelete());
+      await waitFor(() => expect(result.current.debtConfirm?.message).toMatch(/Bemorning qarzi 250[\s\u00a0,.]?000 so'm\./));
+    });
+
     it('a failed delete shows the backend message (generic error handling) and keeps the list', async () => {
       const msg = 'Server xatosi';
       api.remove.mockRejectedValue(new ApiError(500, msg));

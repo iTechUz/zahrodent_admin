@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { PhoneLink } from '@/shared/components/PhoneLink';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
@@ -29,7 +30,7 @@ import {
   PatientComment,
 } from '@/shared/types';
 import { PatientPrescriptions } from '../components/PatientPrescriptions';
-import { can } from '@/shared/config/roles';
+import { can, roleAccess } from '@/shared/config/roles';
 import { useStore } from '@/store/useStore';
 import { LoadingScreen } from '@/shared/components/LoadingScreen';
 
@@ -38,10 +39,13 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
 };
 
 import { PhoneInput } from '@/components/ui/phone-input';
-import { formatDateTime } from '@/shared/lib/formatters';
+import { formatDate, formatDateTime } from '@/shared/lib/formatters';
 import { patientAge } from '@/shared/lib/patient-age';
 
 const fmt = (n: number) => new Intl.NumberFormat('uz-UZ').format(n);
+
+const FieldError = ({ message }: { message?: string }) =>
+  message ? <p role="alert" className="text-xs text-destructive">{message}</p> : null;
 
 export default function PatientProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +59,7 @@ export default function PatientProfilePage() {
     patientVisits,
     patientBookings,
     patientPayments,
+    showMoney,
     totalPaid,
     totalDue,
     totalDebt,
@@ -77,6 +82,9 @@ export default function PatientProfilePage() {
     setPaymentModal,
     payForm,
     setPayForm,
+    openPayment,
+    editErrors,
+    isSavingPatient,
     handleEditSave,
     openEdit,
     openToothEdit,
@@ -110,6 +118,9 @@ export default function PatientProfilePage() {
     }
   };
 
+  const canNewBooking =
+    !!patient && !isArchived && can(role, 'bookings.create') && !!role && roleAccess[role].includes('/bookings');
+
   if (!patient && isLoading) return <LoadingScreen />;
   if (!patient) return <div className="p-6 text-center text-muted-foreground">Bemor topilmadi</div>;
 
@@ -119,11 +130,20 @@ export default function PatientProfilePage() {
         <Button variant="ghost" size="sm" onClick={() => navigate('/patients')} className="gap-2">
           <ArrowLeft className="w-4 h-4" /> Bemorlar ro'yxatiga qaytish
         </Button>
-        {canEditPatient && (
-          <Button variant="outline" size="sm" onClick={openEdit} className="gap-2">
-            <Pencil className="w-4 h-4" /> Tahrirlash
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canNewBooking && (
+            <Button size="sm" asChild className="gap-2">
+              <Link to={`/bookings?new=1&patientId=${patient.id}`}>
+                <Plus className="w-4 h-4" /> Yangi qabul
+              </Link>
+            </Button>
+          )}
+          {canEditPatient && (
+            <Button variant="outline" size="sm" onClick={openEdit} className="gap-2">
+              <Pencil className="w-4 h-4" /> Tahrirlash
+            </Button>
+          )}
+        </div>
       </div>
 
       {isArchived && (
@@ -135,7 +155,7 @@ export default function PatientProfilePage() {
             <Archive className="w-4 h-4 text-warning" />
             <span>
               Bu bemor arxivlangan
-              {patient.deletedAt ? ` (${patient.deletedAt.slice(0, 10)})` : ''}. Tarix saqlangan, lekin bemor
+              {patient.deletedAt ? ` (${formatDate(patient.deletedAt)})` : ''}. Tarix saqlangan, lekin bemor
               ro'yxatlarda ko'rinmaydi.
             </span>
           </div>
@@ -157,8 +177,8 @@ export default function PatientProfilePage() {
             <h1 className="text-xl font-display font-bold">{patient.firstName} {patient.lastName}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
               <span>{patientAge(patient)} yosh</span>
-              <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{patient.phone}</span>
-              <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{patient.createdAt}</span>
+              <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /><PhoneLink phone={patient.phone} /></span>
+              <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{formatDate(patient.createdAt)}</span>
               <SourceBadge source={patient.source} />
               {patient.telegramConnected && (
                 <span
@@ -194,7 +214,7 @@ export default function PatientProfilePage() {
               <p className="text-lg font-bold">{patientVisits.length}</p>
               <p className="text-[10px] text-muted-foreground">Tashriflar</p>
             </div>
-            {canManagePayments ? (
+            {showMoney ? (
               <>
                 <div className="px-4 py-2 rounded-lg bg-primary/10">
                   <p className="text-lg font-bold text-primary">{fmt(totalDue)}</p>
@@ -216,13 +236,13 @@ export default function PatientProfilePage() {
                   </div>
                 )}
               </>
-            ) : (
+            ) : !canManagePayments ? (
               <div className="px-4 py-2 rounded-lg bg-muted/30">
                 <p className="text-[10px] text-muted-foreground text-left max-w-[140px]">
                   To'lovlar faqat administrator ko'radi
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -270,7 +290,7 @@ export default function PatientProfilePage() {
                       <Receipt className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="text-sm font-semibold">{v.date}</span>
+                      <span className="text-sm font-semibold">{formatDate(v.date)}</span>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{doctor ? `${doctor.firstName} ${doctor.lastName}` : '—'}</p>
                     </div>
                   </div>
@@ -280,17 +300,19 @@ export default function PatientProfilePage() {
                       <p className="text-[9px] text-muted-foreground uppercase font-bold">Jami</p>
                       <p className="text-sm font-bold">{fmt(v.price)}</p>
                     </div>
+                    {showMoney && (
                     <div className="px-3 py-1.5 rounded-lg bg-success/5 border border-success/10 text-center min-w-[80px]">
                       <p className="text-[9px] text-success/70 uppercase font-bold">To'langan</p>
                       <p className="text-sm font-bold text-success">{fmt(getVisitPaid(v.id))}</p>
                     </div>
-                    {getVisitBalance(v.id, v.price, v.status) > 0 && (
+                    )}
+                    {showMoney && getVisitBalance(v.id, v.price, v.status) > 0 && (
                       <div className="px-3 py-1.5 rounded-lg bg-destructive/5 border border-destructive/10 text-center min-w-[80px]">
                         <p className="text-[9px] text-destructive/70 uppercase font-bold">Qarz</p>
                         <p className="text-sm font-bold text-destructive">{fmt(getVisitBalance(v.id, v.price, v.status))}</p>
                       </div>
                     )}
-                    {v.status === 'completed' && getVisitBalance(v.id, v.price, v.status) === 0 && (
+                    {showMoney && v.status === 'completed' && getVisitBalance(v.id, v.price, v.status) === 0 && (
                       <div className="p-1.5 rounded-full bg-success/10 text-success">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
@@ -354,7 +376,7 @@ export default function PatientProfilePage() {
             return (
               <div key={b.id} className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
                 <div>
-                  <p className="text-sm font-medium">{b.date} — {b.time}</p>
+                  <p className="text-sm font-medium">{formatDate(b.date)} — {b.time}</p>
                   <p className="text-xs text-muted-foreground">{doctor ? `${doctor.firstName} ${doctor.lastName}` : '—'}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -398,8 +420,8 @@ export default function PatientProfilePage() {
                       if (e.key === 'Enter' && e.ctrlKey) {
                         e.preventDefault();
                         if (newComment.trim()) {
-                           handleAddComment(newComment);
-                           setNewComment('');
+                           // cleared only once the server accepted it — a failed save keeps the text
+                           handleAddComment(newComment, () => setNewComment(''));
                         }
                       }
                     }}
@@ -410,8 +432,7 @@ export default function PatientProfilePage() {
                       className="gap-2"
                       onClick={() => {
                         if (newComment.trim()) {
-                          handleAddComment(newComment);
-                          setNewComment('');
+                          handleAddComment(newComment, () => setNewComment(''));
                         }
                       }}
                       disabled={isAddingComment || !newComment.trim()}
@@ -452,7 +473,7 @@ export default function PatientProfilePage() {
         {canManagePayments && (
           <TabsContent value="payments" className="space-y-3 mt-4">
             <div className="flex justify-end">
-              <Button size="sm" variant="outline" onClick={() => setPaymentModal(true)} className="gap-1.5">
+              <Button size="sm" variant="outline" onClick={openPayment} className="gap-1.5">
                 <CreditCard className="w-3.5 h-3.5" /> To'lov qayd etish
               </Button>
             </div>
@@ -462,7 +483,7 @@ export default function PatientProfilePage() {
               <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
                 <div>
                   <p className="text-sm font-medium">{p.description}</p>
-                  <p className="text-xs text-muted-foreground">{p.date} • {METHOD_LABELS[p.method]}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(p.date)} • {METHOD_LABELS[p.method]}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold">{fmt(p.amount)} so'm</span>
@@ -481,27 +502,33 @@ export default function PatientProfilePage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Ism *</Label>
-              <Input value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} />
+              <Input value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} aria-invalid={!!editErrors.firstName} />
+              <FieldError message={editErrors.firstName} />
             </div>
             <div className="space-y-2">
               <Label>Familiya *</Label>
-              <Input value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} />
+              <Input value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} aria-invalid={!!editErrors.lastName} />
+              <FieldError message={editErrors.lastName} />
             </div>
             <div className="space-y-2">
               <Label>Tug'ilgan yili *</Label>
-              <Input type="number" placeholder="1995" value={editForm.birthYear} onChange={e => setEditForm({ ...editForm, birthYear: e.target.value })} />
+              <Input type="number" placeholder="1995" value={editForm.birthYear} onChange={e => setEditForm({ ...editForm, birthYear: e.target.value })} aria-invalid={!!editErrors.birthYear} />
+              <FieldError message={editErrors.birthYear} />
             </div>
             <div className="space-y-2">
               <Label>Telefon *</Label>
               <PhoneInput value={editForm.phone} onChange={phone => setEditForm({ ...editForm, phone })} />
+              <FieldError message={editErrors.phone} />
             </div>
             <div className="space-y-2">
-              <Label>Manzil *</Label>
-              <Input value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} />
+              <Label>Manzil</Label>
+              <Input value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} aria-invalid={!!editErrors.address} />
+              <FieldError message={editErrors.address} />
             </div>
             <div className="space-y-2">
               <Label>Ish joyi *</Label>
-              <Input value={editForm.workplace} onChange={e => setEditForm({ ...editForm, workplace: e.target.value })} />
+              <Input value={editForm.workplace} onChange={e => setEditForm({ ...editForm, workplace: e.target.value })} aria-invalid={!!editErrors.workplace} />
+              <FieldError message={editErrors.workplace} />
             </div>
             <div className="space-y-2">
               <Label>Biriktirilgan shifokor</Label>
@@ -530,7 +557,7 @@ export default function PatientProfilePage() {
               className="min-h-[100px]"
             />
           </div>
-          <Button className="w-full h-11 font-bold" onClick={handleEditSave}>Yangilash</Button>
+          <Button className="w-full h-11 font-bold" onClick={handleEditSave} disabled={isSavingPatient}>Yangilash</Button>
         </DialogContent>
       </Dialog>
 
@@ -547,7 +574,7 @@ export default function PatientProfilePage() {
               </Select>
             </div>
             <div><Label>Izoh</Label><Textarea placeholder="Qo'shimcha ma'lumot..." value={toothForm.notes} onChange={e => setToothForm({ ...toothForm, notes: e.target.value })} /></div>
-            <Button className="w-full" onClick={handleToothSave}>Saqlash</Button>
+            <Button className="w-full" onClick={handleToothSave} disabled={isSavingPatient}>Saqlash</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -640,6 +667,8 @@ export default function PatientProfilePage() {
                 }
 
                 const newBalance = Math.max(0, currentDebt - payingAmount);
+                // non-blocking: overpaying a visit is allowed (it becomes credit), but is usually a typo
+                const exceedsVisitDebt = contextStr === "Tashrif qarzi" && payingAmount > currentDebt;
                 const progressPercent = currentDebt > 0 
                   ? Math.min(100, Math.max(0, (payingAmount / currentDebt) * 100))
                   : (payingAmount > 0 ? 100 : 0);
@@ -659,6 +688,11 @@ export default function PatientProfilePage() {
                     )}
 
                     <div className="space-y-3">
+                      {exceedsVisitDebt && (
+                        <p role="alert" className="text-xs text-warning">
+                          Kiritilgan summa tashrifning qolgan qarzidan ({fmt(currentDebt)} so'm) oshib ketdi.
+                        </p>
+                      )}
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Hozirgi qarz:</span>
                         <span className="font-medium text-destructive">{fmt(currentDebt)} so'm</span>
@@ -722,7 +756,7 @@ export default function PatientProfilePage() {
                   <SelectContent>
                     <SelectItem value="none">Hech qaysi (Umumiy to'lov)</SelectItem>
                     {patientVisits.map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.date} — {v.treatment?.slice(0, 30) || 'Tashrif'} ({fmt(getVisitBalance(v.id, v.price, v.status))} so'm qolgan)</SelectItem>
+                        <SelectItem key={v.id} value={v.id}>{formatDate(v.date)} — {v.treatment?.slice(0, 30) || 'Tashrif'} ({fmt(getVisitBalance(v.id, v.price, v.status))} so'm qolgan)</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

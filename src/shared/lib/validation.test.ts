@@ -202,6 +202,21 @@ describe('DoctorSchema', () => {
     }
   });
 
+  it('optional lunch break: both ends or none, end after start', () => {
+    const withBreak = (patch: object) => {
+      const schedule = defaultDoctorSchedule();
+      schedule[1] = { day: 1, startTime: '09:00', endTime: '18:00', isWorking: true, ...patch };
+      return DoctorSchema.safeParse({ ...ok, schedule });
+    };
+    expect(withBreak({}).success).toBe(true);
+    expect(withBreak({ breakStart: '', breakEnd: '' }).success).toBe(true);
+    expect(withBreak({ breakStart: '13:00', breakEnd: '14:00' }).success).toBe(true);
+    const half = withBreak({ breakStart: '13:00' });
+    expect(half.success).toBe(false);
+    if (!half.success) expect(half.error.errors[0].path).toEqual(['schedule', 1, 'breakEnd']);
+    expect(withBreak({ breakStart: '14:00', breakEnd: '13:00' }).success).toBe(false);
+  });
+
   it('does not require times on non-working days', () => {
     const schedule = defaultDoctorSchedule();
     schedule[4] = { day: 4, startTime: '', endTime: '', isWorking: false };

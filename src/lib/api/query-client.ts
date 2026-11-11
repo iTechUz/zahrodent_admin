@@ -40,6 +40,12 @@ function shouldRetry(failureCount: number, err: unknown) {
   return failureCount < 1;
 }
 
+/** Toast of a failed mutation (also reusable by mutations that handle some errors themselves, e.g. a 409 confirm flow). */
+export function reportMutationError(err: unknown) {
+  if (err instanceof ApiError && err.status !== 401) toast.error(err.message, { description: getRequestIdLabel(err) });
+  else if (!(err instanceof ApiError)) toast.error("Amalni bajarishda xatolik yuz berdi");
+}
+
 export function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
@@ -48,11 +54,7 @@ export function createQueryClient() {
     defaultOptions: {
       queries: { staleTime: 60_000, retry: shouldRetry, refetchOnWindowFocus: false },
       mutations: {
-        onError: (err) => {
-          if (err instanceof ApiError && err.status !== 401)
-            toast.error(err.message, { description: getRequestIdLabel(err) });
-          else if (!(err instanceof ApiError)) toast.error("Amalni bajarishda xatolik yuz berdi");
-        },
+        onError: reportMutationError,
       },
     },
   });

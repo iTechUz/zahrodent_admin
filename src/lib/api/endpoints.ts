@@ -122,8 +122,12 @@ export const patientsApi = {
     apiRequest<Patient>('/patients', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: PatientUpdatePayload) =>
     apiRequest<Patient>(`/patients/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  /** Soft delete (archive), admin only — history (visits, payments, bookings) is kept. */
-  remove: (id: string) => apiRequest<{ id: string }>(`/patients/${id}`, { method: 'DELETE' }),
+  /**
+   * Soft delete (archive), admin only — history (visits, payments, bookings) is kept.
+   * With an outstanding debt the backend answers 409; `force: true` (`?force=true`) archives anyway.
+   */
+  remove: (id: string, opts?: { force?: boolean }) =>
+    apiRequest<{ id: string }>(`/patients/${id}${qs({ force: opts?.force ? 'true' : undefined })}`, { method: 'DELETE' }),
   /** Admin only: un-archive a soft-deleted patient. */
   restore: (id: string) => apiRequest<Patient>(`/patients/${id}/restore`, { method: 'POST' }),
   getComments: (id: string) => apiRequest<PatientComment[]>(`/patients/${id}/comments`),
@@ -141,7 +145,7 @@ export type DoctorCreatePayload = Pick<Doctor, 'firstName' | 'lastName' | 'speci
 export type DoctorUpdatePayload = Partial<Doctor> & { password?: string };
 
 export const doctorsApi = {
-  list: (params?: ListParams & { specialty?: string }) =>
+  list: (params?: ListParams & { specialty?: string; /** also return deactivated doctors (default: active only) */ includeInactive?: boolean }) =>
     apiRequest<PaginatedResponse<Doctor>>(`/doctors${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; activeToday: number; totalVisits: number }>('/doctors/stats'),
   efficiency: (params?: { startDate?: string; endDate?: string }) =>
