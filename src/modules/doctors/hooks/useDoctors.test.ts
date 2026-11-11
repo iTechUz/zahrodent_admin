@@ -65,7 +65,7 @@ describe('useDoctors', () => {
       doctors.list.mockResolvedValue(paginated([doctor], 11));
       const { result } = setup();
       await waitFor(() => expect(result.current.doctors).toEqual([doctor]));
-      expect(doctors.list).toHaveBeenCalledWith({ page: 0, limit: 10, search: '' });
+      expect(doctors.list).toHaveBeenCalledWith({ page: 0, limit: 10, search: '', includeInactive: true });
       expect(result.current.totalDoctors).toBe(11);
       expect(result.current.totalPages).toBe(2);
     });
@@ -74,16 +74,40 @@ describe('useDoctors', () => {
       const { result } = setup();
       act(() => result.current.setFilters('specialty', 'Ortodont'));
       await waitFor(() =>
-        expect(doctors.list).toHaveBeenLastCalledWith({ page: 0, limit: 10, search: '', specialty: 'Ortodont' }),
+        expect(doctors.list).toHaveBeenLastCalledWith({ page: 0, limit: 10, search: '', specialty: 'Ortodont', includeInactive: true }),
       );
     });
 
-    it('loads the patient lookup (every page, max 100 per request); no unused visits list', async () => {
-      patients.list.mockResolvedValue(paginated([{ id: 'p1' }]) as never);
+    it('does not download the patient table any more (the visit form searches server-side); no unused visits list', async () => {
       const { result } = setup();
-      await waitFor(() => expect(result.current.patients).toEqual([{ id: 'p1' }]));
-      expect(patients.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(patients.list).not.toHaveBeenCalled();
       expect(visits.list).not.toHaveBeenCalled();
+    });
+
+    it('the management list asks for inactive doctors too; specialties are the distinct real values', async () => {
+      doctors.list.mockResolvedValue(
+        paginated([
+          { id: 'd1', specialty: 'Ortodont' },
+          { id: 'd2', specialty: 'Bolalar stomatologi' },
+          { id: 'd3', specialty: 'ortodont ' },
+        ]) as never,
+      );
+      const { result } = setup();
+      await waitFor(() => expect(result.current.specialties).toEqual(['Bolalar stomatologi', 'Ortodont']));
+      expect(doctors.list).toHaveBeenCalledWith(expect.objectContaining({ page: 0, limit: 10, includeInactive: true }));
+      expect(doctors.list).toHaveBeenCalledWith({ page: 0, limit: 100, includeInactive: true });
+    });
+
+    it('setDoctorActive PATCHes isActive and invalidates the doctors', async () => {
+      doctors.update.mockResolvedValue(doctor);
+      const { result, invalidate } = setup();
+      await act(async () => {
+        await result.current.setDoctorActive('d1', false);
+      });
+      expect(doctors.update).toHaveBeenCalledWith('d1', { isActive: false });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['doctors'] });
+      expect(toastMock.success).toHaveBeenCalledWith('Shifokor nofaol qilindi');
     });
 
     it('admin gets stats and efficiency', async () => {
@@ -143,6 +167,15 @@ describe('useDoctors', () => {
       expect(body).not.toHaveProperty('daysOffText');
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['doctors'] });
       expect(toastMock.success).toHaveBeenCalledWith('Shifokor saqlandi');
+    });
+
+    it('editing with an emptied daysOffText sends daysOff: [] so the stored days off are cleared', async () => {
+      doctors.update.mockResolvedValue(doctor);
+      const { result } = setup();
+      act(() => result.current.openEdit(doctor));
+      act(() => result.current.handleSaveDoctor({ ...baseForm, daysOffText: ' ' }));
+      await waitFor(() => expect(doctors.update).toHaveBeenCalled());
+      expect(doctors.update.mock.calls[0][1]).toHaveProperty('daysOff', []);
     });
 
     it('omits daysOff when daysOffText is empty', async () => {

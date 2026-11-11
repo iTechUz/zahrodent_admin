@@ -19,13 +19,18 @@ import {
   CreditCard,
   ClipboardList,
   Edit2,
-  Plus
+  Plus,
+  Power,
+  CalendarOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/shared/components/StatCard';
-import { formatUzS } from '@/shared/lib/formatters';
+import { formatUzS, formatDate } from '@/shared/lib/formatters';
+import { clinicToday } from '@/shared/lib/date-utils';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { PhoneLink } from '@/shared/components/PhoneLink';
 import { DOCTOR_WEEKDAY_LABELS, normalizeDoctorSchedule } from '@/shared/lib/doctor-schedule';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DoctorForm, DoctorVisitForm } from '../components/DoctorForm';
@@ -51,8 +56,9 @@ function DoctorDetailsContent() {
     editing,
     handleSaveDoctor,
     isSavingDoctor,
+    setDoctorActive,
+    isTogglingActive,
     isSavingVisit,
-    patients,
     visitModal,
     setVisitModal,
     editingVisit,
@@ -61,6 +67,7 @@ function DoctorDetailsContent() {
     handleSaveVisit,
   } = useDoctors();
 
+  const [confirmActive, setConfirmActive] = useState(false);
   const doctorEfficiency = efficiency.find(e => e.id === id);
   // backend /doctors/efficiency returns `totalVisits` (there is no `visitCount`)
   const totalVisits = doctorEfficiency?.totalVisits ?? 0;
@@ -83,7 +90,7 @@ function DoctorDetailsContent() {
     placeholderData: keepPreviousData,
   });
   const recentVisits = visitsRes?.data ?? [];
-  const visitPatient = (v: (typeof recentVisits)[number]) => resolvePatientRef(v, patients);
+  const visitPatient = (v: (typeof recentVisits)[number]) => resolvePatientRef(v);
 
   if (doctorLoading) {
     return (
@@ -105,6 +112,12 @@ function DoctorDetailsContent() {
   }
 
   const normalizedSchedule = normalizeDoctorSchedule(doctor.schedule);
+  // older backends omit isActive → treat as active
+  const isActive = doctor.isActive !== false;
+  const today = clinicToday();
+  const daysOff = [...new Set((doctor.daysOff ?? []).map((d) => String(d).slice(0, 10)))].sort();
+  const upcomingDaysOff = daysOff.filter((d) => d >= today);
+  const pastDaysOff = daysOff.filter((d) => d < today);
 
   return (
     <div className="space-y-6">
@@ -134,16 +147,22 @@ function DoctorDetailsContent() {
                   <h1 className="text-3xl font-extrabold tracking-tight">
                     {doctor.firstName} {doctor.lastName}
                   </h1>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-bold uppercase tracking-wider text-[10px]">
-                    Faol
-                  </Badge>
+                  {isActive ? (
+                    <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-bold uppercase tracking-wider text-[10px]">
+                      Faol
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="bg-muted text-muted-foreground border-none font-bold uppercase tracking-wider text-[10px]">
+                      Nofaol
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-muted-foreground flex items-center gap-2 font-medium">
                   <Briefcase className="w-4 h-4 text-primary/60" /> {doctor.specialty}
                 </p>
                 <div className="flex items-center gap-4 mt-2">
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5" /> {doctor.phone}
+                    <Phone className="w-3.5 h-3.5" /> <PhoneLink phone={doctor.phone} />
                   </span>
                 </div>
               </div>
@@ -161,7 +180,18 @@ function DoctorDetailsContent() {
                 Tahrirlash
               </Button>
             )}
-            {can('visits.create') && (
+            {can('doctors.update') && (
+              <Button
+                onClick={() => setConfirmActive(true)}
+                variant="outline"
+                disabled={isTogglingActive}
+                className="flex-1 md:flex-none h-11 px-6 rounded-xl font-semibold"
+              >
+                <Power className="w-4 h-4 mr-2" />
+                {isActive ? 'Nofaol qilish' : 'Faollashtirish'}
+              </Button>
+            )}
+            {can('visits.create') && isActive && (
               <Button
                 onClick={() => openVisitForm(doctor)}
                 className="flex-1 md:flex-none h-11 px-6 rounded-xl shadow-lg shadow-primary/20 font-semibold"
@@ -222,7 +252,7 @@ function DoctorDetailsContent() {
               <span className="text-sm text-muted-foreground flex items-center gap-2">
                 <Phone className="w-4 h-4" /> Telefon
               </span>
-              <span className="font-medium">{doctor.phone}</span>
+              <PhoneLink phone={doctor.phone} className="font-medium" />
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
               <span className="text-sm text-muted-foreground flex items-center gap-2">
@@ -261,12 +291,44 @@ function DoctorDetailsContent() {
                       <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-background font-mono">{s.startTime}</Badge>
                       <span className="text-xs text-muted-foreground opacity-50">—</span>
                       <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-background font-mono">{s.endTime}</Badge>
+                      {s.breakStart && s.breakEnd && (
+                        <span className="text-[10px] text-muted-foreground" title="Tanaffus">
+                          ☕ {s.breakStart}–{s.breakEnd}
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <span className="text-[10px] text-muted-foreground italic">Dam olish kuni</span>
                   )}
                 </div>
               ))}
+            </div>
+            <div className="mt-4 rounded-lg border border-border/50 bg-muted/10 p-3 space-y-2" data-testid="days-off">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <CalendarOff className="w-4 h-4 text-primary" /> Dam olish kunlari (sanalar)
+              </p>
+              {daysOff.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Belgilangan dam olish sanalari yo'q</p>
+              ) : (
+                <>
+                  {upcomingDaysOff.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {upcomingDaysOff.map((d) => (
+                        <Badge key={d} variant="outline" className="text-[11px] bg-warning/10 border-warning/30">
+                          {formatDate(d)}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Yaqin kunlarga dam olish belgilanmagan</p>
+                  )}
+                  {pastDaysOff.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      O'tgan dam olish kunlari: {pastDaysOff.map((d) => formatDate(d)).join(', ')}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -297,7 +359,7 @@ function DoctorDetailsContent() {
               <TableBody>
                 {recentVisits.map((v) => (
                   <TableRow key={v.id}>
-                    <TableCell className="text-xs">{v.date}</TableCell>
+                    <TableCell className="text-xs">{formatDate(v.date)}</TableCell>
                     <TableCell className="font-medium text-xs">
                       {visitPatient(v) ? <PatientNameLabel patient={visitPatient(v)} /> : `#${v.patientId.slice(-4)}`}
                     </TableCell>
@@ -330,12 +392,31 @@ function DoctorDetailsContent() {
         editing={editing}
       />
 
+      <ConfirmDeleteDialog
+        open={confirmActive}
+        onOpenChange={setConfirmActive}
+        onConfirm={async () => {
+          try {
+            await setDoctorActive(doctor.id, !isActive);
+          } catch {
+            /* the error toast is shown by the query client */
+          }
+        }}
+        title={isActive ? 'Shifokorni nofaol qilasizmi?' : 'Shifokorni faollashtirasizmi?'}
+        description={
+          isActive
+            ? "Nofaol shifokor yangi qabul/tashrif tanlovlarida ko'rinmaydi. Tarixi saqlanadi, istalgan vaqtda qayta faollashtirish mumkin."
+            : "Shifokor yana qabul va tashrif tanlovlarida ko'rinadi."
+        }
+        confirmLabel={isActive ? 'Nofaol qilish' : 'Faollashtirish'}
+        destructive={isActive}
+      />
+
       <DoctorVisitForm
         open={visitModal}
         onOpenChange={setVisitModal}
         editingVisit={editingVisit}
         doctor={selectedDoctor}
-        patients={patients}
         onSave={handleSaveVisit}
         isPending={isSavingVisit}
       />

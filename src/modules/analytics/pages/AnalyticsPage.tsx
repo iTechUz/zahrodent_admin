@@ -12,6 +12,7 @@ import {
   ServiceRevenueHBarChart,
 } from '../components/Charts';
 import { TrendingUp, Users, Activity, DollarSign } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AnalyticsPage() {
   const {
@@ -25,6 +26,7 @@ export default function AnalyticsPage() {
     conversionData,
     sourceData,
     doctorEfficiency,
+    isLoading,
     isError,
     error,
     refetch,
@@ -35,6 +37,22 @@ export default function AnalyticsPage() {
       <div className="space-y-6">
         <PageHeader title="Tahlillar" description="Klinika samaradorligi va ko'rsatkichlari" />
         <QueryErrorState error={error} onRetry={refetch} title="Tahlil ma'lumotlari yuklanmadi" />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-label="Yuklanmoqda" data-testid="analytics-skeleton">
+        <PageHeader title="Tahlillar" description="Klinika samaradorligi va ko'rsatkichlari" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="bg-card rounded-xl border border-border p-5 space-y-4">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-[220px] w-full" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

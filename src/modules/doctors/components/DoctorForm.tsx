@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Switch } from '@/components/ui/switch';
 import { Eye, EyeOff } from 'lucide-react';
-import { Doctor, Patient, Visit, VisitStatus } from '@/shared/types';
+import { PatientSelect } from '@/shared/components/PatientSelect';
+import { Doctor, Visit, VisitStatus } from '@/shared/types';
 import { VISIT_STATUSES, VISIT_STATUS_LABELS } from '@/shared/constants';
 import { DoctorSchema, VisitSchema } from '@/shared/lib/validation';
 import {
@@ -223,6 +224,48 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = fa
                           )}
                         />
                       </div>
+                      {/* optional lunch break */}
+                      <div className="flex w-full flex-wrap items-center gap-2 pl-11">
+                        <span className="text-[11px] text-muted-foreground">Tanaffus</span>
+                        <FormField
+                          control={form.control}
+                          name={`schedule.${index}.breakStart`}
+                          render={({ field: bsField }) => (
+                            <FormItem className="space-y-0">
+                              <FormControl>
+                                <Input
+                                  type="time"
+                                  aria-label={`${DOCTOR_WEEKDAY_LABELS[index]} tanaffus boshlanishi`}
+                                  className="h-7 w-[7rem] text-xs"
+                                  disabled={!working}
+                                  {...bsField}
+                                  value={bsField.value ?? ''}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <span className="text-xs text-muted-foreground">—</span>
+                        <FormField
+                          control={form.control}
+                          name={`schedule.${index}.breakEnd`}
+                          render={({ field: beField }) => (
+                            <FormItem className="space-y-0">
+                              <FormControl>
+                                <Input
+                                  type="time"
+                                  aria-label={`${DOCTOR_WEEKDAY_LABELS[index]} tanaffus tugashi`}
+                                  className="h-7 w-[7rem] text-xs"
+                                  disabled={!working}
+                                  {...beField}
+                                  value={beField.value ?? ''}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -263,7 +306,6 @@ interface VisitFormProps {
   onOpenChange: (open: boolean) => void;
   editingVisit: Visit | null;
   doctor: Doctor | null;
-  patients: Patient[];
   onSave: (data: VisitFormValues) => void;
   isPending?: boolean;
 }
@@ -273,7 +315,6 @@ export const DoctorVisitForm = ({
   onOpenChange, 
   editingVisit, 
   doctor, 
-  patients, 
   onSave,
   isPending = false,
 }: VisitFormProps) => {
@@ -326,18 +367,13 @@ export const DoctorVisitForm = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Bemor</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Bemorni tanlang" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {patients.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <PatientSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      selected={editingVisit?.patient ? { id: editingVisit.patientId, ...editingVisit.patient } : null}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

@@ -44,6 +44,7 @@ import { sortBy } from '@/lib/api/sort-fields';
 function DoctorsPageContent() {
   const {
     doctors,
+    specialties,
     totalDoctors,
     totalPages,
     page,
@@ -54,7 +55,6 @@ function DoctorsPageContent() {
     setSort,
     filters,
     setFilters,
-    patients,
     modalOpen,
     setModalOpen,
     editing,
@@ -170,11 +170,9 @@ function DoctorsPageContent() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Barchasi</SelectItem>
-                <SelectItem value="Stomatolog-terapevt">Terapevt</SelectItem>
-                <SelectItem value="Stomatolog-ortoped">Ortoped</SelectItem>
-                <SelectItem value="Stomatolog-ximurg">Xirurg</SelectItem>
-                <SelectItem value="Ortodont">Ortodont</SelectItem>
-                <SelectItem value="Bolalar stomatologi">Bolalar stomatologi</SelectItem>
+                {specialties.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -222,6 +220,9 @@ function DoctorsPageContent() {
                         >
                           {d.firstName} {d.lastName}
                         </Link>
+                        {d.isActive === false && (
+                          <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 h-4 text-muted-foreground">Nofaol</Badge>
+                        )}
                       </TableCell>
                       <TableCell>{d.specialty}</TableCell>
                       <TableCell>{d.phone}</TableCell>
@@ -323,7 +324,6 @@ function DoctorsPageContent() {
         onOpenChange={setVisitModal} 
         editingVisit={editingVisit} 
         doctor={selectedDoctor} 
-        patients={patients} 
         onSave={handleSaveVisit} 
         isPending={isSavingVisit}
       />

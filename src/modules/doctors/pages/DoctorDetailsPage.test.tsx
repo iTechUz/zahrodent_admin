@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { bookingsApi, doctorsApi, patientsApi, visitsApi } from '@/lib/api/endpoints';
@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.mocked(doctorsApi.get).mockResolvedValue(doctor);
   vi.mocked(doctorsApi.efficiency).mockResolvedValue([eff]);
   vi.mocked(visitsApi.list).mockResolvedValue(
-    paginated([{ id: 'v1', patientId: 'p1', doctorId: 'd1', date: '2026-06-10', status: 'completed', diagnosis: 'Karies' }] as Visit[]),
+    paginated([{ id: 'v1', patientId: 'p1', patient: { firstName: 'Ali', lastName: 'Valiyev' }, doctorId: 'd1', date: '2026-06-10', status: 'completed', diagnosis: 'Karies' }] as Visit[]),
   );
   vi.mocked(patientsApi.list).mockResolvedValue(paginated([{ id: 'p1', firstName: 'Ali', lastName: 'Valiyev' }] as Patient[]));
 });
@@ -97,5 +97,54 @@ describe('DoctorDetailsPage', () => {
     expect(bookingsApi.list).toHaveBeenCalledWith(expect.objectContaining({ doctorId: 'd1', status: 'pending', limit: 1 }));
     // patients of this doctor are requested through the "related" filter (assigned + booked + visited)
     expect(patientsApi.list).toHaveBeenCalledWith(expect.objectContaining({ relatedDoctorId: 'd1' }));
+  });
+
+  it('shows Nofaol for a deactivated doctor and Faol otherwise (older backends omit isActive)', async () => {
+    loginAs('admin');
+    vi.mocked(doctorsApi.get).mockResolvedValue({ ...doctor, isActive: false });
+    const { unmount } = renderPage();
+    expect(await screen.findByText('Nofaol')).toBeInTheDocument();
+    expect(screen.queryByText('Faol')).toBeNull();
+    expect(screen.getByRole('button', { name: /Faollashtirish/ })).toBeInTheDocument();
+    unmount();
+    vi.mocked(doctorsApi.get).mockResolvedValue(doctor);
+    renderPage();
+    expect(await screen.findByText('Faol')).toBeInTheDocument();
+  });
+
+  it('deactivating asks for confirmation, then PATCHes isActive=false', async () => {
+    loginAs('admin');
+    vi.mocked(doctorsApi.update).mockResolvedValue({ ...doctor, isActive: false });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Nofaol qilish/ }));
+    expect(doctorsApi.update).not.toHaveBeenCalled();
+    expect(await screen.findByText('Shifokorni nofaol qilasizmi?')).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Nofaol qilish' }));
+    await waitFor(() => expect(doctorsApi.update).toHaveBeenCalledWith('d1', { isActive: false }));
+  });
+
+  it('the activate/deactivate action is admin-only', async () => {
+    loginAs('receptionist');
+    renderPage();
+    await screen.findByText('Aziz Karimov');
+    expect(screen.queryByRole('button', { name: /Nofaol qilish/ })).toBeNull();
+  });
+
+  it('shows upcoming days off (formatted) separately from past ones, and the lunch break of a working day', async () => {
+    loginAs('admin');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-17T07:00:00Z'));
+    vi.mocked(doctorsApi.get).mockResolvedValue({
+      ...doctor,
+      daysOff: ['2026-06-01', '2026-06-24'],
+      schedule: [{ day: 2, startTime: '09:00', endTime: '18:00', isWorking: true, breakStart: '13:00', breakEnd: '14:00' }],
+    });
+    renderPage();
+    const box = await screen.findByTestId('days-off');
+    expect(box).toHaveTextContent('24/06/2026');
+    expect(box).toHaveTextContent("O'tgan dam olish kunlari: 01/06/2026");
+    expect(box).not.toHaveTextContent('2026-06-24');
+    expect(await screen.findByText(/13:00–14:00/)).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });
