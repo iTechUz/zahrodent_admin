@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { usePeriodAnalytics } from '@/shared/hooks/usePeriodAnalytics';
-import { addMonthsToDate, clinicMonthStart } from '@/shared/lib/date-utils';
+import { addMonthsToDate, clinicMonthStart, clinicToday } from '@/shared/lib/date-utils';
 import type { DateRange } from '@/shared/components/DateRangeFilter';
 import { useStore } from '@/store/useStore';
 import { servicesApi, doctorsApi } from '@/lib/api/endpoints';
@@ -19,7 +19,7 @@ import {
 /** Default period: this and the 5 previous calendar months. */
 export const defaultAnalyticsRange = (): DateRange => ({
   startDate: addMonthsToDate(clinicMonthStart(), -5),
-  endDate: undefined,
+  endDate: clinicToday(),
 });
 
 /** Analytics charts are built from backend aggregates (/analytics/monthly, /analytics/sources). */

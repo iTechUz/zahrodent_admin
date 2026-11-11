@@ -55,7 +55,7 @@ export function clinicMonthKey(now: Date = new Date()): string {
  */
 export const getMonthToDateRange = (now: Date = new Date()) => ({
   startDate: clinicMonthStart(now),
-  endDate: '',
+  endDate: clinicToday(now),
 });
 
 /**
