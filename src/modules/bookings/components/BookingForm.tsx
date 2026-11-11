@@ -1,6 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { UserPlus } from 'lucide-react';
 import { CancelReasonDialog } from './BookingStatusDialogs';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
+import { PatientSelect } from '@/shared/components/PatientSelect';
+import { QuickPatientCreate } from './QuickPatientCreate';
+import { bookingsApi, patientsApi } from '@/lib/api/endpoints';
+import { PhoneLink } from '@/shared/components/PhoneLink';
+import { queryKeys } from '@/lib/api/query-keys';
+import { useCan } from '@/shared/hooks/usePermissions';
+import { busySlots, conflictingSlot } from '../services/booking.service';
+import { doctorDayInfo, isInBreak } from '@/shared/lib/doctor-schedule';
+import { formatDate } from '@/shared/lib/formatters';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +28,7 @@ import {
   BOOKING_STATUSES,
   BOOKING_STATUS_LABELS,
 } from '@/shared/constants';
-import { Booking, Patient, Doctor, BookingSource, BookingStatus } from '@/shared/types';
+import { Booking, BookingStatusLogEntry, Doctor, Patient, BookingSource, BookingStatus } from '@/shared/types';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { BookingSchema } from '@/shared/lib/validation';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -42,9 +54,10 @@ interface BookingFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editing: Booking | null;
-  patients: Patient[];
   doctors: Doctor[];
   services: Service[];
+  /** preselects the patient of a new booking (e.g. "Yangi qabul" on the patient profile) */
+  initialPatientId?: string;
   onSave: (data: BookingFormValues, statusReason?: string) => void;
   isPending?: boolean;
 }
@@ -53,9 +66,9 @@ export const BookingForm = ({
   open, 
   onOpenChange, 
   editing, 
-  patients, 
   doctors, 
   services,
+  initialPatientId,
   onSave,
   isPending = false,
 }: BookingFormProps) => {
@@ -87,7 +100,7 @@ export const BookingForm = ({
       });
     } else {
       form.reset({
-        patientId: '',
+        patientId: initialPatientId ?? '',
         doctorId: '',
         serviceId: '',
         date: '',
@@ -97,7 +110,7 @@ export const BookingForm = ({
         notes: '',
       });
     }
-  }, [editing, form, open]);
+  }, [editing, form, open, initialPatientId]);
 
   const today = clinicToday();
   // cancelling via the edit form needs a reason (backend: statusReason required) → ask before saving
@@ -105,6 +118,36 @@ export const BookingForm = ({
   useEffect(() => {
     if (!open) setPendingCancel(null);
   }, [open]);
+
+  const can = useCan();
+  const canQuickCreate = !editing && can('patients.create');
+  const [quickOpen, setQuickOpen] = useState(false);
+  /** patient created through "Yangi bemor" — shown as selected without another request */
+  const [createdPatient, setCreatedPatient] = useState<Patient | null>(null);
+  useEffect(() => {
+    if (!open) setQuickOpen(false);
+  }, [open]);
+
+  const watchedDoctorId = form.watch('doctorId');
+  const watchedDate = form.watch('date');
+  const watchedTime = form.watch('time');
+  const selectedDoctor = doctors.find((d) => d.id === watchedDoctorId);
+  const dayInfo = doctorDayInfo(selectedDoctor, watchedDate);
+
+  // that doctor's bookings on the chosen day → busy time ranges (hint only; the backend still validates)
+  const dayParams = { doctorId: watchedDoctorId, startDate: watchedDate, endDate: watchedDate, limit: 100 };
+  const { data: dayBookings } = useQuery({
+    queryKey: queryKeys.bookingsList(dayParams),
+    queryFn: () => bookingsApi.list(dayParams),
+    enabled: open && !!watchedDoctorId && !!watchedDate,
+    meta: { silentError: true },
+  });
+  const slots = useMemo(
+    () => busySlots(dayBookings?.data ?? [], services, editing?.id),
+    [dayBookings, services, editing?.id],
+  );
+  const conflict = conflictingSlot(watchedTime, slots);
+  const inBreak = dayInfo?.kind === 'working' && isInBreak(watchedTime, dayInfo.breakStart, dayInfo.breakEnd);
 
   const handleSubmit = (values: BookingFormValues) => {
     // backend rejects new bookings in the past (400) — catch it before the request
@@ -135,13 +178,33 @@ export const BookingForm = ({
                 <FormItem>
                   <FormLabel>Bemor <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <SearchableSelect
-                      options={patients.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName} (${p.phone})` }))}
+                    <PatientSelect
                       value={field.value}
                       onValueChange={field.onChange}
-                      placeholder="Bemorni tanlang"
+                      selected={
+                        editing?.patient
+                          ? { id: editing.patientId, ...editing.patient }
+                          : createdPatient?.id === field.value
+                            ? createdPatient
+                            : null
+                      }
                     />
                   </FormControl>
+                  {canQuickCreate && !quickOpen && (
+                    <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs gap-1" onClick={() => setQuickOpen(true)}>
+                      <UserPlus className="w-3.5 h-3.5" /> Yangi bemor
+                    </Button>
+                  )}
+                  {quickOpen && (
+                    <QuickPatientCreate
+                      onCancel={() => setQuickOpen(false)}
+                      onCreated={(p) => {
+                        setCreatedPatient(p);
+                        field.onChange(p.id);
+                        setQuickOpen(false);
+                      }}
+                    />
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -214,6 +277,34 @@ export const BookingForm = ({
                 )}
               />
             </div>
+
+            {watchedDoctorId && watchedDate && (
+              <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs space-y-1" data-testid="doctor-hint">
+                {dayInfo?.kind === 'day-off' && (
+                  <p className="text-destructive">Shifokorning dam olish kuni ({formatDate(watchedDate)})</p>
+                )}
+                {dayInfo?.kind === 'not-working' && (
+                  <p className="text-destructive">Shifokor bu hafta kunida ishlamaydi</p>
+                )}
+                {dayInfo?.kind === 'working' && (
+                  <p className="text-muted-foreground">
+                    Ish vaqti: {dayInfo.startTime}–{dayInfo.endTime}
+                    {dayInfo.breakStart && dayInfo.breakEnd ? ` • Tanaffus: ${dayInfo.breakStart}–${dayInfo.breakEnd}` : ''}
+                  </p>
+                )}
+                {inBreak && <p className="text-warning">Tanlangan vaqt shifokor tanaffusiga to'g'ri keladi</p>}
+                <p className="text-muted-foreground">
+                  {slots.length === 0
+                    ? 'Shu kunga band vaqtlar yo\'q'
+                    : `Band vaqtlar: ${slots.map((s) => (s.end ? `${s.start}–${s.end}` : s.start)).join(', ')}`}
+                </p>
+                {conflict && (
+                  <p className="text-warning">
+                    Bu vaqtda shifokor band{conflict.patientName ? ` (${conflict.patientName})` : ''}
+                  </p>
+                )}
+              </div>
+            )}
 
             <FormField
               control={form.control}
@@ -298,15 +389,41 @@ export const BookingForm = ({
 interface BookingDetailsProps {
   booking: Booking | null;
   onClose: () => void;
-  patients: Patient[];
   doctors: Doctor[];
+  /** shown when given (the caller decides by permission) */
+  onEdit?: (booking: Booking) => void;
 }
 
-export const BookingDetails = ({ booking, onClose, patients, doctors }: BookingDetailsProps) => {
+/** Reason of the latest cancellation, from the status log (the booking row itself does not carry it). */
+export function latestCancelReason(
+  log: Pick<BookingStatusLogEntry, 'toStatus' | 'reason' | 'createdAt'>[] | undefined,
+): string | null {
+  const cancels = (log ?? []).filter((e) => e.toStatus === 'cancelled' && e.reason);
+  if (cancels.length === 0) return null;
+  return [...cancels].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[cancels.length - 1].reason;
+}
+
+export const BookingDetails = ({ booking, onClose, doctors, onEdit }: BookingDetailsProps) => {
+  const { data: statusLog } = useQuery({
+    queryKey: queryKeys.bookingStatusLog(booking?.id ?? ''),
+    queryFn: () => bookingsApi.statusLog(booking!.id),
+    enabled: !!booking && booking.status === 'cancelled',
+    meta: { silentError: true },
+  });
+
+  // the booking row only embeds the patient's name → fetch the card for the phone number
+  const { data: patientCard } = useQuery({
+    queryKey: queryKeys.patient(booking?.patientId ?? ''),
+    queryFn: () => patientsApi.get(booking!.patientId),
+    enabled: !!booking?.patientId,
+    meta: { silentError: true },
+  });
+
   if (!booking) return null;
 
-  const patient = resolvePatientRef(booking, patients);
+  const patient = resolvePatientRef(booking);
   const doctor = doctors.find((d) => d.id === booking.doctorId);
+  const cancelReason = booking.status === 'cancelled' ? latestCancelReason(statusLog) : null;
 
   return (
     <Dialog open={!!booking} onOpenChange={(open) => !open && onClose()}>
@@ -317,15 +434,27 @@ export const BookingDetails = ({ booking, onClose, patients, doctors }: BookingD
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Bemor</span>
-            <PatientNameLabel className="font-medium" patient={patient} />
+            {booking.patientId ? (
+              <Link to={`/patients/${booking.patientId}`} className="font-medium text-primary hover:underline" onClick={onClose}>
+                <PatientNameLabel patient={patient} />
+              </Link>
+            ) : (
+              <PatientNameLabel className="font-medium" patient={patient} />
+            )}
           </div>
+          {patientCard?.phone && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Telefon</span>
+              <PhoneLink phone={patientCard.phone} />
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Shifokor</span>
             <span className="font-medium">{doctor ? `${doctor.firstName} ${doctor.lastName}` : '—'}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Sana</span>
-            <span>{booking.date} — {booking.time}</span>
+            <span>{formatDate(booking.date)} — {booking.time}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Manba</span>
@@ -335,7 +464,24 @@ export const BookingDetails = ({ booking, onClose, patients, doctors }: BookingD
             <span className="text-muted-foreground">Holat</span>
             <StatusBadge status={booking.status} />
           </div>
+          {cancelReason && (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground shrink-0">Bekor qilish sababi</span>
+              <span className="text-right">{cancelReason}</span>
+            </div>
+          )}
+          {booking.notes && (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground shrink-0">Izoh</span>
+              <span className="text-right whitespace-pre-wrap">{booking.notes}</span>
+            </div>
+          )}
         </div>
+        {onEdit && (
+          <Button variant="outline" className="w-full" onClick={() => { onClose(); onEdit(booking); }}>
+            Tahrirlash
+          </Button>
+        )}
       </DialogContent>
     </Dialog>
   );

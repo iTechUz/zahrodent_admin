@@ -3,7 +3,7 @@ import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { patientRefLabel, resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
-import { bookingsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
+import { bookingsApi, doctorsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { doctorFullName } from '@/shared/lib/formatters';
@@ -23,13 +23,6 @@ const MONTHS = [
 
 export function BookingCalendar() {
   const authed = useStore((s) => s.isAuthenticated);
-
-  const { data: patientsRes } = useQuery({
-    queryKey: queryKeys.patientsLookup(),
-    queryFn: () => fetchAllPages(patientsApi.list),
-    enabled: authed,
-  });
-  const patients = patientsRes?.data ?? [];
 
   const { data: doctorsRes } = useQuery({
     queryKey: queryKeys.doctorsLookup(),
@@ -155,7 +148,7 @@ export function BookingCalendar() {
               </div>
               <div className="space-y-0.5">
                 {dayBookings.slice(0, 3).map((b) => {
-                  const patient = resolvePatientRef(b, patients);
+                  const patient = resolvePatientRef(b);
                   return (
                     <button
                       key={b.id}
@@ -189,7 +182,7 @@ export function BookingCalendar() {
         <DialogContent>
           <DialogHeader><DialogTitle>Qabul tafsilotlari</DialogTitle></DialogHeader>
           {selectedBooking && (() => {
-            const patient = resolvePatientRef(selectedBooking, patients);
+            const patient = resolvePatientRef(selectedBooking);
             const doctor = doctors.find((d) => d.id === selectedBooking.doctorId);
             return (
               <div className="space-y-3 text-sm">

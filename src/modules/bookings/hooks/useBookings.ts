@@ -9,7 +9,7 @@ import { useServerTable } from '@/shared/hooks/useServerTable';
 import { BookingService } from '../services/booking.service';
 import { BookingSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
-import { bookingsApi, patientsApi, doctorsApi, servicesApi } from '@/lib/api/endpoints';
+import { bookingsApi, doctorsApi, servicesApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
@@ -48,14 +48,8 @@ export const useBookings = () => {
     enabled: authed,
   });
 
-  // lookups (names in the table, select options): every page — the backend caps limit at 100
-  const { data: patientsData, isLoading: patientsLoading } = useQuery({
-    queryKey: queryKeys.patientsLookup(),
-    queryFn: () => fetchAllPages(patientsApi.list),
-    enabled: authed,
-  });
-  const patients = patientsData?.data ?? [];
-
+  // lookups (select options, doctor names): every page — the backend caps limit at 100.
+  // Patients are NOT downloaded: names come from the embedded `row.patient`, the form searches server-side.
   // GET /doctors is allowed for every staff role (doctor included)
   const { data: doctorsData, isLoading: doctorsLoading } = useQuery({
     queryKey: queryKeys.doctorsLookup(),
@@ -127,18 +121,39 @@ export const useBookings = () => {
   );
 
   const handleStatusChange = useCallback(
-    (id: string, status: BookingStatus, statusReason?: string) => {
+    (id: string, status: BookingStatus, statusReason?: string, previousStatus?: BookingStatus) => {
+      const previous = previousStatus ?? table.data.find((b) => b.id === id)?.status;
       updateMut.mutate(
         { id, body: { status, ...(statusReason?.trim() ? { statusReason: statusReason.trim() } : {}) } },
         {
           onSuccess: () => {
-            toast.success(`Holat "${BOOKING_STATUS_LABELS[status]}" ga o'zgartirildi`);
+            const message = `Holat "${BOOKING_STATUS_LABELS[status]}" ga o'zgartirildi`;
+            // undo: put the previous status back (not possible out of "cancelled" — that needs a reason again)
+            if (previous && previous !== status && previous !== 'cancelled') {
+              toast.success(message, {
+                action: {
+                  label: 'Qaytarish',
+                  onClick: () =>
+                    updateMut.mutate(
+                      { id, body: { status: previous } },
+                      {
+                        onSuccess: () => {
+                          toast.success(`Holat "${BOOKING_STATUS_LABELS[previous]}" ga qaytarildi`);
+                          queryClient.invalidateQueries({ queryKey: ['bookings', id, 'status-log'] });
+                        },
+                      },
+                    ),
+                },
+              });
+            } else {
+              toast.success(message);
+            }
             queryClient.invalidateQueries({ queryKey: ['bookings', id, 'status-log'] });
           },
         },
       );
     },
-    [updateMut, queryClient],
+    [updateMut, queryClient, table.data],
   );
 
   return {
@@ -156,7 +171,6 @@ export const useBookings = () => {
     editing: dialog.editingItem,
     openCreate: dialog.openCreate,
     openEdit: (b: Booking) => dialog.openEdit(b, BookingService.mapToForm),
-    patients,
     doctors,
     isSaving: createMut.isPending || updateMut.isPending,
     deleteId,
@@ -171,7 +185,7 @@ export const useBookings = () => {
       }
     },
     services,
-    isLoading: table.isLoading || patientsLoading || doctorsLoading || servicesLoading,
+    isLoading: table.isLoading || doctorsLoading || servicesLoading,
     error: table.error,
     refetch: table.refetch,
     sort: table.sort,

@@ -6,12 +6,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Search, List, CalendarDays, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Search, List, CalendarDays, Clock, CheckCircle2, AlertCircle, Download, CalendarCheck } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BOOKING_STATUSES, BOOKING_SOURCES, BOOKING_STATUS_LABELS, BOOKING_SOURCE_LABELS } from '@/shared/constants';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useBookings } from '../hooks/useBookings';
-import { CancelReasonDialog, StatusHistoryDialog } from '../components/BookingStatusDialogs';
+import {
+  CancelReasonDialog,
+  StatusHistoryDialog,
+  StatusConfirmDialog,
+  COMPLETE_NEEDS_SERVICE,
+  canCompleteBooking,
+  needsStatusConfirm,
+} from '../components/BookingStatusDialogs';
+import { TodayBookings } from '../components/TodayBookings';
 import type { BookingStatus } from '@/shared/types';
 import { BookingForm, BookingDetails } from '../components/BookingForm';
 import { DataTable, Column } from '@/shared/components/DataTable';
@@ -26,12 +37,18 @@ import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { StatsSkeleton } from '@/components/Skeletons';
 import { sortBy } from '@/lib/api/sort-fields';
+import { bookingsApi } from '@/lib/api/endpoints';
+import { fetchAllPages } from '@/lib/api/helpers';
+import { queryKeys } from '@/lib/api/query-keys';
+import { exportToExcel } from '@/shared/lib/excel';
+import { clinicToday } from '@/shared/lib/date-utils';
+import { normalizeSearch } from '@/shared/lib/formatters';
+import { patientRefLabel } from '@/shared/lib/patient-ref';
 
 function BookingsPageContent() {
   const {
     bookings,
     totalBookings,
-    patients,
     doctors,
     search,
     setSearch,
@@ -66,15 +83,100 @@ function BookingsPageContent() {
   const canCreate = can('bookings.create');
   const canUpdate = can('bookings.update');
   const canDelete = can('bookings.delete');
-  const [cancelId, setCancelId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
-  const changeStatus = (id: string, s: BookingStatus) =>
-    s === 'cancelled' ? setCancelId(id) : handleStatusChange(id, s);
+  const [pendingStatus, setPendingStatus] = useState<{ booking: Booking; to: BookingStatus } | null>(null);
+  /** patient preselected in the create dialog (?new=1&patientId=… from the patient profile) */
+  const [initialPatientId, setInitialPatientId] = useState<string | undefined>();
+
+  /** Every status change goes through here: guard → cancel reason / confirm → mutation (with undo toast). */
+  const changeStatus = (b: Booking, to: BookingStatus) => {
+    if (to === b.status) return;
+    if (to === 'cancelled') return setCancelTarget(b);
+    if (to === 'completed' && !canCompleteBooking(b)) {
+      toast.error(COMPLETE_NEEDS_SERVICE);
+      return;
+    }
+    if (needsStatusConfirm(b.status, to)) return setPendingStatus({ booking: b, to });
+    handleStatusChange(b.id, to, undefined, b.status);
+  };
+
+  const startCreate = () => {
+    setInitialPatientId(undefined);
+    openCreate();
+  };
+
+  // deep links: /bookings?new=1[&patientId=…] opens the create form, /bookings?booking=ID opens that booking
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wantsNew = searchParams.get('new') === '1';
+  const newPatientId = searchParams.get('patientId') ?? undefined;
+  const deepBookingId = searchParams.get('booking');
+  useEffect(() => {
+    if (!wantsNew) return;
+    if (canCreate) {
+      setInitialPatientId(newPatientId);
+      openCreate();
+    }
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsNew]);
+  const { data: deepBooking } = useQuery({
+    queryKey: queryKeys.booking(deepBookingId ?? ''),
+    queryFn: () => bookingsApi.get(deepBookingId!),
+    enabled: !!deepBookingId,
+  });
+  useEffect(() => {
+    if (!deepBookingId || !deepBooking) return;
+    setViewBooking(deepBooking);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepBookingId, deepBooking]);
+
+  const [isExporting, setIsExporting] = useState(false);
+  /** Excel of the current filtered list (every page; status/source "all" are not filters) */
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const { status, source, dateRange, startDate, endDate, doctorId } = filters;
+      const res = await fetchAllPages(bookingsApi.list, {
+        ...(status && status !== 'all' ? { status } : {}),
+        ...(source && source !== 'all' ? { source } : {}),
+        ...(dateRange && dateRange !== 'all' ? { dateRange } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        ...(doctorId ? { doctorId } : {}),
+        search: normalizeSearch(search),
+        ...(sort.sortBy ? { sortBy: sort.sortBy, order: sort.order } : {}),
+      });
+      const rows = res.data.map((b) => {
+        const d = doctors.find((doc) => doc.id === b.doctorId);
+        return {
+          'Sana': formatDate(b.date),
+          'Vaqt': b.time,
+          'Bemor': patientRefLabel(resolvePatientRef(b)),
+          'Shifokor': d ? `Dr. ${d.firstName} ${d.lastName}` : '—',
+          'Manba': BOOKING_SOURCE_LABELS[b.source] ?? b.source,
+          'Holat': BOOKING_STATUS_LABELS[b.status] ?? b.status,
+          'Izoh': b.notes ?? '',
+        };
+      });
+      await exportToExcel(rows, `Qabullar_${clinicToday()}`, 'Qabullar');
+      toast.success('Excel fayl tayyorlandi');
+    } catch {
+      toast.error('Eksport qilishda xatolik yuz berdi');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const columns: Column<Booking>[] = [
     { 
       header: 'Bemor', 
-      accessor: (b) => <PatientNameLabel className="font-medium" patient={resolvePatientRef(b, patients)} />
+      accessor: (b) => (
+        <Link to={`/patients/${b.patientId}`} className="font-medium text-primary hover:underline">
+          <PatientNameLabel patient={resolvePatientRef(b)} />
+        </Link>
+      )
     },
     { 
       header: 'Shifokor', 
@@ -108,11 +210,19 @@ function BookingsPageContent() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            {BOOKING_STATUSES.map((s) => (
-              <DropdownMenuItem key={s} onClick={() => changeStatus(b.id, s)}>
-                {BOOKING_STATUS_LABELS[s]}
-              </DropdownMenuItem>
-            ))}
+            {BOOKING_STATUSES.map((s) => {
+              const blocked = s === 'completed' && !canCompleteBooking(b);
+              return (
+                <DropdownMenuItem
+                  key={s}
+                  disabled={blocked}
+                  title={blocked ? COMPLETE_NEEDS_SERVICE : undefined}
+                  onClick={() => changeStatus(b, s)}
+                >
+                  {BOOKING_STATUS_LABELS[s]}
+                </DropdownMenuItem>
+              );
+            })}
             <DropdownMenuItem onClick={() => setHistoryId(b.id)} className="border-t border-border text-muted-foreground">
               Holat tarixi
             </DropdownMenuItem>
@@ -128,7 +238,7 @@ function BookingsPageContent() {
         title="Qabullar" 
         description="Qabullar va uchrashuvlarni boshqarish" 
         action={canCreate && (
-          <Button onClick={openCreate}>
+          <Button onClick={startCreate}>
             <Plus className="w-4 h-4 mr-2" />
             Yangi qabul
           </Button>
@@ -161,11 +271,21 @@ function BookingsPageContent() {
         </div>
       )}
 
-      <Tabs defaultValue="list" className="w-full">
+      <Tabs defaultValue="today" className="w-full">
         <TabsList className="mb-4">
+          <TabsTrigger value="today" className="gap-2"><CalendarCheck className="w-4 h-4" />Bugun</TabsTrigger>
           <TabsTrigger value="list" className="gap-2"><List className="w-4 h-4" />Ro'yxat</TabsTrigger>
           <TabsTrigger value="calendar" className="gap-2"><CalendarDays className="w-4 h-4" />Kalendar</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="today">
+          <TodayBookings
+            doctors={doctors}
+            canUpdate={canUpdate}
+            onRequestStatus={changeStatus}
+            onOpen={setViewBooking}
+          />
+        </TabsContent>
 
         <TabsContent value="list" className="space-y-4">
           <div className="flex flex-wrap gap-3">
@@ -258,6 +378,10 @@ function BookingsPageContent() {
                 ))}
               </SelectContent>
             </Select>
+            <Button variant="outline" className="h-10" onClick={handleExport} disabled={isExporting}>
+              <Download className="w-4 h-4 mr-2" />
+              Excel'ga yuklash
+            </Button>
           </div>
 
           {error && !isLoading ? (
@@ -304,7 +428,7 @@ function BookingsPageContent() {
         </TabsContent>
 
         <TabsContent value="calendar">
-          <DraggableBookingCalendar />
+          <DraggableBookingCalendar onEdit={canUpdate ? openEdit : undefined} />
         </TabsContent>
       </Tabs>
 
@@ -312,9 +436,9 @@ function BookingsPageContent() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         editing={editing}
-        patients={patients}
         doctors={doctors}
         services={services}
+        initialPatientId={initialPatientId}
         onSave={handleSave}
         isPending={isSaving}
       />
@@ -322,16 +446,24 @@ function BookingsPageContent() {
       <BookingDetails 
         booking={viewBooking}
         onClose={() => setViewBooking(null)}
-        patients={patients}
         doctors={doctors}
+        onEdit={canUpdate ? openEdit : undefined}
       />
 
       <CancelReasonDialog
-        open={!!cancelId}
-        onOpenChange={(o) => !o && setCancelId(null)}
+        open={!!cancelTarget}
+        onOpenChange={(o) => !o && setCancelTarget(null)}
         onConfirm={(reason) => {
-          if (cancelId) handleStatusChange(cancelId, 'cancelled', reason);
-          setCancelId(null);
+          if (cancelTarget) handleStatusChange(cancelTarget.id, 'cancelled', reason, cancelTarget.status);
+          setCancelTarget(null);
+        }}
+      />
+      <StatusConfirmDialog
+        change={pendingStatus ? { from: pendingStatus.booking.status, to: pendingStatus.to } : null}
+        onCancel={() => setPendingStatus(null)}
+        onConfirm={() => {
+          if (pendingStatus) handleStatusChange(pendingStatus.booking.id, pendingStatus.to, undefined, pendingStatus.booking.status);
+          setPendingStatus(null);
         }}
       />
       <StatusHistoryDialog bookingId={historyId} onClose={() => setHistoryId(null)} />

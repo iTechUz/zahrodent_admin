@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { bookingsApi, doctorsApi, patientsApi } from '@/lib/api/endpoints';
+import { bookingsApi, doctorsApi } from '@/lib/api/endpoints';
 import { resetApiMock } from '@/test/api-mock';
 import { createTestQueryClient, loginAs, paginated } from '@/test/utils';
-import type { Booking, Doctor, Patient } from '@/shared/types';
+import type { Booking, Doctor } from '@/shared/types';
 import { BookingCalendar } from './BookingCalendar';
 
 vi.mock('@/lib/api/endpoints', async () => (await import('@/test/api-mock')).apiMock);
@@ -16,10 +16,9 @@ beforeEach(() => {
   loginAs('admin');
   vi.mocked(bookingsApi.list).mockResolvedValue(
     paginated([
-      { id: 'b1', patientId: 'p1', doctorId: 'd1', date: '2026-06-17', time: '10:00', status: 'pending', source: 'phone' },
+      { id: 'b1', patientId: 'p1', patient: { firstName: 'Ali', lastName: 'Valiyev' }, doctorId: 'd1', date: '2026-06-17', time: '10:00', status: 'pending', source: 'phone' },
     ] as Booking[]),
   );
-  vi.mocked(patientsApi.list).mockResolvedValue(paginated([{ id: 'p1', firstName: 'Ali', lastName: 'Valiyev' }] as Patient[]));
   vi.mocked(doctorsApi.list).mockResolvedValue(
     paginated([{ id: 'd1', firstName: 'Aziz', lastName: 'Karimov', specialty: 'T', phone: '' }] as Doctor[]),
   );

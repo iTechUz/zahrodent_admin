@@ -86,8 +86,9 @@ export const useDashboard = () => {
     enabled: authed && recentBookings.length > 0,
   });
 
+  // booking rows embed `patient` — only fall back to a per-id request for rows without it
   const patientIds = useMemo(
-    () => [...new Set(recentBookings.map((b) => b.patientId).filter(Boolean))],
+    () => [...new Set(recentBookings.filter((b) => !b.patient).map((b) => b.patientId).filter(Boolean))],
     [recentBookings],
   );
   const patientsById = useQueries({
@@ -132,10 +133,10 @@ export const useDashboard = () => {
   const quickActions = useMemo(() => {
     const routes = role ? roleAccess[role] : [];
     const all = [
-      { label: 'Yangi qabul', icon: CalendarDays, path: '/bookings', color: 'bg-primary/10 text-primary', allowed: can(role, 'bookings.create') },
-      { label: "Bemor qo'shish", icon: UserPlus, path: '/patients', color: 'bg-info/10 text-info', allowed: can(role, 'patients.create') },
-      { label: "To'lov qayd etish", icon: CreditCard, path: '/finance', color: 'bg-success/10 text-success', allowed: can(role, 'payments.create') },
-      { label: 'Shifokorlar', icon: Stethoscope, path: '/doctors', color: 'bg-warning/10 text-warning', allowed: true },
+      { label: 'Yangi qabul', icon: CalendarDays, path: '/bookings', to: '/bookings?new=1', color: 'bg-primary/10 text-primary', allowed: can(role, 'bookings.create') },
+      { label: "Bemor qo'shish", icon: UserPlus, path: '/patients', to: '/patients?new=1', color: 'bg-info/10 text-info', allowed: can(role, 'patients.create') },
+      { label: "To'lov qayd etish", icon: CreditCard, path: '/finance', to: '/finance', color: 'bg-success/10 text-success', allowed: can(role, 'payments.create') },
+      { label: 'Shifokorlar', icon: Stethoscope, path: '/doctors', to: '/doctors', color: 'bg-warning/10 text-warning', allowed: true },
     ];
     return all
       .filter((a) => a.allowed && routes.includes(a.path))

@@ -1,14 +1,17 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { patientRefLabel, resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
-import { bookingsApi, patientsApi, doctorsApi } from '@/lib/api/endpoints';
+import { bookingsApi, doctorsApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { can } from '@/shared/config/roles';
 import { clinicToday } from '@/shared/lib/date-utils';
+import { formatDate } from '@/shared/lib/formatters';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Clock, GripVertical } from 'lucide-react';
@@ -22,7 +25,9 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -49,7 +54,31 @@ export function isPastCalendarDate(date: string, today: string = clinicToday()):
 
 export const PAST_DROP_ERROR = "O'tgan sanaga qabulni ko'chirib bo'lmaydi";
 
+/**
+ * What a drop should do: nothing, show an error, or ask for confirmation (a move notifies the patient,
+ * so it never persists straight away).
+ */
+export function planCalendarMove(
+  booking: Pick<Booking, 'date' | 'status'> | undefined,
+  newDate: string,
+  { canReschedule, today }: { canReschedule: boolean; today: string },
+): 'ignore' | 'past' | 'confirm' {
+  if (!canReschedule || !booking || booking.date === newDate) return 'ignore';
+  if (!isMovableBooking(booking.status)) return 'ignore';
+  if (isPastCalendarDate(newDate, today)) return 'past';
+  return 'confirm';
+}
+
 const isInactive = (status: Booking['status']) => status === 'cancelled' || status === 'no-show';
+
+/** Cancelled and completed bookings are history — they cannot be rescheduled by dragging. */
+export const isMovableBooking = (status: Booking['status']) => status !== 'cancelled' && status !== 'completed';
+
+/** "YYYY-MM-DD" (clinic time zone) → local Date at midnight, for the month grid. */
+function ymdToLocalDate(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
 
 // ─── Draggable booking chip ───────────────────────────────────────────────────
 function DraggableBookingChip({
@@ -65,16 +94,16 @@ function DraggableBookingChip({
   isOverlay?: boolean;
   draggable?: boolean;
 }) {
+  const canDrag = draggable && isMovableBooking(booking.status);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: booking.id,
     data: { booking },
-    disabled: !draggable,
+    disabled: !canDrag,
   });
 
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
       className={cn(
         'flex items-center gap-0.5 w-full text-left text-[10px] md:text-xs px-1 py-0.5 rounded truncate transition-all group/chip',
         booking.status === 'confirmed' && 'bg-primary/15 text-primary',
@@ -86,18 +115,20 @@ function DraggableBookingChip({
         isInactive(booking.status) && !isOverlay && 'opacity-50 line-through',
         isDragging && !isOverlay && 'opacity-30',
         isOverlay && 'opacity-90 shadow-lg cursor-grabbing',
-        !isOverlay && draggable && 'cursor-grab',
       )}
     >
-      {/* drag handle */}
-      {draggable && (
-        <span
+      {/* drag handle — always visible on touch / small screens, on hover or keyboard focus elsewhere */}
+      {canDrag && (
+        <button
+          type="button"
+          {...attributes}
           {...listeners}
-          className="opacity-0 group-hover/chip:opacity-60 cursor-grab shrink-0"
+          aria-label="Qabulni boshqa kunga ko'chirish"
+          className="opacity-60 md:opacity-0 md:group-hover/chip:opacity-60 focus-visible:opacity-100 [@media(hover:none)]:opacity-60 cursor-grab touch-none shrink-0 p-0.5 -m-0.5"
           onClick={(e) => e.stopPropagation()}
         >
-          <GripVertical className="w-2.5 h-2.5" />
-        </span>
+          <GripVertical className="w-3 h-3 md:w-2.5 md:h-2.5" />
+        </button>
       )}
       <button onClick={onClick} className="truncate flex-1 text-left">
         <span className="hidden md:inline">{booking.time} </span>
@@ -114,7 +145,6 @@ function DroppableDayCell({
   isCurrentMonth,
   isToday,
   dayBookings,
-  patients,
   onBookingClick,
   onShowAll,
   draggable,
@@ -124,7 +154,6 @@ function DroppableDayCell({
   isCurrentMonth: boolean;
   isToday: boolean;
   dayBookings: Booking[];
-  patients: { id: string; firstName: string; lastName: string }[];
   onBookingClick: (b: Booking) => void;
   onShowAll: (dateStr: string) => void;
   draggable: boolean;
@@ -152,7 +181,7 @@ function DroppableDayCell({
       </div>
       <div className="space-y-0.5">
         {dayBookings.slice(0, 3).map((b) => {
-          const p = resolvePatientRef(b, patients);
+          const p = resolvePatientRef(b);
           return (
             <DraggableBookingChip
               key={b.id}
@@ -178,17 +207,20 @@ function DroppableDayCell({
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function DraggableBookingCalendar() {
+export function DraggableBookingCalendar({ onEdit }: { /** opens the booking form (the form lives on the bookings page) */ onEdit?: (booking: Booking) => void } = {}) {
   const authed = useStore((s) => s.isAuthenticated);
   const role = useStore((s) => s.currentUser?.role);
   const canReschedule = can(role, 'bookings.update');
   const queryClient = useQueryClient();
 
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // the visible month follows the clinic's calendar (Asia/Tashkent), not the browser's
+  const [currentDate, setCurrentDate] = useState(() => ymdToLocalDate(clinicToday()));
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [dayListDate, setDayListDate] = useState<string | null>(null);
   const [doctorFilter, setDoctorFilter] = useState('all');
+  /** a drop waits here until the user confirms (the move notifies the patient) */
+  const [pendingMove, setPendingMove] = useState<{ booking: Booking; date: string } | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -222,19 +254,14 @@ export function DraggableBookingCalendar() {
     [calendarDays],
   );
 
+  // the doctor filter is applied by the server (smaller response, correct "+N ta" counts)
+  const query = useMemo(() => (doctorFilter !== 'all' ? { ...range, doctorId: doctorFilter } : range), [range, doctorFilter]);
   const { data: bookingsRes } = useQuery({
-    queryKey: queryKeys.bookingsLookup(range),
-    queryFn: () => fetchAllPages(bookingsApi.list, range),
+    queryKey: queryKeys.bookingsLookup(query),
+    queryFn: () => fetchAllPages(bookingsApi.list, query),
     enabled: authed,
   });
   const bookings = useMemo(() => bookingsRes?.data ?? [], [bookingsRes]);
-
-  const { data: patientsRes } = useQuery({
-    queryKey: queryKeys.patientsLookup(),
-    queryFn: () => fetchAllPages(patientsApi.list),
-    enabled: authed,
-  });
-  const patients = patientsRes?.data ?? [];
 
   const { data: doctorsRes } = useQuery({
     queryKey: queryKeys.doctorsLookup(),
@@ -246,29 +273,38 @@ export function DraggableBookingCalendar() {
   const bookingsByDate = useMemo(() => {
     const map: Record<string, Booking[]> = {};
     bookings.forEach((b) => {
-      if (doctorFilter !== 'all' && b.doctorId !== doctorFilter) return;
       if (!map[b.date]) map[b.date] = [];
       map[b.date].push(b);
     });
     return map;
-  }, [bookings, doctorFilter]);
+  }, [bookings]);
 
   const today = clinicToday();
 
-  // DnD sensors — pointer with 8px activation distance to avoid accidental drags
+  // DnD sensors: mouse (8px distance, avoids accidental drags), touch (press-and-hold so scrolling still works)
+  // and keyboard (focus the handle, Space, arrows, Space)
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor),
   );
 
   // Optimistic update mutation
   const updateBookingMut = useMutation({
-    mutationFn: ({ id, date }: { id: string; date: string }) =>
+    mutationFn: ({ id, date }: { id: string; date: string; previousDate?: string }) =>
       bookingsApi.update(id, { date }),
-    onSuccess: () => {
+    onSuccess: (_, { id, previousDate }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookingsStats });
       queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
-      toast.success('Qabul sanasi yangilandi');
+      if (previousDate) {
+        // undo: moving back is one click away
+        toast.success('Qabul sanasi yangilandi', {
+          action: { label: 'Qaytarish', onClick: () => updateBookingMut.mutate({ id, date: previousDate }) },
+        });
+      } else {
+        toast.success('Qabul sanasi qaytarildi');
+      }
     },
     onError: (err) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
@@ -294,14 +330,17 @@ export function DraggableBookingCalendar() {
     const booking = active.data.current?.booking as Booking;
     const newDate = over.id as string;
 
-    if (!canReschedule || !booking || booking.date === newDate) return;
-    if (isPastCalendarDate(newDate, today)) {
-      toast.error(PAST_DROP_ERROR);
-      return;
-    }
+    const plan = planCalendarMove(booking, newDate, { canReschedule, today });
+    if (plan === 'past') toast.error(PAST_DROP_ERROR);
+    // moving notifies the patient → confirm first
+    if (plan === 'confirm') setPendingMove({ booking, date: newDate });
+  }
 
-    // Optimistic UI update — invalidate query after success/error
-    updateBookingMut.mutate({ id: booking.id, date: newDate });
+  function confirmMove() {
+    if (pendingMove && !updateBookingMut.isPending) {
+      updateBookingMut.mutate({ id: pendingMove.booking.id, date: pendingMove.date, previousDate: pendingMove.booking.date });
+    }
+    setPendingMove(null);
   }
 
   return (
@@ -335,7 +374,7 @@ export function DraggableBookingCalendar() {
                 Qabullarni boshqa kunga surgab o'tkazing
               </p>
             )}
-            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="text-xs">
+            <Button variant="outline" size="sm" onClick={() => setCurrentDate(ymdToLocalDate(clinicToday()))} className="text-xs">
               Bugun
             </Button>
           </div>
@@ -363,7 +402,6 @@ export function DraggableBookingCalendar() {
                 isCurrentMonth={day.isCurrentMonth}
                 isToday={dateStr === today}
                 dayBookings={dayBookings}
-                patients={patients}
                 onBookingClick={setSelectedBooking}
                 onShowAll={setDayListDate}
                 draggable={canReschedule}
@@ -376,7 +414,7 @@ export function DraggableBookingCalendar() {
       {/* Drag overlay (ghost that follows cursor) */}
       <DragOverlay dropAnimation={null}>
         {activeBooking && (() => {
-          const p = resolvePatientRef(activeBooking, patients);
+          const p = resolvePatientRef(activeBooking);
           return (
             <DraggableBookingChip
               booking={activeBooking}
@@ -391,7 +429,7 @@ export function DraggableBookingCalendar() {
       {/* Full list of one day (the cell only fits 3 chips) */}
       <Dialog open={!!dayListDate} onOpenChange={(o) => !o && setDayListDate(null)}>
         <DialogContent className="sm:max-w-[460px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{dayListDate} — qabullar</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{dayListDate ? formatDate(dayListDate) : ''} — qabullar</DialogTitle></DialogHeader>
           <ul className="space-y-1">
             {(dayListDate ? bookingsByDate[dayListDate] ?? [] : []).map((b) => (
               <li key={b.id}>
@@ -404,7 +442,7 @@ export function DraggableBookingCalendar() {
                   }}
                 >
                   <span className={cn('truncate', isInactive(b.status) && 'opacity-60 line-through')}>
-                    {b.time} · {patientRefLabel(resolvePatientRef(b, patients))}
+                    {b.time} · {patientRefLabel(resolvePatientRef(b))}
                   </span>
                   <StatusBadge status={b.status} />
                 </button>
@@ -419,13 +457,19 @@ export function DraggableBookingCalendar() {
         <DialogContent>
           <DialogHeader><DialogTitle>Qabul tafsilotlari</DialogTitle></DialogHeader>
           {selectedBooking && (() => {
-            const patient = resolvePatientRef(selectedBooking, patients);
+            const patient = resolvePatientRef(selectedBooking);
             const doctor = doctors.find((d) => d.id === selectedBooking.doctorId);
             return (
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Bemor</span>
-                  <PatientNameLabel className="font-medium" patient={patient} />
+                  <Link
+                    to={`/patients/${selectedBooking.patientId}`}
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => setSelectedBooking(null)}
+                  >
+                    <PatientNameLabel patient={patient} />
+                  </Link>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shifokor</span>
@@ -437,7 +481,7 @@ export function DraggableBookingCalendar() {
                   <span className="text-muted-foreground">Vaqt</span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
-                    {selectedBooking.date} — {selectedBooking.time}
+                    {formatDate(selectedBooking.date)} — {selectedBooking.time}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -454,11 +498,38 @@ export function DraggableBookingCalendar() {
                     <span className="text-right max-w-[200px]">{selectedBooking.notes}</span>
                   </div>
                 )}
+                {onEdit && canReschedule && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const b = selectedBooking;
+                      setSelectedBooking(null);
+                      onEdit(b);
+                    }}
+                  >
+                    Tahrirlash
+                  </Button>
+                )}
               </div>
             );
           })()}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!pendingMove}
+        onOpenChange={(o) => !o && setPendingMove(null)}
+        onConfirm={confirmMove}
+        title="Qabulni boshqa kunga ko'chirasizmi?"
+        description={
+          pendingMove
+            ? `${formatDate(pendingMove.booking.date)} → ${formatDate(pendingMove.date)}. Bemorga qabul sanasi o'zgargani haqida xabar yuborilishi mumkin.`
+            : ''
+        }
+        confirmLabel="Ha, ko'chirish"
+        destructive={false}
+      />
     </DndContext>
   );
 }

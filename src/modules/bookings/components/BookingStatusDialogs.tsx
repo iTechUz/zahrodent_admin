@@ -5,7 +5,59 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { bookingsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { BOOKING_STATUS_LABELS } from '@/shared/constants';
+import type { Booking, BookingStatus } from '@/shared/types';
+
+/** Backend: completing a booking without a service is rejected (400) — the UI guards it up front. */
+export const COMPLETE_NEEDS_SERVICE = 'Yakunlash uchun xizmat tanlang';
+
+/** Can this booking be moved to `completed` (it has a service)? */
+export const canCompleteBooking = (b: Pick<Booking, 'serviceId'>) => !!b.serviceId;
+
+/**
+ * One-click status changes that are costly to get wrong ask first: completing, marking a no-show,
+ * and moving a booking away from "completed". ("cancelled" has its own reason dialog.)
+ */
+export function needsStatusConfirm(from: BookingStatus, to: BookingStatus): boolean {
+  if (from === to || to === 'cancelled') return false;
+  return to === 'completed' || to === 'no-show' || from === 'completed';
+}
+
+function confirmText(from: BookingStatus, to: BookingStatus) {
+  if (from === 'completed')
+    return {
+      title: "Yakunlangan qabul holatini o'zgartirasizmi?",
+      description: `Qabul "${BOOKING_STATUS_LABELS[from]}" holatidan "${BOOKING_STATUS_LABELS[to]}" holatiga o'tkaziladi.`,
+    };
+  if (to === 'no-show')
+    return { title: 'Bemor kelmadimi?', description: 'Qabul "Kelmadi" deb belgilanadi.' };
+  return { title: 'Qabulni yakunlaysizmi?', description: 'Qabul "Yakunlangan" deb belgilanadi.' };
+}
+
+/** Confirmation before completing / no-show / leaving "completed". */
+export function StatusConfirmDialog({
+  change,
+  onCancel,
+  onConfirm,
+}: {
+  change: { from: BookingStatus; to: BookingStatus } | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const text = change ? confirmText(change.from, change.to) : { title: '', description: '' };
+  return (
+    <ConfirmDeleteDialog
+      open={!!change}
+      onOpenChange={(o) => !o && onCancel()}
+      onConfirm={onConfirm}
+      title={text.title}
+      description={text.description}
+      confirmLabel="Ha, o'zgartirish"
+      destructive={false}
+    />
+  );
+}
 
 const REASON_MAX = 300;
 

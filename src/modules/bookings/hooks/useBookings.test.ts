@@ -80,16 +80,14 @@ describe('useBookings', () => {
       );
     });
 
-    it('loads every page of patients, doctors and services for lookups (max 100 per request)', async () => {
-      vi.mocked(patientsApi.list).mockResolvedValue(paginated([{ id: 'p1' }]) as never);
+    it('loads every page of doctors and services for lookups (max 100 per request) but never the patient table', async () => {
       vi.mocked(doctorsApi.list).mockResolvedValue(paginated([{ id: 'd1' }]) as never);
       vi.mocked(servicesApi.list).mockResolvedValue(paginated([{ id: 's1' }]) as never);
       const { result } = setup();
       await waitFor(() => expect(result.current.isLoading).toBe(false));
-      expect(patientsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
+      expect(patientsApi.list).not.toHaveBeenCalled();
       expect(doctorsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
       expect(servicesApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
-      expect(result.current.patients).toEqual([{ id: 'p1' }]);
       expect(result.current.doctors).toEqual([{ id: 'd1' }]);
       expect(result.current.services).toEqual([{ id: 's1' }]);
     });
@@ -127,13 +125,12 @@ describe('useBookings', () => {
       const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
       expect(keys).toEqual(
         expect.arrayContaining([
-          ['patients', 'lookup', {}],
           ['doctors', 'lookup', {}],
           ['services', 'lookup', {}],
           ['bookings', 'stats'],
         ]),
       );
-      expect(keys).not.toContainEqual(['patients']);
+      expect(keys).not.toContainEqual(['patients', 'lookup', {}]);
     });
   });
 
@@ -198,6 +195,41 @@ describe('useBookings', () => {
       act(() => result.current.handleStatusChange('b1', 'arrived'));
       await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Holat "Keldi" ga o\'zgartirildi'));
       expect(bookings.update).toHaveBeenCalledWith('b1', { status: 'arrived' });
+    });
+
+    it('a status change toasts with an undo action that restores the previous status', async () => {
+      bookings.list.mockResolvedValue(paginated([booking], 1));
+      bookings.update.mockResolvedValue({ ...booking, status: 'arrived' });
+      const { result } = setup();
+      await waitFor(() => expect(result.current.bookings).toHaveLength(1));
+      act(() => result.current.handleStatusChange('b1', 'arrived'));
+      await waitFor(() =>
+        expect(toastMock.success).toHaveBeenCalledWith(
+          'Holat "Keldi" ga o\'zgartirildi',
+          expect.objectContaining({ action: expect.objectContaining({ label: 'Qaytarish' }) }),
+        ),
+      );
+      const opts = toastMock.success.mock.calls.find((c) => c[1])![1] as { action: { onClick: () => void } };
+      act(() => opts.action.onClick());
+      await waitFor(() => expect(bookings.update).toHaveBeenLastCalledWith('b1', { status: 'pending' }));
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Holat "Kutilmoqda" ga qaytarildi'));
+    });
+
+    it('an explicit previousStatus is used for the undo (rows that are not in the list)', async () => {
+      bookings.update.mockResolvedValue({ ...booking, status: 'completed' });
+      const { result } = setup();
+      act(() => result.current.handleStatusChange('bX', 'completed', undefined, 'arrived'));
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalled());
+      const opts = toastMock.success.mock.calls[0][1] as { action: { onClick: () => void } };
+      act(() => opts.action.onClick());
+      await waitFor(() => expect(bookings.update).toHaveBeenLastCalledWith('bX', { status: 'arrived' }));
+    });
+
+    it('no undo out of "cancelled" (re-cancelling would need a reason again)', async () => {
+      bookings.update.mockResolvedValue({ ...booking, status: 'pending' });
+      const { result } = setup();
+      act(() => result.current.handleStatusChange('b1', 'pending', undefined, 'cancelled'));
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Holat "Kutilmoqda" ga o\'zgartirildi'));
     });
 
     it('handleDelete removes the selected booking', async () => {

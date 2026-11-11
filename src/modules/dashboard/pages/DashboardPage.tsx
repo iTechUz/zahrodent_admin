@@ -86,7 +86,7 @@ function DashboardPageContent() {
           {quickActions.map((action) => (
             <button
               key={action.label}
-              onClick={() => navigate(action.path)}
+              onClick={() => navigate(action.to)}
               className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-primary/5 transition-all group"
             >
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${action.color} transition-transform group-hover:scale-110`}>
@@ -256,10 +256,23 @@ function DashboardPageContent() {
               <p className="text-sm text-muted-foreground py-8 text-center">Hozircha qabullar yo'q</p>
             )}
             {recentBookings.map((b) => {
-              const patient = patientsById.get(b.patientId);
+              const patient = b.patient ?? patientsById.get(b.patientId);
               const doctor = doctorsById.get(b.doctorId);
               return (
-                <div key={b.id} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:bg-muted/10 transition-colors px-2 -mx-2 rounded-lg cursor-pointer" onClick={() => navigate('/bookings')}>
+                <div
+                  key={b.id}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Qabulni ochish: ${patient?.firstName ?? ''} ${patient?.lastName ?? ''}`.trim()}
+                  className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:bg-muted/10 transition-colors px-2 -mx-2 rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => navigate(`/bookings?booking=${b.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/bookings?booking=${b.id}`);
+                    }
+                  }}
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-accent-foreground">
                       {patient?.firstName?.[0]}{patient?.lastName?.[0]}

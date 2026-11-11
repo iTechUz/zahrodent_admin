@@ -193,6 +193,23 @@ describe('useDashboard (admin)', () => {
     expect(doctorsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
   });
 
+  it('rows that embed the patient need no per-id patient request', async () => {
+    vi.mocked(bookingsApi.list).mockResolvedValue(
+      paginated(recent.map((b) => ({ ...b, patient: { firstName: 'E', lastName: b.patientId } })) as Booking[]),
+    );
+    const { result } = setup();
+    await waitFor(() => expect(result.current.recentBookings).toHaveLength(2));
+    await waitFor(() => expect(result.current.doctorsById.size).toBe(2));
+    expect(patientsApi.get).not.toHaveBeenCalled();
+  });
+
+  it('quick actions deep-link: "Yangi qabul" opens the booking form, "Bemor qo\'shish" the patient form', async () => {
+    const { result } = setup();
+    const to = Object.fromEntries(result.current.quickActions.map((a) => [a.path, a.to]));
+    expect(to['/bookings']).toBe('/bookings?new=1');
+    expect(to['/patients']).toBe('/patients?new=1');
+  });
+
   it('shows all four quick actions including finance', async () => {
     const { result } = setup();
     expect(result.current.quickActions.map((a) => a.path)).toEqual(['/bookings', '/patients', '/finance', '/doctors']);
