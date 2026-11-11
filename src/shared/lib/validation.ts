@@ -65,14 +65,21 @@ export const ServiceSchema = z.object({
   description: z.string().optional(),
 });
 
-export const PaymentSchema = z.object({
-  patientId: requiredString('Bemor'),
-  amount: positiveNumber('Summa'),
-  method: z.enum(['cash', 'card', 'transfer', 'insurance']),
-  status: z.enum(['paid', 'partial', 'unpaid']),
-  type: z.enum(['INCOME', 'EXPENSE']).default('INCOME'),
-  description: z.string().min(3, "Tavsif kamida 3 ta belgidan iborat bo'lishi kerak"),
-});
+export const PaymentSchema = z
+  .object({
+    /** majburiy — faqat kirim uchun; chiqimda (EXPENSE) bemor bo'lmasligi mumkin */
+    patientId: z.string().optional().nullable(),
+    amount: positiveNumber('Summa'),
+    method: z.enum(['cash', 'card', 'transfer', 'insurance']),
+    status: z.enum(['paid', 'partial', 'unpaid']),
+    type: z.enum(['INCOME', 'EXPENSE']).default('INCOME'),
+    description: z.string().min(3, "Tavsif kamida 3 ta belgidan iborat bo'lishi kerak"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type !== 'EXPENSE' && !data.patientId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Bemor kiritilishi shart', path: ['patientId'] });
+    }
+  });
 
 export const doctorScheduleSlotSchema = z.object({
   day: z.number().int().min(0).max(6),

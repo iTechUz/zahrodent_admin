@@ -7,7 +7,8 @@ export function ProtectedRoute() {
   const location = useLocation();
 
   if (!isAuthenticated || !currentUser) {
-    return <Navigate to="/login" replace />;
+    // keep the page (path + query) so login can return here
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}${location.hash}` }} />;
   }
 
   // Pharmacy staff have no dashboard — their home is the prescription desk.

@@ -9,6 +9,19 @@ export const BOOKING_SOURCE_LABELS: Record<BookingSource, string> = {
   phone: 'Telefon',
 };
 
+/** Lead (murojaat) sources — differ from booking sources. */
+export const LEAD_SOURCES = ['website', 'telegram_bot', 'crm'] as const;
+export type LeadSource = (typeof LEAD_SOURCES)[number];
+
+export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
+  website: 'Veb-sayt',
+  telegram_bot: 'Telegram bot',
+  crm: "Qo'lda (CRM)",
+};
+
+export const leadSourceLabel = (source: string): string =>
+  (LEAD_SOURCE_LABELS as Record<string, string>)[source] ?? source;
+
 export const BOOKING_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'arrived', 'no-show', 'completed', 'cancelled'];
 
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {

@@ -1,15 +1,20 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { UserRole } from '@/shared/types/auth';
 import { useStore } from '@/store/useStore';
 import { loginAs } from '@/test/utils';
 import { ProtectedRoute } from './ProtectedRoute';
 
+function LoginProbe() {
+  const state = useLocation().state as { from?: string } | null;
+  return <div>LOGIN {state?.from}</div>;
+}
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
-        <Route path="/login" element={<div>LOGIN</div>} />
+        <Route path="/login" element={<LoginProbe />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<div>DASHBOARD</div>} />
           <Route path="/patients" element={<div>PATIENTS</div>} />
@@ -31,14 +36,19 @@ describe('ProtectedRoute', () => {
   it('redirects anonymous users to /login', () => {
     loginAs(null);
     renderAt('/patients');
-    expect(screen.getByText('LOGIN')).toBeInTheDocument();
+    expect(screen.getByText(/^LOGIN/)).toBeInTheDocument();
+  });
+
+  it('remembers the requested page (path + query) for the return after login', () => {
+    renderAt('/patients/p1?tab=history');
+    expect(screen.getByText('LOGIN /patients/p1?tab=history')).toBeInTheDocument();
   });
 
   it('redirects to /login when authenticated flag is set but the user is missing', () => {
     loginAs('admin');
     useStore.setState({ currentUser: null });
     renderAt('/');
-    expect(screen.getByText('LOGIN')).toBeInTheDocument();
+    expect(screen.getByText(/^LOGIN/)).toBeInTheDocument();
   });
 
   it.each<[UserRole, string, string]>([

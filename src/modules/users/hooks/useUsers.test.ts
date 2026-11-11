@@ -82,4 +82,30 @@ describe('useUsers', () => {
     act(() => result.current.setSort({ sortBy: 'name', order: 'desc' }));
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ sortBy: 'name', order: 'desc' }));
   });
+
+  it('toggle active: deactivates an active user (PATCH isActive:false) and reactivates an inactive one', async () => {
+    api.update.mockResolvedValue(makeUser('receptionist'));
+    const { result, invalidate } = setup();
+    act(() => result.current.setToggleTarget(makeUser('receptionist', { id: 'u5', isActive: true })));
+    act(() => result.current.handleToggleActive());
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Xodim nofaol qilindi'));
+    expect(api.update).toHaveBeenCalledWith('u5', { isActive: false });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users'] });
+    expect(result.current.toggleTarget).toBeNull();
+
+    act(() => result.current.setToggleTarget(makeUser('receptionist', { id: 'u5', isActive: false })));
+    act(() => result.current.handleToggleActive());
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Xodim faollashtirildi'));
+    expect(api.update).toHaveBeenLastCalledWith('u5', { isActive: true });
+  });
+
+  it('a server refusal (409) keeps the list untouched and closes the confirm', async () => {
+    api.update.mockRejectedValue(new Error("Oxirgi faol administratorni nofaol qilib bo'lmaydi"));
+    const { result, invalidate } = setup();
+    act(() => result.current.setToggleTarget(makeUser('admin', { id: 'u1' })));
+    act(() => result.current.handleToggleActive());
+    await waitFor(() => expect(result.current.toggleTarget).toBeNull());
+    expect(toastMock.success).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['users'] });
+  });
 });

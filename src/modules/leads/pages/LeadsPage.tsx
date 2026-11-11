@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Phone, 
+  Loader2,
   MessageSquare, 
   Trash2, 
   CalendarPlus, 
@@ -37,7 +38,8 @@ import { leadsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { DataTable, Column } from '@/shared/components/DataTable';
 import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
-import { BOOKING_SOURCES, BOOKING_SOURCE_LABELS } from '@/shared/constants';
+import { LEAD_SOURCES, LEAD_SOURCE_LABELS, leadSourceLabel } from '@/shared/constants';
+import { leadLangBadge, leadsToExportRows } from '../lib/export';
 import { formatDate } from '@/shared/lib/formatters';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { toast } from 'sonner';
@@ -66,6 +68,8 @@ export default function LeadsPage() {
     isConverting,
     createLead,
     updateLead,
+    isSavingLead,
+    statusCounts,
     deleteLead,
     search,
     setSearch,
@@ -105,7 +109,7 @@ export default function LeadsPage() {
   const handleExport = async () => {
     try {
       const res = await fetchAllPages(leadsApi.list, { ...filters, search: normalizeSearch(search), ...sort });
-      await exportToExcel(res.data as unknown as Record<string, unknown>[], 'murojaatlar');
+      await exportToExcel(leadsToExportRows(res.data), 'murojaatlar', 'Murojaatlar');
     } catch {
       toast.error('Eksport qilishda xatolik yuz berdi');
     }
@@ -149,12 +153,13 @@ export default function LeadsPage() {
       return;
     }
 
+    // close only once the server accepted it; on error the dialog keeps the typed input
+    const done = { onSuccess: () => setIsFormOpen(false) };
     if (editingLead) {
-      updateLead({ id: editingLead.id, ...formValues });
+      updateLead({ id: editingLead.id, ...formValues }, done);
     } else {
-      createLead({ ...formValues, source: 'crm' });
+      createLead({ ...formValues, source: 'crm' }, done);
     }
-    setIsFormOpen(false);
   };
 
   const handleOpenDetails = (lead: Lead) => {
@@ -164,8 +169,7 @@ export default function LeadsPage() {
 
   const handleSaveNotes = () => {
     if (selectedLead) {
-      updateLead({ id: selectedLead.id, notes });
-      setSelectedLead(null);
+      updateLead({ id: selectedLead.id, notes }, { onSuccess: () => setSelectedLead(null) });
     }
   };
 
@@ -202,6 +206,13 @@ export default function LeadsPage() {
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
     const newStatus = destination.droppableId as LeadStatus;
+    if (destination.droppableId === source.droppableId) return; // reordering inside a column changes nothing
+    if (newStatus === 'converted') {
+      // creates a patient — same confirmation as the "Bemorga aylantirish" button
+      const lead = leads.find((l) => l.id === draggableId);
+      if (lead) handleConvertToPatient(lead);
+      return;
+    }
     updateStatus({ id: draggableId, status: newStatus });
   };
 
@@ -216,7 +227,12 @@ export default function LeadsPage() {
       sortKey: sortBy('leads', 'name'),
       accessor: (l) => (
         <div className="flex flex-col cursor-pointer hover:text-primary transition-colors" onClick={() => handleOpenDetails(l)}>
-          <span className="font-medium">{l.name}</span>
+          <span className="font-medium">
+            {l.name}
+            {leadLangBadge(l.lang) && (
+              <Badge variant="outline" className="ml-2 text-[9px] h-4 px-1 font-bold">{leadLangBadge(l.lang)}</Badge>
+            )}
+          </span>
         </div>
       )
     },
@@ -224,7 +240,7 @@ export default function LeadsPage() {
       header: 'Telefon', 
       accessor: (l) => (
         <div className="flex items-center gap-2">
-          <span>{l.phone}</span>
+          <a href={`tel:${l.phone}`} className="hover:text-primary hover:underline">{l.phone}</a>
           <Button variant="ghost" size="icon" tooltip="Raqamni nusxalash" className="h-6 w-6" onClick={() => copyToClipboard(l.phone)}>
             <Copy className="w-3 h-3" />
           </Button>
@@ -252,7 +268,7 @@ export default function LeadsPage() {
       sortKey: sortBy('leads', 'source'),
       accessor: (l) => (
         <Badge variant="outline" className="text-[10px] font-normal opacity-70">
-          {l.source === 'telegram_bot' ? 'Bot' : l.source === 'crm' ? 'Qo\'lda' : l.source === 'website' ? 'Sayt' : l.source}
+          {leadSourceLabel(l.source)}
         </Badge>
       )
     },
@@ -296,7 +312,7 @@ export default function LeadsPage() {
           </Button>
           <Button variant="outline" className="rounded-xl gap-2" onClick={handleExport}>
             <Download className="w-4 h-4" />
-            Excel
+            Excelga yuklash
           </Button>
         </div>
       </div>
@@ -331,8 +347,8 @@ export default function LeadsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Barcha manbalar</SelectItem>
-                {BOOKING_SOURCES.map((s) => (
-                  <SelectItem key={s} value={s}>{BOOKING_SOURCE_LABELS[s]}</SelectItem>
+                {LEAD_SOURCES.map((s) => (
+                  <SelectItem key={s} value={s}>{LEAD_SOURCE_LABELS[s]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -371,6 +387,7 @@ export default function LeadsPage() {
               <div className="flex gap-6 w-max min-w-full px-1">
                 {STATUS_COLUMNS.map(column => {
                   const columnLeads = leads.filter(l => l.status === column.id);
+                  const total = statusCounts[column.id];
                   
                   return (
                     <div 
@@ -388,11 +405,14 @@ export default function LeadsPage() {
                           </div>
                           <div>
                             <h3 className="font-bold text-sm tracking-tight">{column.label}</h3>
-                            <p className="text-[10px] opacity-70 font-medium">{columnLeads.length} ta</p>
+                            <p className="text-[10px] opacity-70 font-medium">
+                              {total ?? columnLeads.length} ta
+                              {total !== undefined && columnLeads.length < total && ` (${columnLeads.length} tasi ko'rsatilgan)`}
+                            </p>
                           </div>
                         </div>
                         <Badge variant="secondary" className="bg-white/80 font-bold border-none shadow-sm">
-                          {columnLeads.length}
+                          {total ?? columnLeads.length}
                         </Badge>
                       </div>
                       
@@ -430,10 +450,15 @@ export default function LeadsPage() {
                                         snapshot.isDragging ? "shadow-2xl rotate-[2deg] ring-4 ring-primary/10 border-primary z-50 bg-card" : ""
                                       )}
                                     >
-                                      <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="absolute top-3 right-3 flex gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         <Badge variant="outline" className="text-[9px] h-4 bg-background/80 backdrop-blur-xs font-bold uppercase tracking-tighter">
-                                          {lead.source === 'telegram_bot' ? 'Bot' : lead.source === 'website' ? 'Sayt' : 'Qo\'lda'}
+                                          {leadSourceLabel(lead.source)}
                                         </Badge>
+                                        {leadLangBadge(lead.lang) && (
+                                          <Badge variant="outline" className="text-[9px] h-4 bg-background/80 font-bold">
+                                            {leadLangBadge(lead.lang)}
+                                          </Badge>
+                                        )}
                                       </div>
 
                                       <div className="space-y-3">
@@ -445,7 +470,9 @@ export default function LeadsPage() {
                                             <h4 className="font-bold text-sm truncate pr-6">{lead.name}</h4>
                                             <p className="text-xs text-muted-foreground flex items-center gap-1">
                                               <Phone className="w-3 h-3" />
-                                              {lead.phone}
+                                              <a href={`tel:${lead.phone}`} className="hover:text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                                                {lead.phone}
+                                              </a>
                                             </p>
                                           </div>
                                         </div>
@@ -620,8 +647,8 @@ export default function LeadsPage() {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" className="rounded-xl" onClick={() => setIsFormOpen(false)}>Bekor qilish</Button>
-            <Button className="rounded-xl gap-2" onClick={handleSaveLead}>
-              <Save className="w-4 h-4" />
+            <Button className="rounded-xl gap-2" onClick={handleSaveLead} disabled={isSavingLead}>
+              {isSavingLead ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Saqlash
             </Button>
           </DialogFooter>
@@ -642,7 +669,10 @@ export default function LeadsPage() {
               <div className="flex items-center justify-between p-4 bg-muted/30 rounded-2xl border">
                 <div>
                   <h4 className="font-bold text-lg">{selectedLead.name}</h4>
-                  <p className="text-sm text-muted-foreground">{selectedLead.phone}</p>
+                  <a href={`tel:${selectedLead.phone}`} className="text-sm text-muted-foreground hover:text-primary hover:underline">{selectedLead.phone}</a>
+                  {leadLangBadge(selectedLead.lang) && (
+                    <Badge variant="outline" className="ml-2 text-[9px] h-4 px-1 font-bold">{leadLangBadge(selectedLead.lang)}</Badge>
+                  )}
                 </div>
                 <Badge className={cn("font-medium", STATUS_COLUMNS.find(c => c.id === selectedLead.status)?.color.replace('text', 'bg'), "bg-opacity-10 shadow-none border-none", STATUS_COLUMNS.find(c => c.id === selectedLead.status)?.color)}>
                   {STATUS_COLUMNS.find(c => c.id === selectedLead.status)?.label}
@@ -668,7 +698,7 @@ export default function LeadsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-muted/20 rounded-xl border border-dashed text-center">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1">Manba</p>
-                  <p className="text-xs font-medium">{selectedLead.source === 'telegram_bot' ? 'Telegram Bot' : selectedLead.source === 'website' ? 'Sayt (landing)' : 'CRM (Qo\'lda)'}</p>
+                  <p className="text-xs font-medium">{leadSourceLabel(selectedLead.source)}</p>
                 </div>
                 <div className="p-3 bg-muted/20 rounded-xl border border-dashed text-center">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1">Xizmat</p>
@@ -679,8 +709,8 @@ export default function LeadsPage() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" className="rounded-xl" onClick={() => setSelectedLead(null)}>Yopish</Button>
-            <Button className="rounded-xl gap-2 px-6" onClick={handleSaveNotes}>
-              <Save className="w-4 h-4" />
+            <Button className="rounded-xl gap-2 px-6" onClick={handleSaveNotes} disabled={isSavingLead}>
+              {isSavingLead ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Izohni saqlash
             </Button>
           </DialogFooter>

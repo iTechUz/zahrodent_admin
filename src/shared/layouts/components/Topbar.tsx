@@ -10,28 +10,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { roleAccess, roleConfig } from '@/shared/config/roles';
+import { canGlobalSearch, roleAccess, roleConfig } from '@/shared/config/roles';
 import { guideUrlFor } from '@/shared/config/guide';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
-import { useQuery } from '@tanstack/react-query';
-import { notificationsApi } from '@/lib/api/endpoints';
-import { queryKeys } from '@/lib/api/query-keys';
 import { useLogout } from '@/hooks/useLogout';
 
 export function Topbar() {
   const { darkMode, toggleDarkMode, currentUser } = useStore();
-  const authed = useStore((s) => s.isAuthenticated);
   const logout = useLogout();
-  // GET /notifications is allowed for every role (doctor: own only); the page itself is admin/receptionist
-  const { data: notificationsRes } = useQuery({
-    queryKey: queryKeys.notificationsList({}),
-    queryFn: () => notificationsApi.list(),
-    enabled: authed,
-    meta: { silentError: true },
-  });
-  const unread = (notificationsRes?.data ?? []).filter((n) => n.status === 'sent').length;
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const openGuide = () => window.open(guideUrlFor(pathname), '_blank', 'noopener,noreferrer');
@@ -40,6 +28,7 @@ export function Topbar() {
     if (canOpenNotifications) navigate('/notifications');
   };
   const isMobile = useIsMobile();
+  const searchable = canGlobalSearch(currentUser?.role);
 
   const handleLogout = () => {
     logout();
@@ -62,11 +51,6 @@ export function Topbar() {
         </Button>
         <Button variant="ghost" size="icon" tooltip="Bildirishnomalar" className="relative h-8 w-8" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
-          {unread > 0 && (
-            <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">
-              {unread}
-            </Badge>
-          )}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -103,6 +87,7 @@ export function Topbar() {
         </h2>
       </div>
       <div className="flex items-center gap-2">
+        {searchable && (
         <button
           onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
           className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors text-sm text-muted-foreground"
@@ -111,6 +96,7 @@ export function Topbar() {
           <span>Qidirish...</span>
           <kbd className="text-[10px] px-1 py-0.5 rounded bg-muted font-mono">⌘K</kbd>
         </button>
+        )}
         {currentUser && (
           <Badge variant="outline" className={cn('text-xs mr-1', roleConfig[currentUser.role].color)}>
             {roleConfig[currentUser.role].label}
@@ -124,11 +110,6 @@ export function Topbar() {
         </Button>
         <Button variant="ghost" size="icon" tooltip="Bildirishnomalar" className="relative" onClick={openNotifications} disabled={!canOpenNotifications}>
           <Bell className="w-4 h-4" />
-          {unread > 0 && (
-            <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-destructive text-destructive-foreground">
-              {unread}
-            </Badge>
-          )}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -1,5 +1,8 @@
 import {
   BOOKING_SOURCES,
+  LEAD_SOURCES,
+  LEAD_SOURCE_LABELS,
+  leadSourceLabel,
   BOOKING_SOURCE_LABELS,
   BOOKING_STATUSES,
   BOOKING_STATUS_LABELS,
@@ -29,5 +32,12 @@ describe('shared constants', () => {
   ] as const)('%s has a non-empty label for every value', (_name, values, labels) => {
     expect(Object.keys(labels).sort()).toEqual([...values].sort());
     for (const v of values) expect((labels as Record<string, string>)[v]).toBeTruthy();
+  });
+
+  it('lead sources are separate from booking sources and fully labelled', () => {
+    expect(LEAD_SOURCES).toEqual(['website', 'telegram_bot', 'crm']);
+    expect(Object.keys(LEAD_SOURCE_LABELS).sort()).toEqual([...LEAD_SOURCES].sort());
+    expect(leadSourceLabel('crm')).toBe("Qo'lda (CRM)");
+    expect(leadSourceLabel('legacy')).toBe('legacy');
   });
 });

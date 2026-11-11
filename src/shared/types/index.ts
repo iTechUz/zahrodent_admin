@@ -135,7 +135,8 @@ export interface Visit {
 
 export interface Payment {
   id: string;
-  patientId: string;
+  /** null/absent for an expense (Chiqim) not tied to a patient */
+  patientId?: string | null;
   amount: number;
   method: PaymentMethod;
   status: PaymentStatus;
@@ -145,7 +146,7 @@ export interface Payment {
   discount?: number;
   serviceId?: string;
   visitId?: string;
-  patient?: PatientRef;
+  patient?: PatientRef | null;
 }
 
 /** GET /settings — clinic info + reminder templates ({name},{date},{time},{doctor},{clinic}). */
@@ -164,6 +165,9 @@ export interface Notification {
   id: string;
   patientId: string;
   doctorId?: string;
+  /** optional embedded person (when the API includes it) — saves a GET per row */
+  patient?: { firstName: string; lastName: string; phone?: string } | null;
+  doctor?: { firstName: string; lastName: string; phone?: string } | null;
   type: NotificationType;
   message: string;
   sentAt: string;
@@ -267,6 +271,8 @@ export interface Lead {
   notes?: string;
   status: LeadStatus;
   source: string;
+  /** language the lead wrote in (optional; set by the bot/site) */
+  lang?: string | null;
   createdAt: string;
   updatedAt: string;
 }

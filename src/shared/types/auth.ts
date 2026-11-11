@@ -9,4 +9,6 @@ export interface SessionUser {
   specialty?: string;
   avatar?: string;
   doctorId?: string; // Doctor record id (doctor role only)
+  /** false = deactivated (cannot log in); absent on older API versions = active */
+  isActive?: boolean;
 }

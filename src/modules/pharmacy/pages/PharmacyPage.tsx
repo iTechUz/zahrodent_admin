@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pill, Search } from 'lucide-react';
+import { Loader2, Pill, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -53,10 +53,17 @@ export default function PharmacyPage() {
             autoFocus
           />
         </div>
-        <Button type="submit" disabled={input.trim().length < 4}>
+        <Button type="submit" disabled={input.trim().length < 4 || isFetching}>
+          {isFetching && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           Qidirish
         </Button>
       </form>
+
+      {term.length >= 4 && isFetching && !data && (
+        <div role="status" className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> Qidirilmoqda...
+        </div>
+      )}
 
       {term.length >= 4 && !isFetching && data?.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">

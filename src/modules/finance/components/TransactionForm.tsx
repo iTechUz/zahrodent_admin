@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,7 +8,7 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Payment, Patient, PaymentMethod, PaymentStatus } from '@/shared/types';
+import { Payment, PaymentMethod, PaymentStatus } from '@/shared/types';
 import { 
   PAYMENT_METHODS, 
   PAYMENT_STATUSES, 
@@ -15,7 +16,8 @@ import {
   PAYMENT_STATUS_LABELS 
 } from '@/shared/constants';
 import { PaymentSchema } from '@/shared/lib/validation';
-import { SearchableSelect } from '@/components/ui/searchable-select';
+import { PatientSearchSelect } from './PatientSearchSelect';
+import { patientRefLabel } from '@/shared/lib/patient-ref';
 import * as z from 'zod';
 
 type PaymentFormValues = z.infer<typeof PaymentSchema>;
@@ -24,7 +26,6 @@ interface TransactionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editing: Payment | null;
-  patients: Patient[];
   onSave: (data: PaymentFormValues) => void;
   isPending?: boolean;
 }
@@ -33,7 +34,6 @@ export const TransactionForm = ({
   open, 
   onOpenChange, 
   editing, 
-  patients, 
   onSave,
   isPending = false,
 }: TransactionFormProps) => {
@@ -49,10 +49,12 @@ export const TransactionForm = ({
     },
   });
 
+  const isExpense = form.watch('type') === 'EXPENSE';
+
   useEffect(() => {
     if (editing) {
       form.reset({
-        patientId: editing.patientId,
+        patientId: editing.patientId ?? '',
         amount: editing.amount,
         method: editing.method,
         status: editing.status,
@@ -72,7 +74,8 @@ export const TransactionForm = ({
   }, [editing, form, open]);
 
   const handleSubmit = (values: PaymentFormValues) => {
-    onSave(values);
+    // an expense is not tied to a patient — never send a stale patientId
+    onSave(values.type === 'EXPENSE' ? { ...values, patientId: undefined } : values);
   };
 
   return (
@@ -83,25 +86,6 @@ export const TransactionForm = ({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pt-4">
-            <FormField
-              control={form.control}
-              name="patientId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Bemor <span className="text-destructive">*</span></FormLabel>
-                  <FormControl>
-                    <SearchableSelect
-                      options={patients.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName} (${p.phone})` }))}
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      placeholder="Bemorni tanlang"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
@@ -138,6 +122,26 @@ export const TransactionForm = ({
                 )}
               />
             </div>
+
+            {!isExpense && (
+              <FormField
+                control={form.control}
+                name="patientId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bemor <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <PatientSearchSelect
+                        value={field.value}
+                        selectedLabel={editing?.patient ? patientRefLabel(editing.patient) : undefined}
+                        onChange={(id) => field.onChange(id)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <FormField
@@ -192,9 +196,14 @@ export const TransactionForm = ({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tavsif</FormLabel>
+                  <FormLabel>
+                    {isExpense ? 'Kimga / Nima uchun' : 'Tavsif'} <span className="text-destructive">*</span>
+                  </FormLabel>
                   <FormControl>
-                    <Input placeholder="Xizmat tavsifi..." {...field} />
+                    <Input
+                      placeholder={isExpense ? "Masalan: Ijara to'lovi, material xaridi..." : 'Xizmat tavsifi...'}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -202,6 +211,7 @@ export const TransactionForm = ({
             />
 
             <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editing ? "Yangilash" : "Qayd etish"}
             </Button>
           </form>

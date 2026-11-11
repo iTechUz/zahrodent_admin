@@ -11,7 +11,7 @@ export const FinanceService = {
   }),
 
   mapToForm: (p: Payment): PaymentFormValues => ({
-    patientId: p.patientId,
+    patientId: p.patientId ?? '',
     amount: p.amount,
     method: p.method,
     status: p.status,

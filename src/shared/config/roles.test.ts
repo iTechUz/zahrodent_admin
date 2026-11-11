@@ -1,4 +1,4 @@
-import { can, canAccessPayments, permissions, roleAccess, roleConfig } from './roles';
+import { can, canAccessPayments, canGlobalSearch, globalSearchScopes, permissions, roleAccess, roleConfig } from './roles';
 
 describe('canAccessPayments', () => {
   it('is true only for admin (backend ROLES_FINANCE = [admin])', () => {
@@ -11,10 +11,9 @@ describe('canAccessPayments', () => {
 });
 
 describe('roleAccess', () => {
-  it('every role can reach the dashboard and settings', () => {
-    // pharmacist has no dashboard/settings: '/' redirects to /pharmacy (ProtectedRoute)
-    for (const [role, routes] of Object.entries(roleAccess)) {
-      if (role === 'pharmacist') continue;
+  it('every role can reach the dashboard route and settings', () => {
+    // pharmacist: '/' redirects to /pharmacy (ProtectedRoute); /settings is for their own password/theme
+    for (const routes of Object.values(roleAccess)) {
       expect(routes).toContain('/');
       expect(routes).toContain('/settings');
     }
@@ -42,8 +41,10 @@ describe('roleAccess', () => {
 });
 
 describe('pharmacist', () => {
-  it('only reaches the pharmacy desk', () => {
-    expect([...roleAccess.pharmacist].sort()).toEqual(['/', '/pharmacy']);
+  it('reaches the pharmacy desk and settings (password change) only', () => {
+    expect([...roleAccess.pharmacist].sort()).toEqual(['/', '/pharmacy', '/settings']);
+    expect(can('pharmacist', 'settings.read')).toBe(false); // clinic tabs hidden
+    expect(can('pharmacist', 'auth.changePassword')).toBe(true);
     expect(roleAccess.admin).toContain('/pharmacy');
     expect(roleAccess.doctor).not.toContain('/pharmacy');
   });
@@ -111,5 +112,20 @@ describe('can() — mirrors backend @Roles guards', () => {
     for (const role of ['admin', 'doctor', 'receptionist'] as const) {
       expect(can(role, 'payments.read')).toBe(canAccessPayments(role));
     }
+  });
+});
+
+describe('global search scopes', () => {
+  it('pharmacist has nothing searchable (patients/bookings are 403 for them)', () => {
+    expect(globalSearchScopes('pharmacist')).toEqual({ patients: false, doctors: false, bookings: false });
+    expect(canGlobalSearch('pharmacist')).toBe(false);
+    expect(canGlobalSearch(undefined)).toBe(false);
+  });
+
+  it('admin searches everything, doctor/receptionist patients + bookings only', () => {
+    expect(globalSearchScopes('admin')).toEqual({ patients: true, doctors: true, bookings: true });
+    expect(globalSearchScopes('doctor')).toEqual({ patients: true, doctors: false, bookings: true });
+    expect(globalSearchScopes('receptionist').doctors).toBe(false);
+    expect(canGlobalSearch('doctor')).toBe(true);
   });
 });

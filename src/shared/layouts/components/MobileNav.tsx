@@ -8,6 +8,7 @@ import {
   Settings 
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { isNavActive } from '../nav';
 import { useStore } from '@/store/useStore';
 import { roleAccess } from '@/shared/config/roles';
 
@@ -33,7 +34,7 @@ export function MobileNav() {
   return (
     <div className="fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border flex items-center justify-around px-2 z-50 md:hidden">
       {navItems.map((item) => {
-        const active = location.pathname === item.path;
+        const active = isNavActive(location.pathname, item.path);
         return (
           <Link
             key={item.path}

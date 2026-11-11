@@ -280,7 +280,7 @@ export const usersApi = {
     name: string;
     phone: string;
     password: string;
-    role: 'admin' | 'doctor' | 'receptionist';
+    role: 'admin' | 'doctor' | 'receptionist' | 'pharmacist';
     specialty?: string;
     avatar?: string;
   }) => apiRequest<SessionUser>('/users', { method: 'POST', body: JSON.stringify(body) }),
@@ -290,9 +290,11 @@ export const usersApi = {
       name: string;
       phone: string;
       password: string;
-      role: 'admin' | 'doctor' | 'receptionist';
+      role: 'admin' | 'doctor' | 'receptionist' | 'pharmacist';
       specialty?: string;
       avatar?: string;
+      /** deactivate / reactivate (the server refuses yourself and the last active admin with a 409) */
+      isActive: boolean;
     }>,
   ) =>
     apiRequest<SessionUser>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

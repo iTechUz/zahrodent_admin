@@ -43,7 +43,6 @@ export function FinancePageContent() {
     totalPages,
     page,
     setPage,
-    patients,
     doctorRevenue,
     doctorRevenueTotal,
     hasDoctorStatsPeriod,
@@ -56,6 +55,8 @@ export function FinancePageContent() {
     setSearch,
     filters,
     setFilters,
+    setPeriod,
+    setDateFilter,
     modalOpen,
     setModalOpen,
     editing,
@@ -83,7 +84,7 @@ export function FinancePageContent() {
 
       const exportData = res.data.map(p => {
         return {
-          'Bemor': patientRefLabel(resolvePatientRef(p, patients)),
+          'Bemor': patientRefLabel(resolvePatientRef(p)),
           'Summa': p.amount,
           'Turi': p.type === 'EXPENSE' ? 'Chiqim' : 'Kirim',
           'Usul': PAYMENT_METHOD_LABELS[p.method as keyof typeof PAYMENT_METHOD_LABELS] || p.method,
@@ -105,7 +106,7 @@ export function FinancePageContent() {
   const columns: Column<Payment>[] = [
     {
       header: 'Bemor',
-      accessor: (p) => <PatientNameLabel patient={resolvePatientRef(p, patients)} />
+      accessor: (p) => <PatientNameLabel patient={resolvePatientRef(p)} />
     },
     { header: 'Tavsif', accessor: 'description' },
     {
@@ -150,7 +151,7 @@ export function FinancePageContent() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExport} disabled={isExporting}>
               <Download className="w-4 h-4 mr-2" />
-              Excel Export
+              Excelga yuklash
             </Button>
             <Button onClick={openCreate}>
               <Plus className="w-4 h-4 mr-2" />
@@ -261,27 +262,20 @@ export function FinancePageContent() {
             type="date" 
             className="w-[140px] h-8 text-xs border-none bg-transparent" 
             value={filters.startDate || ''} 
-            onChange={(e) => setFilters('startDate', e.target.value || undefined)}
+            onChange={(e) => setDateFilter('startDate', e.target.value)}
           />
           <span className="text-muted-foreground text-xs">—</span>
           <Input 
             type="date" 
             className="w-[140px] h-8 text-xs border-none bg-transparent" 
             value={filters.endDate || ''} 
-            onChange={(e) => setFilters('endDate', e.target.value || undefined)}
+            onChange={(e) => setDateFilter('endDate', e.target.value)}
           />
         </div>
 
         <Select
           value={filters.dateRange || 'all'}
-          onValueChange={(val) => {
-            setFilters('dateRange', val);
-            // Clear custom dates if quick range is selected
-            if (val !== 'all') {
-              setFilters('startDate', undefined);
-              setFilters('endDate', undefined);
-            }
-          }}
+          onValueChange={(val) => setPeriod(val as 'all' | 'today' | 'week' | 'month')}
         >
           <SelectTrigger className="w-[150px]">
             <CalendarDays className="w-4 h-4 mr-2" />
@@ -373,7 +367,6 @@ export function FinancePageContent() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         editing={editing}
-        patients={patients}
         onSave={handleSave}
         isPending={isSaving}
       />

@@ -162,6 +162,15 @@ describe('PaymentSchema', () => {
     );
   });
 
+  it('requires a patient for income but not for expense', () => {
+    const { patientId: _omit, ...noPatient } = ok;
+    void _omit;
+    expect(firstError(PaymentSchema.safeParse(noPatient))).toBe('Bemor kiritilishi shart');
+    expect(firstError(PaymentSchema.safeParse({ ...ok, patientId: '' }))).toBe('Bemor kiritilishi shart');
+    expect(PaymentSchema.safeParse({ ...noPatient, type: 'EXPENSE' }).success).toBe(true);
+    expect(PaymentSchema.safeParse({ ...ok, patientId: null, type: 'EXPENSE' }).success).toBe(true);
+  });
+
   it('rejects unknown method / status', () => {
     expect(PaymentSchema.safeParse({ ...ok, method: 'crypto' }).success).toBe(false);
     expect(PaymentSchema.safeParse({ ...ok, status: 'refunded' }).success).toBe(false);
