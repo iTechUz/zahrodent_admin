@@ -1,5 +1,6 @@
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
-import { Plus, Shield, Phone, Trash2, Edit2, ShieldCheck, UserCog, Search } from 'lucide-react';
+import { Plus, Shield, Phone, Trash2, Edit2, ShieldCheck, UserCog, Search, UserX, UserCheck } from 'lucide-react';
+import { useStore } from '@/store/useStore';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,10 +47,14 @@ export function UsersPageContent() {
     setDeleteId,
     deleteId,
     handleDelete,
+    toggleTarget,
+    setToggleTarget,
+    handleToggleActive,
     sort,
     setSort,
   } = useUsers();
 
+  const currentUserId = useStore((s) => s.currentUser?.id);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const term = useDebouncedValue(normalizeSearch(search).toLowerCase(), SEARCH_DEBOUNCE_MS);
@@ -66,7 +71,7 @@ export function UsersPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Xodimlar"
-        description="Administrator va qabulxona xodimlarini boshqarish"
+        description="Administrator, qabulxona va apteka xodimlarini boshqarish"
         action={
           <Button onClick={openCreate} className="gradient-primary">
             <Plus className="w-4 h-4 mr-2" />
@@ -127,7 +132,7 @@ export function UsersPageContent() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredUsers.map((u) => (
-            <Card key={u.id} className="group overflow-hidden border-border/50 bg-card/50 backdrop-blur-md hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 rounded-2xl">
+            <Card key={u.id} className={cn('group overflow-hidden border-border/50 bg-card/50 backdrop-blur-md hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 rounded-2xl', u.isActive === false && 'opacity-60')}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
@@ -153,15 +158,35 @@ export function UsersPageContent() {
                       >
                         {roleConfig[u.role as keyof typeof roleConfig]?.label}
                       </Badge>
+                      {u.isActive === false && (
+                        <Badge variant="outline" className="ml-1.5 mt-2 h-5 px-2 text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                          Nofaol
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0 transition-transform">
-                    <Button variant="ghost" size="icon" tooltip="Tahrirlash" className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary" onClick={() => openEdit(u)}>
+                  <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" tooltip="Tahrirlash" aria-label="Tahrirlash" className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary" onClick={() => openEdit(u)}>
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" tooltip="O'chirish" className="h-9 w-9 rounded-xl hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteId(u.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {/* never offer deactivate / delete on yourself (the server refuses it too) */}
+                    {u.id !== currentUserId && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          tooltip={u.isActive === false ? 'Faollashtirish' : 'Nofaol qilish'}
+                          aria-label={u.isActive === false ? 'Faollashtirish' : 'Nofaol qilish'}
+                          className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary"
+                          onClick={() => setToggleTarget(u)}
+                        >
+                          {u.isActive === false ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                        </Button>
+                        <Button variant="ghost" size="icon" tooltip="O'chirish" aria-label="O'chirish" className="h-9 w-9 rounded-xl hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteId(u.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -212,6 +237,22 @@ export function UsersPageContent() {
         open={!!deleteId}
         onOpenChange={() => setDeleteId(null)}
         onConfirm={handleDelete}
+        title="Xodimni o'chirasizmi?"
+        description="Xodim tizimdan o'chiriladi va unga qayta kirib bo'lmaydi."
+      />
+
+      <ConfirmDeleteDialog
+        open={!!toggleTarget}
+        onOpenChange={(open) => { if (!open) setToggleTarget(null); }}
+        onConfirm={handleToggleActive}
+        destructive={toggleTarget?.isActive !== false}
+        title={toggleTarget?.isActive === false ? 'Xodimni faollashtirasizmi?' : 'Xodimni nofaol qilasizmi?'}
+        description={
+          toggleTarget?.isActive === false
+            ? `"${toggleTarget?.name ?? ''}" yana tizimga kira oladi.`
+            : `"${toggleTarget?.name ?? ''}" tizimga kira olmaydi. Ma'lumotlari saqlanadi, keyin qayta faollashtirish mumkin.`
+        }
+        confirmLabel={toggleTarget?.isActive === false ? 'Faollashtirish' : 'Nofaol qilish'}
       />
     </div>
   );

@@ -20,6 +20,10 @@ const lead: Lead = {
   updatedAt: '2026-06-01',
 };
 
+/** the board's per-status count requests (limit=1) also hit api.list — look at the table's own calls only */
+const lastTableCall = () =>
+  api.list.mock.calls.map(([p]) => p).filter((p) => p?.limit === 20).at(-1);
+
 function setup() {
   const { wrapper, queryClient } = createWrapper();
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
@@ -47,7 +51,7 @@ describe('useLeads', () => {
     act(() => result.current.setFilters('status', 'contacted'));
     act(() => result.current.setFilters('startDate', '2026-06-01'));
     await waitFor(() =>
-      expect(api.list).toHaveBeenLastCalledWith({ page: 0, limit: 20, search: '', status: 'contacted', startDate: '2026-06-01' }),
+      expect(lastTableCall()).toEqual({ page: 0, limit: 20, search: '', status: 'contacted', startDate: '2026-06-01' }),
     );
   });
 
@@ -55,12 +59,10 @@ describe('useLeads', () => {
     const { result } = setup();
     act(() => result.current.setStatusFilter('consultation'));
     expect(result.current.filters).toEqual({ status: 'consultation' });
-    await waitFor(() =>
-      expect(api.list).toHaveBeenLastCalledWith({ page: 0, limit: 20, search: '', status: 'consultation' }),
-    );
+    await waitFor(() => expect(lastTableCall()).toEqual({ page: 0, limit: 20, search: '', status: 'consultation' }));
     act(() => result.current.setStatusFilter('all'));
     expect(result.current.filters).toEqual({ status: undefined });
-    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ page: 0, limit: 20, search: '', status: undefined }));
+    await waitFor(() => expect(lastTableCall()).toEqual({ page: 0, limit: 20, search: '', status: undefined }));
   });
 
   it('updateStatus → PATCH /leads/:id/status, invalidate ["leads"], toast', async () => {
@@ -131,5 +133,71 @@ describe('useLeads', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(onSuccess).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('statusCounts holds the server total per status (limit=1 requests, not the loaded page)', async () => {
+    api.list.mockImplementation(async (p) =>
+      p?.limit === 1 ? paginated([], p.status === 'new' ? 57 : 3) : paginated([lead], 60),
+    );
+    const { result } = setup();
+    await waitFor(() => expect(result.current.statusCounts.new).toBe(57));
+    expect(result.current.statusCounts.converted).toBe(3);
+    expect(api.list).toHaveBeenCalledWith({ search: '', status: 'proposal', page: 0, limit: 1 });
+  });
+
+  it('statusCounts follow the source filter but never the status filter', async () => {
+    const { result } = setup();
+    act(() => result.current.setFilters('source', 'crm'));
+    act(() => result.current.setStatusFilter('new'));
+    await waitFor(() =>
+      expect(api.list).toHaveBeenCalledWith({ search: '', source: 'crm', status: 'cancelled', page: 0, limit: 1 }),
+    );
+  });
+
+  describe('optimistic status change', () => {
+    it('moves the card at once and rolls back when the server refuses', async () => {
+      api.list.mockImplementation(async (p) => (p?.limit === 1 ? paginated([], 1) : paginated([lead], 1)));
+      let reject!: (e: Error) => void;
+      api.updateStatus.mockReturnValue(new Promise((_, r) => (reject = r)));
+      const { result } = setup();
+      await waitFor(() => expect(result.current.leads[0]?.status).toBe('new'));
+      act(() => result.current.updateStatus({ id: 'l1', status: 'contacted' }));
+      await waitFor(() => expect(result.current.leads[0].status).toBe('contacted'));
+      await act(async () => reject(new Error('boom')));
+      await waitFor(() => expect(result.current.leads[0].status).toBe('new'));
+      expect(toastMock.success).not.toHaveBeenCalled();
+    });
+
+    it('keeps the new status after success', async () => {
+      api.list.mockImplementation(async (p) => (p?.limit === 1 ? paginated([], 1) : paginated([lead], 1)));
+      api.updateStatus.mockResolvedValue({ ...lead, status: 'contacted' });
+      const { result } = setup();
+      await waitFor(() => expect(result.current.leads).toHaveLength(1));
+      act(() => result.current.updateStatus({ id: 'l1', status: 'contacted' }));
+      await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith('Murojaat holati yangilandi'));
+    });
+  });
+
+  it('createLead / updateLead accept per-call callbacks and expose isSavingLead', async () => {
+    let resolve!: (l: Lead) => void;
+    api.create.mockReturnValue(new Promise((r) => (resolve = r)));
+    const { result } = setup();
+    const onSuccess = vi.fn();
+    act(() => result.current.createLead({ name: 'Ali', phone: '+998901112233' }, { onSuccess }));
+    await waitFor(() => expect(result.current.isSavingLead).toBe(true));
+    expect(onSuccess).not.toHaveBeenCalled();
+    await act(async () => resolve(lead));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(result.current.isSavingLead).toBe(false);
+  });
+
+  it('a failed save does not call onSuccess (the dialog stays open)', async () => {
+    api.update.mockRejectedValue(new Error('500'));
+    const { result } = setup();
+    const onSuccess = vi.fn();
+    act(() => result.current.updateLead({ id: 'l1', notes: 'x' }, { onSuccess }));
+    await waitFor(() => expect(result.current.isSavingLead).toBe(false));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 });

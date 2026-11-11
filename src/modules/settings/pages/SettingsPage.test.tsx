@@ -56,6 +56,17 @@ afterEach(() => {
   Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
 });
 
+describe('SettingsPage — pharmacist', () => {
+  it('sees only appearance + security tabs and never requests the clinic settings (403 for them)', () => {
+    renderPage('pharmacist');
+    expect(screen.queryByRole('tab', { name: /Umumiy/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Eslatmalar/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Xavfsizlik/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Ko'rinish/ })).toBeInTheDocument();
+    expect(settingsApi.get).not.toHaveBeenCalled();
+  });
+});
+
 describe('SettingsPage — clinic info', () => {
   it('loads GET /settings into the form', async () => {
     renderPage();

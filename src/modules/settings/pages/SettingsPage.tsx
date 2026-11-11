@@ -1,4 +1,5 @@
 import { useStore } from '@/store/useStore';
+import { can } from '@/shared/config/roles';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,19 +49,26 @@ function SettingsBody({ tab }: { tab: 'general' | 'notifications' }) {
 
 function SettingsPageContent() {
   const { darkMode, toggleDarkMode } = useStore();
+  const role = useStore((s) => s.currentUser?.role);
+  // GET /settings is staff-only: a pharmacist only gets appearance + password
+  const canSeeClinic = can(role, 'settings.read');
 
   return (
     <div className="space-y-6 w-full">
       <PageHeader title="Sozlamalar" description="Klinika, eslatmalar va hisob sozlamalari" />
 
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs defaultValue={canSeeClinic ? 'general' : 'appearance'} className="w-full">
         <TabsList className="bg-muted/50 p-1 rounded-xl mb-6 flex-wrap h-auto">
-          <TabsTrigger value="general" className="rounded-lg gap-2 px-4">
-            <Building2 className="w-4 h-4" /> Umumiy
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="rounded-lg gap-2 px-4">
-            <Bell className="w-4 h-4" /> Eslatmalar
-          </TabsTrigger>
+          {canSeeClinic && (
+            <TabsTrigger value="general" className="rounded-lg gap-2 px-4">
+              <Building2 className="w-4 h-4" /> Umumiy
+            </TabsTrigger>
+          )}
+          {canSeeClinic && (
+            <TabsTrigger value="notifications" className="rounded-lg gap-2 px-4">
+              <Bell className="w-4 h-4" /> Eslatmalar
+            </TabsTrigger>
+          )}
           <TabsTrigger value="appearance" className="rounded-lg gap-2 px-4">
             <Moon className="w-4 h-4" /> Ko'rinish
           </TabsTrigger>
@@ -69,13 +77,17 @@ function SettingsPageContent() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="animate-fade-in">
-          <SettingsBody tab="general" />
-        </TabsContent>
+        {canSeeClinic && (
+          <TabsContent value="general" className="animate-fade-in">
+            <SettingsBody tab="general" />
+          </TabsContent>
+        )}
 
-        <TabsContent value="notifications" className="animate-fade-in">
-          <SettingsBody tab="notifications" />
-        </TabsContent>
+        {canSeeClinic && (
+          <TabsContent value="notifications" className="animate-fade-in">
+            <SettingsBody tab="notifications" />
+          </TabsContent>
+        )}
 
         <TabsContent value="appearance" className="animate-fade-in">
           <Card className="rounded-2xl border-border/50 bg-card/50 backdrop-blur-sm shadow-xl max-w-3xl">

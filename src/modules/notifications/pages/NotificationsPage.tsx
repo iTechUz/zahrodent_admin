@@ -1,6 +1,6 @@
 import React from 'react';
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
-import { useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { useServerTable } from '@/shared/hooks/useServerTable';
 import { PageHeader } from '@/shared/components/PageHeader';
@@ -15,16 +15,19 @@ import {
 import { cn } from '@/shared/lib/utils';
 import { patientsApi, doctorsApi, notificationsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
-import type { Notification, Patient, Doctor, NotificationRecipient } from '@/shared/types';
+import type { Notification, NotificationRecipient } from '@/shared/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBulkSms, DatePreset } from '../hooks/useBulkSms';
+import { channelLabel } from '../lib/channel';
 import { TelegramDeliveryAlert } from '../components/TelegramDeliveryAlert';
 
 const notifStatusLabels: Record<string, string> = {
   sent: 'Yuborilgan', delivered: 'Yetkazilgan', failed: 'Xatolik',
 };
+
+type Person = { firstName: string; lastName: string; phone?: string };
 
 type NotificationsTable = {
   data: Notification[];
@@ -35,14 +38,14 @@ type NotificationsTable = {
   setPage: (n: number) => void;
 };
 
-function NotificationsHistoryTab({
+export function NotificationsHistoryTab({
   table,
   patients,
   doctors,
 }: {
   table: NotificationsTable;
-  patients: Patient[];
-  doctors: Doctor[];
+  patients: Map<string, Person>;
+  doctors: Map<string, Person>;
 }) {
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -57,8 +60,9 @@ function NotificationsHistoryTab({
           </tr></thead>
           <tbody className={cn(table.isLoading && 'opacity-50')}>
             {table.data.map((n: Notification & { doctorId?: string }) => {
-              const patient = n.patientId ? patients.find((p) => p.id === n.patientId) : null;
-              const doctor = n.doctorId ? doctors.find((d) => d.id === n.doctorId) : null;
+              // the row's embedded person wins; otherwise the (cached, per-id) lookup
+              const patient = n.patient ?? (n.patientId ? patients.get(n.patientId) : null);
+              const doctor = n.doctor ?? (n.doctorId ? doctors.get(n.doctorId) : null);
               const isDoctor = !!n.doctorId;
               return (
                 <tr key={n.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
@@ -72,18 +76,25 @@ function NotificationsHistoryTab({
                       </>
                     ) : (
                       <>
-                        <div className="font-medium text-foreground">{patient?.firstName} {patient?.lastName}</div>
+                        <div className="font-medium text-foreground">{patient ? `${patient.firstName} ${patient.lastName}` : '—'}</div>
                         <div className="text-[10px] text-muted-foreground">{patient?.phone}</div>
                       </>
                     )}
                   </td>
-                  <td className="px-4 py-3"><Badge variant="outline" className={cn('text-xs', n.type === 'telegram' ? 'bg-info/15 text-info border-info/30' : 'bg-secondary text-secondary-foreground border-none')}>SMS</Badge></td>
+                  <td className="px-4 py-3"><Badge variant="outline" className={cn('text-xs', n.type === 'telegram' ? 'bg-info/15 text-info border-info/30' : 'bg-secondary text-secondary-foreground border-none')}>{channelLabel(n.type)}</Badge></td>
                   <td className="px-4 py-3 text-muted-foreground max-w-xs truncate" title={n.message}>{n.message}</td>
                   <td className="px-4 py-3 text-muted-foreground">{new Date(n.sentAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className="px-4 py-3"><Badge variant="outline" className={cn('text-xs', n.status === 'delivered' ? 'bg-success/15 text-success border-success/30' : n.status === 'failed' ? 'bg-destructive/15 text-destructive border-destructive/30' : 'bg-warning/15 text-warning border-warning/30')}>{notifStatusLabels[n.status]}</Badge></td>
+                  <td className="px-4 py-3"><Badge variant="outline" className={cn('text-xs', n.status === 'delivered' ? 'bg-success/15 text-success border-success/30' : n.status === 'failed' ? 'bg-destructive/15 text-destructive border-destructive/30' : 'bg-warning/15 text-warning border-warning/30')}>{notifStatusLabels[n.status] ?? n.status}</Badge></td>
                 </tr>
               );
             })}
+            {table.isLoading && table.data.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                  <Loader2 className="w-4 h-4 inline mr-2 animate-spin" />Yuklanmoqda...
+                </td>
+              </tr>
+            )}
             {table.data.length === 0 && !table.isLoading && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Bildirishnomalar topilmadi</td>
@@ -414,29 +425,39 @@ function NotificationsPageContent() {
     perPage: 15,
   });
 
+  // Names: the embedded person if the API sends one, else one cached GET per *missing* id
+  // (shares the patient/doctor detail cache, never toasts on a 403/404).
   const patientIds = React.useMemo(() => {
-    const ids = table.data.map((n) => n.patientId).filter(Boolean) as string[];
+    const ids = table.data.filter((n) => !n.patient).map((n) => n.patientId).filter(Boolean) as string[];
     return Array.from(new Set(ids)).sort();
   }, [table.data]);
 
   const doctorIds = React.useMemo(() => {
-    const ids = table.data.map((n) => n.doctorId).filter(Boolean) as string[];
+    const ids = table.data.filter((n) => !n.doctor).map((n) => n.doctorId).filter(Boolean) as string[];
     return Array.from(new Set(ids)).sort();
   }, [table.data]);
 
-  const { data: patientsData } = useQuery({
-    queryKey: ['patients-by-ids', patientIds.join(',')],
-    enabled: authed && patientIds.length > 0,
-    queryFn: async () => Promise.all(patientIds.map((id) => patientsApi.get(id))),
+  const patients = useQueries({
+    queries: patientIds.map((id) => ({
+      queryKey: queryKeys.patient(id),
+      queryFn: () => patientsApi.get(id),
+      enabled: authed,
+      staleTime: 5 * 60_000,
+      meta: { silentError: true },
+    })),
+    combine: (results) => new Map<string, Person>(results.flatMap((r) => (r.data ? [[r.data.id, r.data] as const] : []))),
   });
-  const patients = patientsData ?? [];
 
-  const { data: doctorsData } = useQuery({
-    queryKey: ['doctors-by-ids', doctorIds.join(',')],
-    enabled: authed && doctorIds.length > 0,
-    queryFn: async () => Promise.all(doctorIds.map((id) => doctorsApi.get(id))),
+  const doctors = useQueries({
+    queries: doctorIds.map((id) => ({
+      queryKey: queryKeys.doctor(id),
+      queryFn: () => doctorsApi.get(id),
+      enabled: authed,
+      staleTime: 5 * 60_000,
+      meta: { silentError: true },
+    })),
+    combine: (results) => new Map<string, Person>(results.flatMap((r) => (r.data ? [[r.data.id, r.data] as const] : []))),
   });
-  const doctors = doctorsData ?? [];
 
   return (
     <div className="space-y-6">

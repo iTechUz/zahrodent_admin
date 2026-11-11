@@ -35,7 +35,8 @@ describe('FinanceService', () => {
   });
 
   it('validate', () => {
-    expect(FinanceService.validate(FinanceService.initialState())).toBe('Bemor kiritilishi shart');
+    expect(FinanceService.validate({ ...FinanceService.initialState(), amount: 5, description: 'Plomba' })).toBe('Bemor kiritilishi shart');
+    expect(FinanceService.validate({ ...FinanceService.initialState(), amount: 5, description: 'Ijara', type: 'EXPENSE' })).toBeNull();
     expect(FinanceService.validate({ ...FinanceService.mapToForm(payment), type: 'INCOME' })).toBeNull();
     expect(FinanceService.validate({ ...FinanceService.mapToForm(payment), type: 'INCOME', amount: 0 })).toBe(
       "Summa musbat son bo'lishi shart",

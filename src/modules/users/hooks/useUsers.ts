@@ -42,6 +42,24 @@ export const useUsers = () => {
     },
   });
 
+  /** Nofaol qilish / Faollashtirish. The server's 409 message (yourself / last admin) is toasted globally. */
+  const [toggleTarget, setToggleTarget] = useState<SessionUser | null>(null);
+  const activeMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => usersApi.update(id, { isActive }),
+    onSuccess: (_u, { isActive }) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success(isActive ? 'Xodim faollashtirildi' : 'Xodim nofaol qilindi');
+    },
+  });
+
+  const handleToggleActive = useCallback(() => {
+    if (!toggleTarget) return;
+    activeMut.mutate(
+      { id: toggleTarget.id, isActive: toggleTarget.isActive === false },
+      { onSettled: () => setToggleTarget(null) },
+    );
+  }, [toggleTarget, activeMut]);
+
   const dialog = useDialogState<SessionUser, Record<string, unknown>>({ name: '', phone: '', role: 'receptionist', password: '' });
 
   const handleSave = useCallback(
@@ -83,5 +101,9 @@ export const useUsers = () => {
     setDeleteId,
     deleteId,
     handleDelete,
+    toggleTarget,
+    setToggleTarget,
+    handleToggleActive,
+    isTogglingActive: activeMut.isPending,
   };
 };

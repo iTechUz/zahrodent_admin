@@ -96,4 +96,22 @@ describe('GlobalSearch', () => {
     await waitFor(() => expect(patientsApi.list).toHaveBeenCalled());
     expect(doctorsApi.list).not.toHaveBeenCalled();
   });
+
+  it('a pharmacist gets no search dialog and no requests (patients/bookings are 403 for them)', async () => {
+    loginAs('pharmacist');
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <MemoryRouter>
+          <GlobalSearch />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+    });
+    expect(screen.queryByPlaceholderText('Bemor, shifokor yoki qabul qidirish...')).not.toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(patientsApi.list).not.toHaveBeenCalled();
+    expect(bookingsApi.list).not.toHaveBeenCalled();
+  });
 });

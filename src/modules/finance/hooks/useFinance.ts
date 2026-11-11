@@ -8,11 +8,11 @@ import { useServerTable } from '@/shared/hooks/useServerTable';
 import { FinanceService } from '../services/finance.service';
 import { PaymentSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
-import { paymentsApi, patientsApi, doctorsApi, analyticsApi } from '@/lib/api/endpoints';
+import { paymentsApi, doctorsApi, analyticsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
-import { clinicToday, getMonthToDateRange } from '@/shared/lib/date-utils';
+import { clinicToday, clinicPeriodRange, getMonthToDateRange } from '@/shared/lib/date-utils';
 
 type PaymentFormValues = z.infer<typeof PaymentSchema>;
 
@@ -40,14 +40,8 @@ export const useFinance = () => {
     perPage: 10,
   });
 
-  // lookups: every page (the backend caps limit at 100)
-  const { data: patientsData, isLoading: patientsLoading } = useQuery({
-    queryKey: queryKeys.patientsLookup(),
-    queryFn: () => fetchAllPages(patientsApi.list),
-    enabled: authed,
-  });
-  const patients = patientsData?.data ?? [];
-
+  // lookups: every page (the backend caps limit at 100). Patients are NOT loaded here — rows embed `patient`
+  // and the form's picker searches server-side.
   const { data: doctorsData } = useQuery({
     queryKey: queryKeys.doctorsLookup(),
     queryFn: () => fetchAllPages(doctorsApi.list),
@@ -80,6 +74,22 @@ export const useFinance = () => {
     queryFn: () => paymentsApi.doctorStats(hasDoctorStatsPeriod ? doctorStatsPeriod : undefined),
     enabled: authed,
   });
+
+  type Period = 'all' | 'today' | 'week' | 'month';
+
+  /** quick period select: the date inputs always follow it ("all" clears them) */
+  const setPeriod = (period: Period) => {
+    table.setFilters('dateRange', period);
+    const range = period === 'all' ? undefined : clinicPeriodRange(period);
+    table.setFilters('startDate', range?.startDate);
+    table.setFilters('endDate', range?.endDate);
+  };
+
+  /** manual date edit: the quick period no longer applies, so the select shows "Barchasi" */
+  const setDateFilter = (key: 'startDate' | 'endDate', value: string) => {
+    table.setFilters(key, value || undefined);
+    table.setFilters('dateRange', 'all');
+  };
 
   const invalidateMoney = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.payments });
@@ -165,7 +175,6 @@ export const useFinance = () => {
     totalPages: table.totalPages,
     page: table.page,
     setPage: table.setPage,
-    patients,
     doctors,
     doctorRevenue,
     /** denominator of the doctor % column (period total when a period is selected) */
@@ -182,6 +191,8 @@ export const useFinance = () => {
     setSearch: table.setSearch,
     filters: table.filters,
     setFilters: table.setFilters,
+    setPeriod,
+    setDateFilter,
     modalOpen: dialog.isOpen,
     setModalOpen: dialog.setIsOpen,
     editing: dialog.editingItem,
@@ -191,7 +202,7 @@ export const useFinance = () => {
     openEdit: (p: Payment) => dialog.openEdit(p, FinanceService.mapToForm),
     handleSave,
     handleDelete,
-    isLoading: table.isLoading || patientsLoading,
+    isLoading: table.isLoading,
     error: table.error,
     refetch: table.refetch,
     sort: table.sort,

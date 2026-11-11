@@ -66,13 +66,27 @@ export const permissions = {
 
   'settings.read': STAFF,
   'settings.update': ADMIN,
-  'auth.changePassword': STAFF,
+  'auth.changePassword': [...STAFF, 'pharmacist'], // backend: any authenticated user
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type Permission = keyof typeof permissions;
 
 export function can(role: UserRole | undefined | null, action: Permission): boolean {
   return !!role && (permissions[action] as readonly UserRole[]).includes(role);
+}
+
+/** What the global search (Ctrl+K) may query for a role — mirrors the backend read guards (no guaranteed 403s). */
+export function globalSearchScopes(role: UserRole | undefined | null) {
+  return {
+    patients: can(role, 'patients.read'),
+    doctors: can(role, 'doctors.read') && !!role && roleAccess[role].includes('/doctors'),
+    bookings: can(role, 'bookings.read'),
+  };
+}
+
+export function canGlobalSearch(role: UserRole | undefined | null): boolean {
+  const s = globalSearchScopes(role);
+  return s.patients || s.doctors || s.bookings;
 }
 
 /** Rol bo'yicha marshrutga ruxsat (UI + ProtectedRoute) */
@@ -93,8 +107,9 @@ export const roleAccess: Record<UserRole, string[]> = {
   ],
   doctor: ['/', '/bookings', '/patients', '/settings'],
   receptionist: ['/', '/bookings', '/patients', '/services', '/notifications', '/leads', '/settings'],
-  // Pharmacy staff only see the prescription desk; '/' redirects there (ProtectedRoute).
-  pharmacist: ['/', '/pharmacy'],
+  // Pharmacy staff see the prescription desk ('/' redirects there, ProtectedRoute) and /settings for their own
+  // password / theme — the clinic-info tabs are hidden for them (GET /settings is staff-only).
+  pharmacist: ['/', '/pharmacy', '/settings'],
 };
 
 export const roleConfig: Record<UserRole, { label: string; color: string }> = {

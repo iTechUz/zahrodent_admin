@@ -76,16 +76,39 @@ describe('useFinance', () => {
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'EXPENSE' })));
   });
 
-  it('loads every page of patients and doctors for lookups, never more than 100 per request', async () => {
-    vi.mocked(patientsApi.list).mockImplementation(async (p) => paginated([{ id: `p${p?.page}` }] as never, 250));
+  it('loads every page of doctors for lookups but never the whole patient table', async () => {
+    vi.mocked(doctorsApi.list).mockImplementation(async (p) => paginated([{ id: `d${p?.page}` }] as never, 250));
     const { result } = setup();
-    await waitFor(() => expect(result.current.patients).toHaveLength(3));
-    expect(vi.mocked(patientsApi.list).mock.calls.map(([p]) => p)).toEqual([
+    await waitFor(() => expect(result.current.doctors).toHaveLength(3));
+    expect(vi.mocked(doctorsApi.list).mock.calls.map(([p]) => p)).toEqual([
       { page: 0, limit: 100 },
       { page: 1, limit: 100 },
       { page: 2, limit: 100 },
     ]);
-    expect(doctorsApi.list).toHaveBeenCalledWith({ page: 0, limit: 100 });
+    expect(patientsApi.list).not.toHaveBeenCalled();
+  });
+
+  describe('period filter stays in sync with the date inputs', () => {
+    it("'Barchasi' clears start/end dates", async () => {
+      const { result } = setup();
+      act(() => result.current.setPeriod('all'));
+      expect(result.current.filters).toMatchObject({ dateRange: 'all', startDate: undefined, endDate: undefined });
+      await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ dateRange: 'all', startDate: undefined })));
+    });
+
+    it("'Shu hafta' fills the week range", () => {
+      const { result } = setup();
+      act(() => result.current.setPeriod('week'));
+      expect(result.current.filters).toMatchObject({ dateRange: 'week', startDate: '2026-06-15', endDate: '2026-06-21' });
+    });
+
+    it('editing a date input resets the select to all and keeps the typed date', () => {
+      const { result } = setup();
+      act(() => result.current.setDateFilter('startDate', '2026-06-05'));
+      expect(result.current.filters).toMatchObject({ dateRange: 'all', startDate: '2026-06-05', endDate: '2026-06-17' });
+      act(() => result.current.setDateFilter('endDate', ''));
+      expect(result.current.filters.endDate).toBeUndefined();
+    });
   });
 
   describe('derived totals', () => {

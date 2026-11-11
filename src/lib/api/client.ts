@@ -8,6 +8,7 @@ import {
   type AuthTokens,
 } from './auth-token';
 import { emitAuthEvent } from './auth-events';
+import { redirectToLogin, rememberReturnPath } from './return-to';
 import { toUserMessage } from './error-messages';
 import { resolveApiUrl } from './runtime-config';
 
@@ -104,12 +105,16 @@ function toApiError(res: Response, data: unknown): ApiError {
 
 /** Clear the session, remember the reason for the login page and go there. */
 export function expireSession(message = SESSION_EXPIRED_MESSAGE) {
+  const onLogin = typeof window !== 'undefined' && window.location.pathname.startsWith('/login');
+  // remember where the user was (same-origin relative path only) so login can bring them back
+  if (typeof window !== 'undefined' && !onLogin) {
+    rememberReturnPath(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  }
   clearAuthStorage();
   setAuthNotice(message);
   emitAuthEvent({ type: 'expired' });
-  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-    window.location.assign('/login');
-  }
+  // SPA navigation when the router registered itself, otherwise a hard redirect (the path is already saved)
+  if (typeof window !== 'undefined' && !onLogin) redirectToLogin();
 }
 
 let refreshPromise: Promise<string> | null = null;

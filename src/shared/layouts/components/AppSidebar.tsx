@@ -4,6 +4,7 @@ import {
   DollarSign, BarChart3, Bell, Settings, ChevronLeft, Sparkles, ClipboardList, ShieldCheck, MessageSquare, Pill
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { isNavActive } from '../nav';
 import { useStore } from '@/store/useStore';
 import { roleAccess } from '@/shared/config/roles';
 import { Badge } from '@/components/ui/badge';
@@ -79,7 +80,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       {/* Navigatsiya */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const active = location.pathname === item.path;
+          const active = isNavActive(location.pathname, item.path);
           return (
             <Link
               key={item.path}

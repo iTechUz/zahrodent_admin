@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createQueryClient } from "@/lib/api/query-client";
-import { BrowserRouter, useRoutes, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, useRoutes, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { registerLoginRedirect } from "@/lib/api/return-to";
+import { PostLoginRedirect } from "@/components/PostLoginRedirect";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -37,13 +40,18 @@ const AppRoutes = () => {
   const isAuthenticated = useStore((s) => s.isAuthenticated);
   const authReady = useAuthBootstrap();
   const navigate = useNavigate();
+  // an expired session navigates inside the SPA (no page reload)
+  useEffect(() => {
+    registerLoginRedirect(() => navigate('/login', { replace: true }));
+    return () => registerLoginRedirect(null);
+  }, [navigate]);
   useSocket({ onOpenLead: () => navigate('/leads') });
 
   const routes = useRoutes([
     // Auth routes (not protected, but redirect if authenticated)
     ...authRoutes.map(route => ({
       ...route,
-      element: isAuthenticated ? <Navigate to="/" replace /> : route.element
+      element: isAuthenticated ? <PostLoginRedirect /> : route.element
     })),
     
     // Protected routes

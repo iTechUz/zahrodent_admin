@@ -4,7 +4,7 @@ import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { patientsApi, doctorsApi, bookingsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
-import { roleAccess } from '@/shared/config/roles';
+import { globalSearchScopes } from '@/shared/config/roles';
 import { doctorFullName, normalizeSearch } from '@/shared/lib/formatters';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import type { Patient } from '@/shared/types';
@@ -32,21 +32,25 @@ export function GlobalSearch() {
   const navigate = useNavigate();
   const authed = useStore((s) => s.isAuthenticated);
   const role = useStore((s) => s.currentUser?.role);
-  const routes = role ? roleAccess[role] : [];
-  const canOpenDoctors = routes.includes('/doctors');
+  // only query what the role may read (a pharmacist gets 403 on patients/bookings)
+  const { patients: canSearchPatients, doctors: canOpenDoctors, bookings: canSearchBookings } = globalSearchScopes(role);
+  const searchable = canSearchPatients || canOpenDoctors || canSearchBookings;
 
   // the backend searches the whole table (`search` param) — not just the first cached page
   const term = useDebouncedValue(normalizeSearch(query), SEARCH_DEBOUNCE_MS);
-  const searching = authed && open && term.length > 0;
+  const searching = authed && searchable && open && term.length > 0;
 
   const patientParams = { search: term, limit: SEARCH_LIMITS.patients };
   const { data: patientsRes, isFetching: patientsFetching } = useQuery({
     queryKey: queryKeys.patientsList(patientParams),
     queryFn: () => patientsApi.list(patientParams),
-    enabled: searching,
+    enabled: searching && canSearchPatients,
     placeholderData: keepPreviousData,
   });
-  const patients = useMemo(() => (searching ? patientsRes?.data ?? [] : []), [searching, patientsRes]);
+  const patients = useMemo(
+    () => (searching && canSearchPatients ? patientsRes?.data ?? [] : []),
+    [searching, canSearchPatients, patientsRes],
+  );
 
   const doctorParams = { search: term, limit: SEARCH_LIMITS.doctors };
   const { data: doctorsRes, isFetching: doctorsFetching } = useQuery({
@@ -64,10 +68,13 @@ export function GlobalSearch() {
   const { data: bookingsRes, isFetching: bookingsFetching } = useQuery({
     queryKey: queryKeys.bookingsList(bookingParams),
     queryFn: () => bookingsApi.list(bookingParams),
-    enabled: searching,
+    enabled: searching && canSearchBookings,
     placeholderData: keepPreviousData,
   });
-  const bookings = useMemo(() => (searching ? bookingsRes?.data ?? [] : []), [searching, bookingsRes]);
+  const bookings = useMemo(
+    () => (searching && canSearchBookings ? bookingsRes?.data ?? [] : []),
+    [searching, canSearchBookings, bookingsRes],
+  );
 
   // booking rows carry only patientId — resolve names not already in the patient results
   const missingPatientIds = useMemo(
@@ -78,7 +85,7 @@ export function GlobalSearch() {
     queries: missingPatientIds.map((id) => ({
       queryKey: queryKeys.patient(id),
       queryFn: () => patientsApi.get(id),
-      enabled: searching,
+      enabled: searching && canSearchPatients,
       meta: { silentError: true },
     })),
     combine: (results) => {
@@ -92,6 +99,7 @@ export function GlobalSearch() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!searchable) return;
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setOpen(true);
@@ -101,7 +109,7 @@ export function GlobalSearch() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [searchable]);
 
   const results = useMemo<SearchResult[]>(() => {
     if (!term) return [];
@@ -140,6 +148,9 @@ export function GlobalSearch() {
   }, [term, patients, doctors, bookings, bookingPatients]);
 
   useEffect(() => { setSelectedIndex(0); }, [query]);
+
+  // nothing the role may read → no search at all
+  if (!searchable) return null;
 
   const handleSelect = (result: SearchResult) => {
     navigate(result.path);
