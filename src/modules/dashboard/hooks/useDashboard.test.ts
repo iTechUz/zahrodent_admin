@@ -82,9 +82,8 @@ describe('useDashboard (admin)', () => {
   it('uses the backend aggregates — no client-side aggregation over truncated lists', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01', endDate: '2026-06-17' });
     // default period = this month → per-day series; the month-over-month hint compares same day-of-month ranges
-    expect(analyticsApi.daily).toHaveBeenCalledWith({ startDate: '2026-06-01' });
     expect(analyticsApi.daily).toHaveBeenCalledWith({ startDate: '2026-06-01', endDate: '2026-06-17' });
     expect(analyticsApi.daily).toHaveBeenCalledWith({ startDate: '2026-05-01', endDate: '2026-05-17' });
     expect(analyticsApi.sources).toHaveBeenCalled();
@@ -118,7 +117,7 @@ describe('useDashboard (admin)', () => {
     vi.setSystemTime(new Date('2026-06-16T19:30:00.000Z')); // 00:30 on 06-17 in Tashkent
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01', endDate: '2026-06-17' });
   });
 
   it('builds the chart series for the selected period (this month → per day)', async () => {
@@ -233,11 +232,10 @@ describe('useDashboard (admin)', () => {
     const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
     expect(keys).toEqual(
       expect.arrayContaining([
-        ['analytics', 'dashboard', '2026-06-17', { startDate: '2026-06-01' }],
-        ['analytics', 'daily', { startDate: '2026-06-01' }],
+        ['analytics', 'dashboard', '2026-06-17', { startDate: '2026-06-01', endDate: '2026-06-17' }],
         ['analytics', 'daily', { startDate: '2026-06-01', endDate: '2026-06-17' }],
         ['analytics', 'daily', { startDate: '2026-05-01', endDate: '2026-05-17' }],
-        ['analytics', 'sources', { startDate: '2026-06-01' }],
+        ['analytics', 'sources', { startDate: '2026-06-01', endDate: '2026-06-17' }],
         ['bookings', 'list', { limit: 5 }],
         ['doctors', 'lookup', {}],
         ['patients', 'p1'],

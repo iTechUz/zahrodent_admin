@@ -69,8 +69,8 @@ describe('useAnalytics (admin)', () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.doctorEfficiency).toHaveLength(1));
     // default period: this + 5 previous months (> 92 days → monthly rows)
-    expect(analyticsApi.monthly).toHaveBeenCalledWith({ startDate: '2026-01-01' });
-    expect(analyticsApi.sources).toHaveBeenCalledWith({ startDate: '2026-01-01' });
+    expect(analyticsApi.monthly).toHaveBeenCalledWith({ startDate: '2026-01-01', endDate: '2026-06-17' });
+    expect(analyticsApi.sources).toHaveBeenCalledWith({ startDate: '2026-01-01', endDate: '2026-06-17' });
     expect(bookingsApi.list).not.toHaveBeenCalled();
     expect(patientsApi.list).not.toHaveBeenCalled();
     expect(paymentsApi.list).not.toHaveBeenCalled();

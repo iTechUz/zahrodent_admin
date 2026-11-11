@@ -14,10 +14,10 @@ afterEach(() => {
 });
 
 describe('getMonthToDateRange', () => {
-  it('returns the 1st of the current clinic month and an open end date', () => {
+  it('returns the 1st of the current clinic month and today as the end date', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-17T09:30:00Z'));
-    expect(getMonthToDateRange()).toEqual({ startDate: '2026-06-01', endDate: '' });
+    expect(getMonthToDateRange()).toEqual({ startDate: '2026-06-01', endDate: '2026-06-17' });
   });
 
   it('zero-pads single-digit months', () => {
