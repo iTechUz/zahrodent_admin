@@ -1,10 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { doctorsApi, patientsApi, visitsApi } from '@/lib/api/endpoints';
+import { bookingsApi, doctorsApi, patientsApi, visitsApi } from '@/lib/api/endpoints';
 import { resetApiMock } from '@/test/api-mock';
 import { createTestQueryClient, loginAs, paginated } from '@/test/utils';
-import type { Doctor, DoctorEfficiencyStats, Patient, Visit } from '@/shared/types';
+import type { Booking, Doctor, DoctorEfficiencyStats, Patient, Visit } from '@/shared/types';
 import DoctorDetailsPage from './DoctorDetailsPage';
 
 vi.mock('@/lib/api/endpoints', async () => (await import('@/test/api-mock')).apiMock);
@@ -77,5 +77,25 @@ describe('DoctorDetailsPage', () => {
     await screen.findByText('Aziz Karimov');
     expect(screen.getByRole('button', { name: /Tahrirlash/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Tashrif qo'shish/ })).toBeInTheDocument();
+  });
+
+  it("shows the doctor's bookings with per-status counters and the doctor's patients", async () => {
+    loginAs('admin');
+    vi.mocked(bookingsApi.list).mockImplementation(async (params) => {
+      const rows = [
+        { id: 'b1', patientId: 'p9', doctorId: 'd1', date: '2026-06-12', time: '10:00', status: 'pending', patient: { firstName: 'Vali', lastName: 'Aliyev' } },
+      ] as Booking[];
+      const total = params?.status === 'pending' ? 3 : params?.status ? 1 : 7;
+      return { data: params?.limit === 1 ? [] : rows, total };
+    });
+    renderPage();
+    expect(await screen.findByText('Vali Aliyev')).toBeInTheDocument();
+    expect(await screen.findByText('Jami qabullar')).toBeInTheDocument();
+    await waitFor(() => expect(statValue('Jami qabullar')).toContain('7'));
+    const pendingCard = screen.getAllByText('Kutilmoqda').find((el) => el.tagName === 'P')!;
+    expect(pendingCard.parentElement!.textContent).toContain('3');
+    expect(bookingsApi.list).toHaveBeenCalledWith(expect.objectContaining({ doctorId: 'd1', status: 'pending', limit: 1 }));
+    // patients of this doctor are requested through the "related" filter (assigned + booked + visited)
+    expect(patientsApi.list).toHaveBeenCalledWith(expect.objectContaining({ relatedDoctorId: 'd1' }));
   });
 });

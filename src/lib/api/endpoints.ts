@@ -110,6 +110,8 @@ export const patientsApi = {
       endDate?: string;
       debtOnly?: string | boolean;
       doctorId?: string;
+      /** assigned, booked or visited — everyone who belongs to this doctor */
+      relatedDoctorId?: string;
     },
   ) => apiRequest<PaginatedResponse<Patient>>(`/patients${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; newThisMonth: number; topSource: string }>('/patients/stats'),

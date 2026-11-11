@@ -29,6 +29,7 @@ import { formatUzS } from '@/shared/lib/formatters';
 import { DOCTOR_WEEKDAY_LABELS, normalizeDoctorSchedule } from '@/shared/lib/doctor-schedule';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DoctorForm, DoctorVisitForm } from '../components/DoctorForm';
+import { DoctorActivityPanel } from '../components/DoctorActivityPanel';
 import { SortableTableHead } from '@/shared/components/SortableHeader';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
@@ -173,6 +174,9 @@ function DoctorDetailsContent() {
         </div>
       </div>
 
+      <DoctorActivityPanel doctorId={doctor.id} />
+
+      {can('doctors.efficiency') && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard 
           title="Jami bemorlar"
@@ -199,10 +203,11 @@ function DoctorDetailsContent() {
           title="O'rtacha chek"
           value={formatUzS(avgCheck)}
           icon={<TrendingUp className="w-5 h-5 text-warning" />}
-          trend="Avg per visit"
+          trend="Har bir tashrif bo'yicha"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
       </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Basic Info */}
