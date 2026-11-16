@@ -1,5 +1,5 @@
 import { CalendarDays } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { addDaysToDate, clinicMonthStart, clinicToday } from '@/shared/lib/date-utils';
 
@@ -93,22 +93,22 @@ export function DateRangeFilter({ startDate, endDate, onChange }: Props) {
         </SelectContent>
       </Select>
       <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border">
-        <Input
-          type="date"
+        <DatePicker
           aria-label="Boshlanish sanasi"
-          className="w-[140px] h-8 text-xs border-none bg-transparent"
+          placeholder="Dan"
+          className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
           value={startDate || ''}
           max={endDate || undefined}
-          onChange={(e) => onChange({ startDate: e.target.value || undefined, endDate })}
+          onChange={(v) => onChange({ startDate: v || undefined, endDate })}
         />
         <span className="text-muted-foreground text-xs">—</span>
-        <Input
-          type="date"
+        <DatePicker
           aria-label="Tugash sanasi"
-          className="w-[140px] h-8 text-xs border-none bg-transparent"
+          placeholder="Gacha"
+          className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
           value={endDate || ''}
           min={startDate || undefined}
-          onChange={(e) => onChange({ startDate, endDate: e.target.value || undefined })}
+          onChange={(v) => onChange({ startDate, endDate: v || undefined })}
         />
       </div>
     </div>

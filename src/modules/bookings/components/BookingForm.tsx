@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -176,7 +177,7 @@ export const BookingForm = ({
                   <FormItem>
                     <FormLabel>Sana <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input type="date" min={editing ? undefined : today} {...field} />
+                      <DatePicker min={editing ? undefined : today} value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
