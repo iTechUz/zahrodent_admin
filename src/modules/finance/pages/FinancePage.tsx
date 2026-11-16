@@ -7,6 +7,7 @@ import { StatCard } from '@/shared/components/StatCard';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Select,
   SelectContent,
@@ -257,19 +258,21 @@ export function FinancePageContent() {
         </div>
 
         <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border h-10">
-          <Input 
-            type="date" 
-            className="w-[140px] h-8 text-xs border-none bg-transparent" 
-            value={filters.startDate || ''} 
-            onChange={(e) => setFilters('startDate', e.target.value || undefined)}
-          />
+          <DatePicker
+              className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+              placeholder="Dan"
+              clearable
+              value={filters.startDate || ''}
+              onChange={(v) => setFilters('startDate', v || undefined)}
+            />
           <span className="text-muted-foreground text-xs">—</span>
-          <Input 
-            type="date" 
-            className="w-[140px] h-8 text-xs border-none bg-transparent" 
-            value={filters.endDate || ''} 
-            onChange={(e) => setFilters('endDate', e.target.value || undefined)}
-          />
+          <DatePicker
+              className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+              placeholder="Gacha"
+              clearable
+              value={filters.endDate || ''}
+              onChange={(v) => setFilters('endDate', v || undefined)}
+            />
         </div>
 
         <Select
