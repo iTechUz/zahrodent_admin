@@ -97,7 +97,7 @@ export const usePatients = () => {
         // "" from the select = no doctor → null unassigns on the backend
         updateMut.mutate(
           { id: dialog.editingItem.id, body: { ...rest, assignedDoctorId: assignedDoctorId || null } },
-          { onSettled: () => dialog.closeDialog() },
+          { onSuccess: () => dialog.closeDialog() },
         );
       } else {
         createMut.mutate(
@@ -106,7 +106,7 @@ export const usePatients = () => {
             notes: rest.notes ?? '',
             ...(assignedDoctorId ? { assignedDoctorId } : {}),
           } as Parameters<typeof patientsApi.create>[0],
-          { onSettled: () => dialog.closeDialog() },
+          { onSuccess: () => dialog.closeDialog() },
         );
       }
     },

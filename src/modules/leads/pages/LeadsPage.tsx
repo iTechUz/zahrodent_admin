@@ -46,6 +46,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { sortBy } from '@/lib/api/sort-fields';
+import { normalizeSearch } from '@/shared/lib/formatters';
 
 const STATUS_COLUMNS: { id: LeadStatus; label: string; color: string; bgColor: string; icon: LucideIcon }[] = [
   { id: 'new', label: 'Yangi', color: 'text-blue-600', bgColor: 'bg-blue-50', icon: MessageSquare },
@@ -61,6 +62,8 @@ export default function LeadsPage() {
     leads, 
     isLoading, 
     updateStatus, 
+    convertToPatient,
+    isConverting,
     createLead,
     updateLead,
     deleteLead,
@@ -80,6 +83,7 @@ export default function LeadsPage() {
   const navigate = useNavigate();
   const [view, setView] = useState<'board' | 'table'>('board');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [convertingLead, setConvertingLead] = useState<Lead | null>(null);
   
   // Lead Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -100,7 +104,7 @@ export default function LeadsPage() {
   // every page with the current filters (the table/board only holds one page)
   const handleExport = async () => {
     try {
-      const res = await fetchAllPages(leadsApi.list, { ...filters, search, ...sort });
+      const res = await fetchAllPages(leadsApi.list, { ...filters, search: normalizeSearch(search), ...sort });
       await exportToExcel(res.data as unknown as Record<string, unknown>[], 'murojaatlar');
     } catch {
       toast.error('Eksport qilishda xatolik yuz berdi');
@@ -166,7 +170,29 @@ export default function LeadsPage() {
   };
 
   const handleConvertToPatient = (lead: Lead) => {
-    navigate('/patients', { state: { createFromLead: lead } });
+    if (lead.status === 'converted') {
+      toast.info('Bu murojaat allaqachon bemorga aylantirilgan');
+      return;
+    }
+    setConvertingLead(lead);
+  };
+
+  const confirmConvert = () => {
+    const lead = convertingLead;
+    if (!lead || isConverting) return;
+    setConvertingLead(null);
+    convertToPatient(lead.id, {
+      onSuccess: (res) => {
+        // the backend may return the created patient's id; otherwise open the patients list filtered by the phone
+        const patientId = (res as Lead & { patientId?: string | null })?.patientId;
+        toast.success(`${lead.name} bemorga aylantirildi`, {
+          action: {
+            label: 'Bemorni ochish',
+            onClick: () => navigate(patientId ? `/patients/${patientId}` : `/patients?search=${encodeURIComponent(lead.phone)}`),
+          },
+        });
+      },
+    });
   };
 
   const onDragEnd = (result: DropResult) => {
@@ -660,6 +686,16 @@ export default function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!convertingLead}
+        onOpenChange={(open) => { if (!open) setConvertingLead(null); }}
+        onConfirm={confirmConvert}
+        title="Bemorga aylantirasizmi?"
+        description={`"${convertingLead?.name ?? ''}" murojaati "Bemorga aylandi" holatiga o'tkaziladi va uning ma'lumotlari asosida bemor yaratiladi.`}
+        confirmLabel="Aylantirish"
+        destructive={false}
+      />
 
       <ConfirmDeleteDialog
         open={!!deleteId}

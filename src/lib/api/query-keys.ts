@@ -59,6 +59,8 @@ export const queryKeys = {
   paymentsLookup: lookupKey('payments'),
   paymentsStats: ['payments', 'stats'] as const,
   paymentsDoctorStats: ['payments', 'doctor-stats'] as const,
+  paymentsDoctorStatsPeriod: (period: { startDate?: string; endDate?: string }) =>
+    ['payments', 'doctor-stats', period] as const,
 
   notifications: ['notifications'] as const,
   notificationsList: listKey('notifications'),

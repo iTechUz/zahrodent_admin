@@ -1,4 +1,4 @@
-import { PAST_BOOKING_DATE_ERROR, pastBookingDateError } from './BookingForm';
+import { PAST_BOOKING_DATE_ERROR, needsCancelReason, pastBookingDateError } from './BookingForm';
 
 describe('pastBookingDateError', () => {
   it('rejects a new booking before today (backend returns 400)', () => {
@@ -20,5 +20,14 @@ describe('pastBookingDateError', () => {
     expect(pastBookingDateError('2026-06-16', false)).toBe(PAST_BOOKING_DATE_ERROR);
     expect(pastBookingDateError('2026-06-17', false)).toBeNull();
     vi.useRealTimers();
+  });
+});
+
+describe('needsCancelReason', () => {
+  it('asks for a reason only when an existing booking is switched to cancelled', () => {
+    expect(needsCancelReason({ status: 'pending' }, 'cancelled')).toBe(true);
+    expect(needsCancelReason({ status: 'cancelled' }, 'cancelled')).toBe(false);
+    expect(needsCancelReason({ status: 'pending' }, 'confirmed')).toBe(false);
+    expect(needsCancelReason(null, 'cancelled')).toBe(false);
   });
 });

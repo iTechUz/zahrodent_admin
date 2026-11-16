@@ -12,16 +12,20 @@ describe('CancelReasonDialog', () => {
   it('passes the typed reason to onConfirm', async () => {
     const onConfirm = vi.fn();
     render(<CancelReasonDialog open onOpenChange={() => {}} onConfirm={onConfirm} />);
-    fireEvent.change(screen.getByPlaceholderText('Sabab (ixtiyoriy)'), { target: { value: 'Shifokor kasal' } });
+    fireEvent.change(screen.getByPlaceholderText('Sabab (majburiy)'), { target: { value: 'Shifokor kasal' } });
     fireEvent.click(screen.getByRole('button', { name: 'Bekor qilish' }));
     expect(onConfirm).toHaveBeenCalledWith('Shifokor kasal');
   });
 
-  it('reason is optional', async () => {
+  it('reason is required', async () => {
     const onConfirm = vi.fn();
     render(<CancelReasonDialog open onOpenChange={() => {}} onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Bekor qilish' }));
-    expect(onConfirm).toHaveBeenCalledWith('');
+    const btn = screen.getByRole('button', { name: 'Bekor qilish' });
+    expect(btn).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText('Sabab (majburiy)'), { target: { value: '   ' } });
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 });
 

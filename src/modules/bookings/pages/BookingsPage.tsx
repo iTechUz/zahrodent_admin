@@ -21,6 +21,7 @@ import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { Booking } from '@/shared/types';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { formatDate } from '@/shared/lib/formatters';
+import { clinicPeriodRange } from '@/shared/lib/date-utils';
 import { StatCard } from '@/shared/components/StatCard';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
@@ -52,6 +53,7 @@ function BookingsPageContent() {
     handleDelete,
     handleStatusChange,
     handleSave,
+    isSaving,
     isLoading,
     error,
     refetch,
@@ -180,30 +182,36 @@ function BookingsPageContent() {
 
             <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border h-10">
               <DatePicker
-              className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
-              placeholder="Dan"
-              clearable
-              value={filters.startDate || ''}
-              onChange={(v) => setFilters('startDate', v || undefined)}
-            />
+                className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+                placeholder="Dan"
+                clearable
+                value={filters.startDate || ''}
+                onChange={(v) => {
+                  setFilters('startDate', v || undefined);
+                  setFilters('dateRange', 'all');
+                }}
+              />
               <span className="text-muted-foreground text-xs">—</span>
               <DatePicker
-              className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
-              placeholder="Gacha"
-              clearable
-              value={filters.endDate || ''}
-              onChange={(v) => setFilters('endDate', v || undefined)}
-            />
+                className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+                placeholder="Gacha"
+                clearable
+                value={filters.endDate || ''}
+                onChange={(v) => {
+                  setFilters('endDate', v || undefined);
+                  setFilters('dateRange', 'all');
+                }}
+              />
             </div>
 
             <Select 
               value={filters.dateRange || 'all'} 
               onValueChange={(val) => {
                 setFilters('dateRange', val);
-                if (val !== 'all') {
-                  setFilters('startDate', undefined);
-                  setFilters('endDate', undefined);
-                }
+                // keep the date pickers in sync with the chosen period
+                const range = val === 'all' ? undefined : clinicPeriodRange(val as 'today' | 'week' | 'month');
+                setFilters('startDate', range?.startDate);
+                setFilters('endDate', range?.endDate);
               }}
             >
               <SelectTrigger className="w-[160px] h-10">
@@ -311,6 +319,7 @@ function BookingsPageContent() {
         doctors={doctors}
         services={services}
         onSave={handleSave}
+        isPending={isSaving}
       />
 
       <BookingDetails 

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Clock, GripVertical } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Booking } from '@/shared/types';
 import { toast } from 'sonner';
 import {
@@ -40,6 +41,15 @@ function formatDateStr(d: Date) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/** Bookings can't be moved into the past (backend 400) — checked before the request. */
+export function isPastCalendarDate(date: string, today: string = clinicToday()): boolean {
+  return date < today;
+}
+
+export const PAST_DROP_ERROR = "O'tgan sanaga qabulni ko'chirib bo'lmaydi";
+
+const isInactive = (status: Booking['status']) => status === 'cancelled' || status === 'no-show';
 
 // ─── Draggable booking chip ───────────────────────────────────────────────────
 function DraggableBookingChip({
@@ -73,6 +83,7 @@ function DraggableBookingChip({
         booking.status === 'cancelled' && 'bg-destructive/15 text-destructive',
         booking.status === 'arrived' && 'bg-info/15 text-info',
         booking.status === 'no-show' && 'bg-muted text-muted-foreground',
+        isInactive(booking.status) && !isOverlay && 'opacity-50 line-through',
         isDragging && !isOverlay && 'opacity-30',
         isOverlay && 'opacity-90 shadow-lg cursor-grabbing',
         !isOverlay && draggable && 'cursor-grab',
@@ -105,6 +116,7 @@ function DroppableDayCell({
   dayBookings,
   patients,
   onBookingClick,
+  onShowAll,
   draggable,
 }: {
   dateStr: string;
@@ -114,6 +126,7 @@ function DroppableDayCell({
   dayBookings: Booking[];
   patients: { id: string; firstName: string; lastName: string }[];
   onBookingClick: (b: Booking) => void;
+  onShowAll: (dateStr: string) => void;
   draggable: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: dateStr, disabled: !draggable });
@@ -151,7 +164,13 @@ function DroppableDayCell({
           );
         })}
         {dayBookings.length > 3 && (
-          <p className="text-[10px] text-muted-foreground px-1">+{dayBookings.length - 3} ta</p>
+          <button
+            type="button"
+            className="text-[10px] text-primary hover:underline px-1"
+            onClick={() => onShowAll(dateStr)}
+          >
+            +{dayBookings.length - 3} ta
+          </button>
         )}
       </div>
     </div>
@@ -168,6 +187,8 @@ export function DraggableBookingCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
+  const [dayListDate, setDayListDate] = useState<string | null>(null);
+  const [doctorFilter, setDoctorFilter] = useState('all');
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -225,11 +246,12 @@ export function DraggableBookingCalendar() {
   const bookingsByDate = useMemo(() => {
     const map: Record<string, Booking[]> = {};
     bookings.forEach((b) => {
+      if (doctorFilter !== 'all' && b.doctorId !== doctorFilter) return;
       if (!map[b.date]) map[b.date] = [];
       map[b.date].push(b);
     });
     return map;
-  }, [bookings]);
+  }, [bookings, doctorFilter]);
 
   const today = clinicToday();
 
@@ -244,6 +266,8 @@ export function DraggableBookingCalendar() {
       bookingsApi.update(id, { date }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookingsStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
       toast.success('Qabul sanasi yangilandi');
     },
     onError: (err) => {
@@ -271,6 +295,10 @@ export function DraggableBookingCalendar() {
     const newDate = over.id as string;
 
     if (!canReschedule || !booking || booking.date === newDate) return;
+    if (isPastCalendarDate(newDate, today)) {
+      toast.error(PAST_DROP_ERROR);
+      return;
+    }
 
     // Optimistic UI update — invalidate query after success/error
     updateBookingMut.mutate({ id: booking.id, date: newDate });
@@ -293,6 +321,15 @@ export function DraggableBookingCalendar() {
             </Button>
           </div>
           <div className="flex items-center gap-2">
+            <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+              <SelectTrigger className="h-8 w-[170px] text-xs" aria-label="Shifokor"><SelectValue placeholder="Shifokor" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Barcha shifokorlar</SelectItem>
+                {doctors.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>{d.firstName} {d.lastName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {canReschedule && (
               <p className="text-xs text-muted-foreground hidden sm:block">
                 Qabullarni boshqa kunga surgab o'tkazing
@@ -328,6 +365,7 @@ export function DraggableBookingCalendar() {
                 dayBookings={dayBookings}
                 patients={patients}
                 onBookingClick={setSelectedBooking}
+                onShowAll={setDayListDate}
                 draggable={canReschedule}
               />
             );
@@ -349,6 +387,32 @@ export function DraggableBookingCalendar() {
           );
         })()}
       </DragOverlay>
+
+      {/* Full list of one day (the cell only fits 3 chips) */}
+      <Dialog open={!!dayListDate} onOpenChange={(o) => !o && setDayListDate(null)}>
+        <DialogContent className="sm:max-w-[460px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{dayListDate} — qabullar</DialogTitle></DialogHeader>
+          <ul className="space-y-1">
+            {(dayListDate ? bookingsByDate[dayListDate] ?? [] : []).map((b) => (
+              <li key={b.id}>
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted text-left"
+                  onClick={() => {
+                    setSelectedBooking(b);
+                    setDayListDate(null);
+                  }}
+                >
+                  <span className={cn('truncate', isInactive(b.status) && 'opacity-60 line-through')}>
+                    {b.time} · {patientRefLabel(resolvePatientRef(b, patients))}
+                  </span>
+                  <StatusBadge status={b.status} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
 
       {/* Booking detail modal */}
       <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>

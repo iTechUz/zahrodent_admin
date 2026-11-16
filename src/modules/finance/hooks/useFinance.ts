@@ -69,9 +69,15 @@ export const useFinance = () => {
     enabled: authed,
   });
 
+  // the per-doctor breakdown follows the page's period filter (collected cash in that period)
+  const doctorStatsPeriod = {
+    ...(table.filters.startDate ? { startDate: table.filters.startDate } : {}),
+    ...(table.filters.endDate ? { endDate: table.filters.endDate } : {}),
+  };
+  const hasDoctorStatsPeriod = Object.keys(doctorStatsPeriod).length > 0;
   const { data: doctorStatsData } = useQuery({
-    queryKey: queryKeys.paymentsDoctorStats,
-    queryFn: () => paymentsApi.doctorStats(),
+    queryKey: queryKeys.paymentsDoctorStatsPeriod(doctorStatsPeriod),
+    queryFn: () => paymentsApi.doctorStats(hasDoctorStatsPeriod ? doctorStatsPeriod : undefined),
     enabled: authed,
   });
 
@@ -81,6 +87,8 @@ export const useFinance = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.paymentsDoctorStats });
     queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
     // patient balance / debt depends on payments
+    queryClient.invalidateQueries({ queryKey: queryKeys.doctors });
+    queryClient.invalidateQueries({ queryKey: queryKeys.services });
     queryClient.invalidateQueries({ queryKey: queryKeys.patients });
   };
 
@@ -113,13 +121,14 @@ export const useFinance = () => {
 
   const handleSave = useCallback(
     (data: PaymentFormValues) => {
+      if (createMut.isPending || updateMut.isPending) return;
       if (dialog.editingItem) {
         updateMut.mutate(
           { id: dialog.editingItem.id, body: data as Partial<Payment> },
-          { onSettled: () => dialog.closeDialog() },
+          { onSuccess: () => dialog.closeDialog() },
         );
       } else {
-        createMut.mutate(data, { onSettled: () => dialog.closeDialog() });
+        createMut.mutate(data, { onSuccess: () => dialog.closeDialog() });
       }
     },
     [dialog, createMut, updateMut],
@@ -133,6 +142,9 @@ export const useFinance = () => {
 
   // Map doctorStats to include doctor name and specialty
   const totalRevenue = stats?.totalRevenue ?? 0;
+  const doctorRevenueTotal = hasDoctorStatsPeriod
+    ? (doctorStatsData ?? []).reduce((s, ds) => s + (Number(ds.total) || 0), 0)
+    : totalRevenue;
   const doctorRevenue = (doctorStatsData ?? [])
     .map((ds) => {
       const doctor = doctors.find((d) => d.id === ds.doctorId);
@@ -141,12 +153,13 @@ export const useFinance = () => {
         total: ds.total,
         name: doctor ? `${doctor.firstName} ${doctor.lastName}` : "Noma'lum",
         specialty: doctor?.specialty ?? '',
-        percent: totalRevenue > 0 ? Math.round((ds.total / totalRevenue) * 100) : 0,
+        percent: doctorRevenueTotal > 0 ? Math.round((ds.total / doctorRevenueTotal) * 100) : 0,
       };
     })
     .sort((a, b) => b.total - a.total);
 
   return {
+    isSaving: createMut.isPending || updateMut.isPending,
     payments: table.data,
     totalCount: table.totalCount,
     totalPages: table.totalPages,
@@ -155,6 +168,9 @@ export const useFinance = () => {
     patients,
     doctors,
     doctorRevenue,
+    /** denominator of the doctor % column (period total when a period is selected) */
+    doctorRevenueTotal,
+    hasDoctorStatsPeriod,
     totalRevenue,
     /** paid revenue in the current clinic month (backend aggregate) */
     thisMonth: summary?.monthRevenue ?? 0,

@@ -37,14 +37,14 @@ export function presetRange(preset: DatePreset, now: Date = new Date()): DateRan
     case 'week':
       return { startDate: addDaysToDate(today, -6), endDate: today };
     case 'month':
-      return { startDate: clinicMonthStart(now), endDate: undefined };
+      return { startDate: clinicMonthStart(now), endDate: today };
     case 'lastMonth': {
       const thisStart = clinicMonthStart(now);
       const lastStart = `${addDaysToDate(thisStart, -1).slice(0, 7)}-01`;
       return { startDate: lastStart, endDate: addDaysToDate(thisStart, -1) };
     }
     case 'year':
-      return { startDate: `${today.slice(0, 4)}-01-01`, endDate: undefined };
+      return { startDate: `${today.slice(0, 4)}-01-01`, endDate: today };
     default:
       return { startDate: undefined, endDate: undefined };
   }

@@ -46,10 +46,11 @@ export const useUsers = () => {
 
   const handleSave = useCallback(
     (data: Partial<UserBody>) => {
+      if (saveMut.isPending) return;
       const id = dialog.editingItem?.id;
       saveMut.mutate(
         { id, body: data },
-        { onSettled: () => dialog.closeDialog() }
+        { onSuccess: () => dialog.closeDialog() }
       );
     },
     [dialog, saveMut]
@@ -62,6 +63,7 @@ export const useUsers = () => {
   }, [deleteId, deleteMut]);
 
   return {
+    isSaving: saveMut.isPending,
     users,
     isLoading,
     sort,

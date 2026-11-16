@@ -196,12 +196,14 @@ describe('usePatients', () => {
       await waitFor(() => expect(result.current.isSaving).toBe(false));
     });
 
-    it('closes the dialog but does not invalidate or toast success on error', async () => {
+    it('keeps the dialog open and does not invalidate or toast success on error', async () => {
       api.create.mockRejectedValue(new Error('400'));
       const { result, invalidate } = setup();
       act(() => result.current.openCreate());
       act(() => result.current.handleSave(form));
-      await waitFor(() => expect(result.current.modalOpen).toBe(false));
+      await waitFor(() => expect(result.current.isSaving).toBe(false));
+      expect(api.create).toHaveBeenCalled();
+      expect(result.current.modalOpen).toBe(true);
       expect(invalidate).not.toHaveBeenCalled();
       expect(toastMock.success).not.toHaveBeenCalled();
     });

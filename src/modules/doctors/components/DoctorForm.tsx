@@ -27,9 +27,10 @@ interface DoctorFormProps {
   onOpenChange: (open: boolean) => void;
   editing: Doctor | null;
   onSave: (data: DoctorFormValues) => void;
+  isPending?: boolean;
 }
 
-export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormProps) => {
+export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = false }: DoctorFormProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const form = useForm<DoctorFormValues>({
     resolver: zodResolver(DoctorSchema),
@@ -247,7 +248,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
               )}
             />
 
-            <Button type="submit" className="w-full">{editing ? "Yangilash" : "Qo'shish"}</Button>
+            <Button type="submit" className="w-full" disabled={isPending}>{editing ? "Yangilash" : "Qo'shish"}</Button>
           </form>
         </Form>
       </DialogContent>
@@ -264,6 +265,7 @@ interface VisitFormProps {
   doctor: Doctor | null;
   patients: Patient[];
   onSave: (data: VisitFormValues) => void;
+  isPending?: boolean;
 }
 
 export const DoctorVisitForm = ({ 
@@ -272,7 +274,8 @@ export const DoctorVisitForm = ({
   editingVisit, 
   doctor, 
   patients, 
-  onSave 
+  onSave,
+  isPending = false,
 }: VisitFormProps) => {
   const form = useForm<VisitFormValues>({
     resolver: zodResolver(VisitSchema),
@@ -400,7 +403,7 @@ export const DoctorVisitForm = ({
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full">{editingVisit ? "Yangilash" : "Yaratish"}</Button>
+            <Button type="submit" className="w-full" disabled={isPending}>{editingVisit ? "Yangilash" : "Yaratish"}</Button>
           </form>
         </Form>
       </DialogContent>
