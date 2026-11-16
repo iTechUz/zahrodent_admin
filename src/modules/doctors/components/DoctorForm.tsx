@@ -3,6 +3,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { TimePicker } from '@/components/ui/time-picker';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -205,7 +206,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = fa
                           render={({ field: startField }) => (
                             <FormItem className="space-y-0">
                               <FormControl>
-                                <Input type="time" className="h-8 w-[7.5rem] text-xs" disabled={!working} {...startField} />
+                                <TimePicker className="h-8 w-[7.5rem] text-xs" disabled={!working} value={startField.value} onChange={startField.onChange} />
                               </FormControl>
                             </FormItem>
                           )}
@@ -217,7 +218,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = fa
                           render={({ field: endField }) => (
                             <FormItem className="space-y-0">
                               <FormControl>
-                                <Input type="time" className="h-8 w-[7.5rem] text-xs" disabled={!working} {...endField} />
+                                <TimePicker className="h-8 w-[7.5rem] text-xs" disabled={!working} value={endField.value} onChange={endField.onChange} />
                               </FormControl>
                             </FormItem>
                           )}

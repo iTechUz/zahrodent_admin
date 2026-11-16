@@ -5,8 +5,8 @@ import { resolvePatientRef } from '@/shared/lib/patient-ref';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
+import { TimePicker } from '@/components/ui/time-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -208,7 +208,7 @@ export const BookingForm = ({
                   <FormItem>
                     <FormLabel>Vaqt <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <TimePicker value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
