@@ -82,10 +82,10 @@ describe('useDashboard (admin)', () => {
   it('uses the backend aggregates — no client-side aggregation over truncated lists', async () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
-    // default period = this month → per-day series; monthly(2) feeds the month-over-month hint
-    expect(analyticsApi.daily).toHaveBeenCalledWith({ startDate: '2026-06-01' });
-    expect(analyticsApi.monthly).toHaveBeenCalledWith({ months: 2 });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01', endDate: '2026-06-17' });
+    // default period = this month → per-day series; the month-over-month hint compares same day-of-month ranges
+    expect(analyticsApi.daily).toHaveBeenCalledWith({ startDate: '2026-06-01', endDate: '2026-06-17' });
+    expect(analyticsApi.daily).toHaveBeenCalledWith({ startDate: '2026-05-01', endDate: '2026-05-17' });
     expect(analyticsApi.sources).toHaveBeenCalled();
     // no bulk list scans any more
     expect(paymentsApi.list).not.toHaveBeenCalled();
@@ -117,7 +117,7 @@ describe('useDashboard (admin)', () => {
     vi.setSystemTime(new Date('2026-06-16T19:30:00.000Z')); // 00:30 on 06-17 in Tashkent
     const { result } = setup();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01' });
+    expect(analyticsApi.dashboard).toHaveBeenCalledWith({ date: '2026-06-17', startDate: '2026-06-01', endDate: '2026-06-17' });
   });
 
   it('builds the chart series for the selected period (this month → per day)', async () => {
@@ -156,11 +156,29 @@ describe('useDashboard (admin)', () => {
     ]);
   });
 
-  it('month-over-month trends from the last two monthly rows', async () => {
+  const dailyBy = (cur: number, prev: number) =>
+    vi.mocked(analyticsApi.daily).mockImplementation(async (p) => {
+      const isPrev = p?.startDate === '2026-05-01' || p?.startDate === '2026-04-01';
+      const v = p?.endDate ? (isPrev ? prev : cur) : cur;
+      return [{ date: p?.startDate ?? '', newPatients: v, bookings: 0, completedBookings: 0, revenue: v * 1000, expenses: 0 }];
+    });
+
+  it('month-over-month compares month-to-date with the same day range of the previous month', async () => {
+    dailyBy(20, 10);
     const { result } = setup();
     await waitFor(() => expect(result.current.newPatientsTrend).not.toBeNull());
     expect(result.current.newPatientsTrend).toEqual({ text: "+100% o'tgan oyga", up: true });
     expect(result.current.revenueTrend).toEqual({ text: "+100% o'tgan oyga", up: true });
+  });
+
+  it('month-over-month hint is hidden in the first days of the month', async () => {
+    vi.setSystemTime(new Date('2026-06-03T12:00:00.000Z'));
+    dailyBy(20, 10);
+    const { result } = setup();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.newPatientsTrend).toBeNull();
+    expect(result.current.revenueTrend).toBeNull();
+    expect(analyticsApi.daily).not.toHaveBeenCalledWith({ startDate: '2026-05-01', endDate: '2026-05-03' });
   });
 
   it('recent bookings resolve patient and doctor names', async () => {
@@ -181,7 +199,7 @@ describe('useDashboard (admin)', () => {
   });
 
   it('zero figures when the backend has no data', async () => {
-    vi.mocked(analyticsApi.monthly).mockResolvedValue([]);
+    vi.mocked(analyticsApi.daily).mockResolvedValue([]);
     vi.mocked(analyticsApi.dashboard).mockResolvedValue({
       ...dashboard,
       totalPatients: 0,
@@ -214,10 +232,10 @@ describe('useDashboard (admin)', () => {
     const keys = queryClient.getQueryCache().getAll().map((q) => q.queryKey);
     expect(keys).toEqual(
       expect.arrayContaining([
-        ['analytics', 'dashboard', '2026-06-17', { startDate: '2026-06-01' }],
-        ['analytics', 'daily', { startDate: '2026-06-01' }],
-        ['analytics', 'monthly', 2],
-        ['analytics', 'sources', { startDate: '2026-06-01' }],
+        ['analytics', 'dashboard', '2026-06-17', { startDate: '2026-06-01', endDate: '2026-06-17' }],
+        ['analytics', 'daily', { startDate: '2026-06-01', endDate: '2026-06-17' }],
+        ['analytics', 'daily', { startDate: '2026-05-01', endDate: '2026-05-17' }],
+        ['analytics', 'sources', { startDate: '2026-06-01', endDate: '2026-06-17' }],
         ['bookings', 'list', { limit: 5 }],
         ['doctors', 'lookup', {}],
         ['patients', 'p1'],

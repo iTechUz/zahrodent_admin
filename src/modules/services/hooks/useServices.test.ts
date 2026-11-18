@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { servicesApi } from '@/lib/api/endpoints';
 import { resetApiMock, toastMock } from '@/test/api-mock';
 import { createWrapper, loginAs, paginated } from '@/test/utils';
+import { ApiError } from '@/lib/api/client';
 import type { Service } from '@/shared/types';
 import { CATEGORIES, useServices } from './useServices';
 
@@ -107,6 +108,16 @@ describe('useServices', () => {
 
     expect(invalidate).toHaveBeenCalledTimes(3);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['services'] });
+  });
+
+  it('a 409 on delete shows the backend message and closes the confirm dialog', async () => {
+    api.remove.mockRejectedValue(new ApiError(409, "Xizmat qabullarda ishlatilgan"));
+    const { result } = setup();
+    act(() => result.current.setDeleteId('a'));
+    act(() => result.current.handleDelete());
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("Xizmat qabullarda ishlatilgan", expect.anything()));
+    await waitFor(() => expect(result.current.deleteId).toBeNull());
+    expect(toastMock.success).not.toHaveBeenCalled();
   });
 
   it('handleDelete without deleteId is a no-op', () => {

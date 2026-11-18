@@ -16,7 +16,7 @@ import { PatientForm } from '../components/PatientForm';
 import { DataTable, Column } from '@/shared/components/DataTable';
 import { Patient } from '@/shared/types';
 import { SourceBadge } from '@/shared/components/StatusBadge';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDate, formatCurrency } from '@/shared/lib/formatters';
 import { StatCard } from '@/shared/components/StatCard';
 import { Users, UserPlus, Target } from 'lucide-react';
@@ -30,11 +30,14 @@ import { exportToExcel } from '@/shared/lib/excel';
 import { patientsApi } from '@/lib/api/endpoints';
 import { toast } from 'sonner';
 import { sortBy } from '@/lib/api/sort-fields';
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { patientAge } from '@/shared/lib/patient-age';
 import { DateRangeFilter } from '@/shared/components/DateRangeFilter';
+import { normalizeSearch } from '@/shared/lib/formatters';
 
 function PatientsPageContent() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     patients,
     totalPatients,
@@ -57,6 +60,7 @@ function PatientsPageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     handleDelete,
     isLoading,
     error,
@@ -65,6 +69,13 @@ function PatientsPageContent() {
   } = usePatients();
 
   const can = useCan();
+
+  // deep link, e.g. from "Bemorga aylantirish" on the leads page: /patients?search=+998...
+  const initialSearch = searchParams.get('search');
+  useEffect(() => {
+    if (initialSearch) setSearch(initialSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSearch]);
 
   const columns: Column<Patient>[] = [
     { 
@@ -83,7 +94,7 @@ function PatientsPageContent() {
         </div>
       )
     },
-    { header: 'Yosh', accessor: (p) => `${p.age} yosh`, sortKey: sortBy('patients', 'age') },
+    { header: 'Yosh', accessor: (p) => `${patientAge(p)} yosh`, sortKey: sortBy('patients', 'age') },
     { header: 'Telefon', accessor: 'phone' },
     { 
       header: 'Shifokor', 
@@ -116,12 +127,12 @@ function PatientsPageContent() {
     try {
       setIsExporting(true);
       // every page (the backend caps limit at 100)
-      const res = await fetchAllPages(patientsApi.list, { ...filters, search, ...sort });
+      const res = await fetchAllPages(patientsApi.list, { ...filters, search: normalizeSearch(search), ...sort });
 
       const exportData = res.data.map(p => ({
         'Ism': p.firstName,
         'Familiya': p.lastName,
-        'Yosh': p.age,
+        'Yosh': patientAge(p),
         'Telefon': p.phone,
         'Manba': BOOKING_SOURCE_LABELS[p.source as keyof typeof BOOKING_SOURCE_LABELS] || p.source,
         'Balans': p.balance || 0,
@@ -295,6 +306,7 @@ function PatientsPageContent() {
         onOpenChange={setModalOpen} 
         editing={editing}  
         onSave={handleSave} 
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog

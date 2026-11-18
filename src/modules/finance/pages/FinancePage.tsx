@@ -7,6 +7,7 @@ import { StatCard } from '@/shared/components/StatCard';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Select,
   SelectContent,
@@ -34,6 +35,7 @@ import { sortBy } from '@/lib/api/sort-fields';
 import { useState } from 'react';
 
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
+import { normalizeSearch } from '@/shared/lib/formatters';
 
 export function FinancePageContent() {
   const {
@@ -44,6 +46,8 @@ export function FinancePageContent() {
     setPage,
     patients,
     doctorRevenue,
+    doctorRevenueTotal,
+    hasDoctorStatsPeriod,
     totalRevenue,
     thisMonth,
     todayRevenue,
@@ -61,6 +65,7 @@ export function FinancePageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     handleDelete,
     isLoading,
     error,
@@ -75,7 +80,7 @@ export function FinancePageContent() {
     try {
       setIsExporting(true);
       // every page (the backend caps limit at 100)
-      const res = await fetchAllPages(paymentsApi.list, { ...filters, search, ...sort });
+      const res = await fetchAllPages(paymentsApi.list, { ...filters, search: normalizeSearch(search), ...sort });
 
       const exportData = res.data.map(p => {
         return {
@@ -196,12 +201,14 @@ export function FinancePageContent() {
               <Stethoscope className="w-4 h-4 text-primary" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold">Shifokorlar bo'yicha daromad</h2>
-              <p className="text-[10px] text-muted-foreground">Faqat tashrifga bog'liq to'lovlar hisobi</p>
+              <h2 className="text-sm font-semibold">Shifokorlar bo'yicha to'langan</h2>
+              <p className="text-[10px] text-muted-foreground">
+                Kassaga tushgan to'lovlar (tashrifga bog'liq). Shifokorlar sahifasidagi «Hisoblangan» summa bilan farq qilishi mumkin.
+              </p>
             </div>
             <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
               <BarChart3 className="w-3.5 h-3.5" />
-              Jami: {formatUzS(totalRevenue)}
+              {hasDoctorStatsPeriod ? 'Davr jami' : 'Jami'}: {formatUzS(doctorRevenueTotal)}
             </div>
           </div>
 
@@ -251,19 +258,21 @@ export function FinancePageContent() {
         </div>
 
         <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border h-10">
-          <Input 
-            type="date" 
-            className="w-[140px] h-8 text-xs border-none bg-transparent" 
-            value={filters.startDate || ''} 
-            onChange={(e) => setFilters('startDate', e.target.value || undefined)}
-          />
+          <DatePicker
+              className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+              placeholder="Dan"
+              clearable
+              value={filters.startDate || ''}
+              onChange={(v) => setFilters('startDate', v || undefined)}
+            />
           <span className="text-muted-foreground text-xs">—</span>
-          <Input 
-            type="date" 
-            className="w-[140px] h-8 text-xs border-none bg-transparent" 
-            value={filters.endDate || ''} 
-            onChange={(e) => setFilters('endDate', e.target.value || undefined)}
-          />
+          <DatePicker
+              className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+              placeholder="Gacha"
+              clearable
+              value={filters.endDate || ''}
+              onChange={(v) => setFilters('endDate', v || undefined)}
+            />
         </div>
 
         <Select
@@ -369,6 +378,7 @@ export function FinancePageContent() {
         editing={editing}
         patients={patients}
         onSave={handleSave}
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog

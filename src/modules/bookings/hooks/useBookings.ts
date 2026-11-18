@@ -13,7 +13,7 @@ import { bookingsApi, patientsApi, doctorsApi, servicesApi } from '@/lib/api/end
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
 
-import { getMonthToDateRange } from '@/shared/lib/date-utils';
+import { clinicPeriodRange } from '@/shared/lib/date-utils';
 
 type BookingFormValues = z.infer<typeof BookingSchema>;
 
@@ -23,7 +23,8 @@ export const useBookings = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewBooking, setViewBooking] = useState<Booking | null>(null);
 
-  const mtd = getMonthToDateRange();
+  // the default "Shu oy" period fills BOTH date inputs (same bounds the select sets)
+  const mtd = clinicPeriodRange('month');
 
   const table = useServerTable<
     Booking,
@@ -72,6 +73,8 @@ export const useBookings = () => {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+    queryClient.invalidateQueries({ queryKey: queryKeys.doctors });
+    queryClient.invalidateQueries({ queryKey: queryKeys.services });
     queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
   };
 
@@ -102,10 +105,11 @@ export const useBookings = () => {
   const dialog = useDialogState<Booking>(BookingService.initialState());
 
   const handleSave = useCallback(
-    (data: BookingFormValues) => {
+    (data: BookingFormValues, statusReason?: string) => {
+      if (createMut.isPending || updateMut.isPending) return;
       if (dialog.editingItem) {
         updateMut.mutate(
-          { id: dialog.editingItem.id, body: data as Partial<Booking> },
+          { id: dialog.editingItem.id, body: { ...(data as Partial<Booking>), ...(statusReason?.trim() ? { statusReason: statusReason.trim() } : {}) } },
           {
             onSuccess: () => {
               toast.success('Qabul muvaffaqiyatli yangilandi');
@@ -134,7 +138,7 @@ export const useBookings = () => {
         },
       );
     },
-    [updateMut],
+    [updateMut, queryClient],
   );
 
   return {
@@ -154,6 +158,7 @@ export const useBookings = () => {
     openEdit: (b: Booking) => dialog.openEdit(b, BookingService.mapToForm),
     patients,
     doctors,
+    isSaving: createMut.isPending || updateMut.isPending,
     deleteId,
     setDeleteId,
     viewBooking,

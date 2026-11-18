@@ -12,6 +12,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -40,9 +41,10 @@ interface UserFormProps {
   onOpenChange: (open: boolean) => void;
   editing: Partial<UserFormValues> | null;
   onSave: (data: Partial<UserFormValues>) => void;
+  isPending?: boolean;
 }
 
-export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps) {
+export function UserForm({ open, onOpenChange, editing, onSave, isPending = false }: UserFormProps) {
   const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<UserFormValues>({
@@ -115,6 +117,9 @@ export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps)
                       <SelectItem value="admin">Administrator</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormDescription>
+                    Shifokorlar bu yerda emas, «Shifokorlar» sahifasida qo'shiladi.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -147,7 +152,7 @@ export function UserForm({ open, onOpenChange, editing, onSave }: UserFormProps)
               )}
             />
             <DialogFooter>
-              <Button type="submit" className="w-full">Saqlash</Button>
+              <Button type="submit" className="w-full" disabled={isPending}>Saqlash</Button>
             </DialogFooter>
           </form>
         </Form>

@@ -10,6 +10,8 @@ import { ServiceSchema } from '@/shared/lib/validation';
 import { z } from 'zod';
 import { servicesApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
+import { ApiError } from '@/lib/api/client';
+import { getErrorMessage, getRequestIdLabel } from '@/lib/api/query-client';
 import { can } from '@/shared/config/roles';
 
 type ServiceFormValues = z.infer<typeof ServiceSchema>;
@@ -59,6 +61,11 @@ export const useServices = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.services });
       toast.success("Xizmat o'chirildi");
     },
+    // e.g. 409: the service is still used by bookings/visits — show the backend's reason
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 401) return;
+      toast.error(getErrorMessage(err, "Xizmatni o'chirib bo'lmadi"), { description: getRequestIdLabel(err) });
+    },
   });
 
   const dialog = useDialogState<Service>(ServiceModuleService.initialState());
@@ -81,13 +88,14 @@ export const useServices = () => {
 
   const handleSave = useCallback(
     (data: ServiceFormValues) => {
+      if (createMut.isPending || updateMut.isPending) return;
       if (dialog.editingItem) {
         updateMut.mutate(
           { id: dialog.editingItem.id, body: data as Partial<Service> },
-          { onSettled: () => dialog.closeDialog() },
+          { onSuccess: () => dialog.closeDialog() },
         );
       } else {
-        createMut.mutate(data as Omit<Service, 'id'>, { onSettled: () => dialog.closeDialog() });
+        createMut.mutate(data as Omit<Service, 'id'>, { onSuccess: () => dialog.closeDialog() });
       }
     },
     [dialog, createMut, updateMut],
@@ -100,6 +108,7 @@ export const useServices = () => {
   }, [deleteId, deleteMut]);
 
   return {
+    isSaving: createMut.isPending || updateMut.isPending,
     services: table.data,
     totalCount: table.totalCount,
     totalPages: table.totalPages,

@@ -64,7 +64,7 @@ describe('useFinance', () => {
       dateRange: 'month',
       type: 'all',
       startDate: '2026-06-01',
-      endDate: '',
+      endDate: '2026-06-17',
     });
     expect(result.current.totalCount).toBe(31);
     expect(result.current.totalPages).toBe(4);
