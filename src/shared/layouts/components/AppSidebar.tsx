@@ -8,6 +8,7 @@ import { useStore } from '@/store/useStore';
 import { roleAccess } from '@/shared/config/roles';
 import { Badge } from '@/components/ui/badge';
 import { roleConfig } from '@/shared/config/roles';
+import { SidebarAvatar } from './SidebarAvatar';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 
 const allNavItems = [
@@ -63,9 +64,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       {(!collapsed || isMobile) && currentUser && (
         <div className="px-3 py-3 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0">
-              {currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-            </div>
+            <SidebarAvatar />
             <div className="min-w-0">
               <p className="text-xs font-medium text-sidebar-accent-foreground truncate">{currentUser.name}</p>
               <Badge variant="outline" className={cn('text-[9px] px-1 py-0 h-3.5 border', roleConfig[currentUser.role].color)}>

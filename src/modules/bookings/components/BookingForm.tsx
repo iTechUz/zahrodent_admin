@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CancelReasonDialog } from './BookingStatusDialogs';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
@@ -19,13 +19,51 @@ import {
 } from '@/shared/constants';
 import { Booking, Patient, Doctor, BookingSource, BookingStatus } from '@/shared/types';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
-import { BookingSchema } from '@/shared/lib/validation';
+import { BookingSchema, makeBookingFormSchema } from '@/shared/lib/validation';
+import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
+import { doctorSelectOptions } from '@/shared/components/doctorOptions';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Service } from '@/shared/types';
 import * as z from 'zod';
 import { clinicToday } from '@/shared/lib/date-utils';
 
 type BookingFormValues = z.infer<typeof BookingSchema>;
+type BookingFormInput = Omit<BookingFormValues, 'patientId'> & {
+  patientId?: string;
+  lastName?: string;
+  firstName?: string;
+  phone?: string;
+};
+
+/** New-patient data typed into the booking form (Familiya, Ism, Telefon). */
+export interface NewPatientInput {
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
+/** Prefill for "new booking" (e.g. a clicked calendar slot). */
+export interface BookingPrefill {
+  date?: string;
+  time?: string;
+  doctorId?: string;
+}
+
+const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** An existing patient with the same phone and the same name (siblings may share a phone — they differ by name). */
+export function findPatientMatch(
+  patients: Pick<Patient, 'id' | 'firstName' | 'lastName' | 'phone'>[],
+  input: NewPatientInput,
+): Pick<Patient, 'id' | 'firstName' | 'lastName' | 'phone'> | undefined {
+  return patients.find(
+    (p) =>
+      p.phone.replace(/\D/g, '') === input.phone.replace(/\D/g, '') &&
+      norm(p.firstName) === norm(input.firstName) &&
+      norm(p.lastName) === norm(input.lastName),
+  );
+}
 
 export const PAST_BOOKING_DATE_ERROR = "O'tgan sanaga qabul yozib bo'lmaydi";
 
@@ -46,8 +84,10 @@ interface BookingFormProps {
   patients: Patient[];
   doctors: Doctor[];
   services: Service[];
-  onSave: (data: BookingFormValues, statusReason?: string) => void;
+  onSave: (data: BookingFormValues, statusReason?: string, newPatient?: NewPatientInput) => void;
   isPending?: boolean;
+  /** Date / time / doctor to start a new booking with (clicked calendar slot). */
+  prefill?: BookingPrefill | null;
 }
 
 export const BookingForm = ({ 
@@ -59,24 +99,34 @@ export const BookingForm = ({
   services,
   onSave,
   isPending = false,
+  prefill,
 }: BookingFormProps) => {
-  const form = useForm<BookingFormValues>({
-    resolver: zodResolver(BookingSchema),
-    defaultValues: {
-      patientId: '',
-      doctorId: '',
-      serviceId: '',
-      date: '',
-      time: '',
-      source: 'walk-in',
-      status: 'pending',
-      notes: '',
-    },
+  const isEdit = !!editing;
+  const schema = useMemo(() => makeBookingFormSchema(isEdit), [isEdit]);
+  const emptyValues = (): BookingFormInput => ({
+    lastName: '',
+    firstName: '',
+    phone: '',
+    patientId: '',
+    doctorId: prefill?.doctorId ?? '',
+    serviceId: '',
+    date: prefill?.date ?? '',
+    time: prefill?.time ?? '',
+    source: 'walk-in',
+    status: 'pending',
+    notes: '',
+  });
+  const form = useForm<BookingFormInput>({
+    resolver: zodResolver(schema),
+    defaultValues: emptyValues(),
   });
 
   useEffect(() => {
     if (editing) {
       form.reset({
+        lastName: '',
+        firstName: '',
+        phone: '',
         patientId: editing.patientId,
         doctorId: editing.doctorId,
         serviceId: editing.serviceId || '',
@@ -87,18 +137,10 @@ export const BookingForm = ({
         notes: editing.notes || '',
       });
     } else {
-      form.reset({
-        patientId: '',
-        doctorId: '',
-        serviceId: '',
-        date: '',
-        time: '',
-        source: 'walk-in',
-        status: 'pending',
-        notes: '',
-      });
+      form.reset(emptyValues());
     }
-  }, [editing, form, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- emptyValues only reads `prefill`
+  }, [editing, form, open, prefill]);
 
   const today = clinicToday();
   // cancelling via the edit form needs a reason (backend: statusReason required) → ask before saving
@@ -107,7 +149,9 @@ export const BookingForm = ({
     if (!open) setPendingCancel(null);
   }, [open]);
 
-  const handleSubmit = (values: BookingFormValues) => {
+  const handleSubmit = (input: BookingFormInput) => {
+    const { lastName = '', firstName = '', phone = '', patientId = '', ...rest } = input;
+    const values: BookingFormValues = { ...rest, patientId };
     // backend rejects new bookings in the past (400) — catch it before the request
     const dateError = pastBookingDateError(values.date, !!editing, today);
     if (dateError) {
@@ -118,7 +162,14 @@ export const BookingForm = ({
       setPendingCancel(values);
       return;
     }
-    onSave(values);
+    if (editing) {
+      onSave(values);
+      return;
+    }
+    const typed: NewPatientInput = { firstName: firstName.trim(), lastName: lastName.trim(), phone };
+    const match = findPatientMatch(patients, typed);
+    if (match) onSave({ ...values, patientId: match.id });
+    else onSave(values, undefined, typed);
   };
 
   return (
@@ -129,24 +180,68 @@ export const BookingForm = ({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pt-4">
-            <FormField
-              control={form.control}
-              name="patientId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Bemor <span className="text-destructive">*</span></FormLabel>
-                  <FormControl>
-                    <SearchableSelect
-                      options={patients.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName} (${p.phone})` }))}
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      placeholder="Bemorni tanlang"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {isEdit ? (
+              <FormField
+                control={form.control}
+                name="patientId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bemor <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <SearchableSelect
+                        options={patients.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName} (${p.phone})` }))}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder="Bemorni tanlang"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <>
+                <FormField
+                  control={form.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Familiya <span className="text-destructive">*</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="Valiyev" autoComplete="off" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ism <span className="text-destructive">*</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ali" autoComplete="off" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telefon raqam <span className="text-destructive">*</span></FormLabel>
+                      <FormControl>
+                        <PhoneInput value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
 
             <FormField
               control={form.control}
@@ -156,7 +251,7 @@ export const BookingForm = ({
                   <FormLabel>Shifokor <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <SearchableSelect
-                      options={doctors.map(d => ({ value: d.id, label: `${d.firstName} ${d.lastName} (${d.specialty})` }))}
+                      options={doctorSelectOptions(doctors)}
                       value={field.value}
                       onValueChange={field.onChange}
                       placeholder="Shifokorni tanlang"
