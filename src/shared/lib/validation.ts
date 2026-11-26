@@ -57,6 +57,28 @@ export const BookingSchema = z.object({
   notes: z.string().optional(),
 });
 
+/**
+ * Booking dialog: when editing the patient is picked (`patientId`); when creating the receptionist types
+ * Familiya, Ism and Telefon (an existing patient with the same phone and name is reused, else one is created).
+ */
+export const makeBookingFormSchema = (isEdit: boolean) =>
+  BookingSchema.extend({
+    patientId: z.string().optional(),
+    lastName: z.string().optional(),
+    firstName: z.string().optional(),
+    phone: z.string().optional(),
+  }).superRefine((v, ctx) => {
+    if (isEdit) {
+      if (!v.patientId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Bemor kiritilishi shart', path: ['patientId'] });
+      return;
+    }
+    if (!v.lastName?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Familiya kiritilishi shart', path: ['lastName'] });
+    if (!v.firstName?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ism kiritilishi shart', path: ['firstName'] });
+    if (!phoneSchema.safeParse(v.phone ?? '').success) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Telefon raqami +998XXXXXXXXX formatida bo'lishi kerak", path: ['phone'] });
+    }
+  });
+
 export const ServiceSchema = z.object({
   name: requiredString('Xizmat nomi'),
   category: requiredString('Kategoriya'),
@@ -87,6 +109,8 @@ export const DoctorSchema = z
     lastName: requiredString('Familiya'),
     specialty: requiredString('Mutaxassislik'),
     phone: phoneSchema,
+    /** photo URL on the CDN ('' = none / removed) */
+    avatar: z.string().optional(),
     password: z.string().min(6, "Kamida 6 ta belgi").optional().or(z.literal('')),
     /** Haftalik jadval (7 kun) — kartadagi katakchalar bilan mos */
     schedule: z.array(doctorScheduleSlotSchema).length(7),

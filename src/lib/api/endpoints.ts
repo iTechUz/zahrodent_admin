@@ -154,6 +154,21 @@ export const doctorsApi = {
   remove: (id: string) => apiRequest<{ id: string }>(`/doctors/${id}`, { method: 'DELETE' }),
 };
 
+export const uploadsApi = {
+  /** Admin/receptionist: uploads a JPG/PNG/WEBP (≤ 3 MB) to the CDN, returns its public URL. */
+  avatar: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return apiRequest<{ url: string }>('/uploads/avatar', { method: 'POST', body });
+  },
+  /** Doctor role: uploads and saves the photo on the doctor's own profile. */
+  ownAvatar: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return apiRequest<{ url: string }>('/uploads/avatar/me', { method: 'POST', body });
+  },
+};
+
 export const bookingsApi = {
   list: (
     params?: ListParams & {
