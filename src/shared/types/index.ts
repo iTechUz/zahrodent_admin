@@ -223,6 +223,8 @@ export interface DashboardAnalytics {
   pendingBookings: number;
   activeDoctors: number;
   totalDoctors: number;
+  /** Bookings inside the selected period by status (doctor: only their own) */
+  periodBookingsByStatus?: Record<string, number>;
   todayRevenue: number | null;
   monthRevenue: number | null;
   monthExpenses: number | null;

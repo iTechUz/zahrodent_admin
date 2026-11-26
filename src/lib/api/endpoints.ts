@@ -167,7 +167,7 @@ export const bookingsApi = {
     },
   ) =>
     apiRequest<PaginatedResponse<Booking>>(`/bookings${qs(params ?? {})}`),
-  stats: () => apiRequest<{ today: number; pending: number; completedToday: number }>('/bookings/stats'),
+  stats: () => apiRequest<{ total: number; pending: number; completed: number }>('/bookings/stats'),
   get: (id: string) => apiRequest<Booking>(`/bookings/${id}`),
   create: (body: Omit<Booking, 'id' | 'createdAt'> & { createdAt?: string }) =>
     apiRequest<Booking>('/bookings', { method: 'POST', body: JSON.stringify(body) }),

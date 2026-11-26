@@ -11,6 +11,7 @@ import { Plus, Search, List, CalendarDays, Clock, CheckCircle2, AlertCircle } fr
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BOOKING_STATUSES, BOOKING_SOURCES, BOOKING_STATUS_LABELS, BOOKING_SOURCE_LABELS } from '@/shared/constants';
 import { useState } from 'react';
+import { useStore } from '@/store/useStore';
 import { useBookings } from '../hooks/useBookings';
 import { CancelReasonDialog, StatusHistoryDialog } from '../components/BookingStatusDialogs';
 import type { BookingStatus } from '@/shared/types';
@@ -64,6 +65,8 @@ function BookingsPageContent() {
   } = useBookings();
 
   const can = useCan();
+  // a doctor only ever sees their own bookings, so there is no doctor to filter by
+  const isDoctor = useStore((s) => s.currentUser?.role) === 'doctor';
   const canCreate = can('bookings.create');
   const canUpdate = can('bookings.update');
   const canDelete = can('bookings.delete');
@@ -141,10 +144,10 @@ function BookingsPageContent() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
           <StatCard 
-            title="Bugungi qabullar" 
-            value={stats?.today ?? 0} 
+            title="Barcha qabullar" 
+            value={stats?.total ?? 0} 
             icon={<Clock className="w-5 h-5 text-primary" />} 
-            trend="Bugun uchun jami"
+            trend="Jami qabullar soni"
           />
           <StatCard 
             title="Kutilmoqda" 
@@ -153,8 +156,8 @@ function BookingsPageContent() {
             trend="Tasdiqlanishi kerak"
           />
           <StatCard 
-            title="Bugun yakunlandi" 
-            value={stats?.completedToday ?? 0} 
+            title="Yakunlangan qabullar" 
+            value={stats?.completed ?? 0} 
             icon={<CheckCircle2 className="w-5 h-5 text-success" />} 
             trend="Muvaffaqiyatli qabullar"
             trendUp={true}
@@ -237,6 +240,7 @@ function BookingsPageContent() {
                 ))}
               </SelectContent>
             </Select>
+            {!isDoctor && (
             <Select
               value={filters.doctorId || 'all'}
               onValueChange={(val) => setFilters('doctorId', val === 'all' ? undefined : val)}
@@ -249,6 +253,7 @@ function BookingsPageContent() {
                 ))}
               </SelectContent>
             </Select>
+            )}
             <Select 
               value={filters.source || 'all'} 
               onValueChange={(val) => setFilters('source', val)}

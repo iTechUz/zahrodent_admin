@@ -52,4 +52,29 @@ describe('DraggableBookingCalendar', () => {
     fireEvent.click(screen.getByText(/14:00/));
     expect(await screen.findByText('Qabul tafsilotlari')).toBeInTheDocument();
   });
+
+  it('"Bugun" returns to the current month and shows today\'s bookings', async () => {
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <DraggableBookingCalendar />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('button', { name: '+2 ta' });
+    fireEvent.click(screen.getByRole('button', { name: 'Keyingi oy' }));
+    expect(screen.getByText('Iyul 2026')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Bugun' }));
+    expect(screen.getByText('Iyun 2026')).toBeInTheDocument();
+    expect(await screen.findByText('2026-06-17 — qabullar')).toBeInTheDocument();
+  });
+
+  it('doctor does not get a doctor filter (only own bookings are loaded)', async () => {
+    loginAs('doctor');
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <DraggableBookingCalendar />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('button', { name: '+2 ta' });
+    expect(screen.queryByRole('combobox', { name: 'Shifokor' })).not.toBeInTheDocument();
+  });
 });

@@ -107,9 +107,9 @@ describe('useBookings', () => {
     });
 
     it('loads stats', async () => {
-      bookings.stats.mockResolvedValue({ today: 4, pending: 2, completedToday: 1 });
+      bookings.stats.mockResolvedValue({ total: 4, pending: 2, completed: 1 });
       const { result } = setup();
-      await waitFor(() => expect(result.current.stats).toEqual({ today: 4, pending: 2, completedToday: 1 }));
+      await waitFor(() => expect(result.current.stats).toEqual({ total: 4, pending: 2, completed: 1 }));
     });
 
     it('doctor role loads the doctor lookup (GET /doctors is allowed for doctors)', async () => {
