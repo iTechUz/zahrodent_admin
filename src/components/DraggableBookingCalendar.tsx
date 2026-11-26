@@ -281,6 +281,12 @@ export function DraggableBookingCalendar() {
     },
   });
 
+  /** Jump to the current month and show today's bookings, so the click is never a silent no-op. */
+  function goToToday() {
+    setCurrentDate(new Date());
+    setDayListDate(clinicToday());
+  }
+
   function handleDragStart(event: DragStartEvent) {
     const booking = event.active.data.current?.booking as Booking;
     setActiveBooking(booking ?? null);
@@ -321,6 +327,7 @@ export function DraggableBookingCalendar() {
             </Button>
           </div>
           <div className="flex items-center gap-2">
+            {role !== 'doctor' && (
             <Select value={doctorFilter} onValueChange={setDoctorFilter}>
               <SelectTrigger className="h-8 w-[170px] text-xs" aria-label="Shifokor"><SelectValue placeholder="Shifokor" /></SelectTrigger>
               <SelectContent>
@@ -330,12 +337,13 @@ export function DraggableBookingCalendar() {
                 ))}
               </SelectContent>
             </Select>
+            )}
             {canReschedule && (
               <p className="text-xs text-muted-foreground hidden sm:block">
                 Qabullarni boshqa kunga surgab o'tkazing
               </p>
             )}
-            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="text-xs">
+            <Button variant="outline" size="sm" onClick={goToToday} className="text-xs">
               Bugun
             </Button>
           </div>
@@ -392,6 +400,9 @@ export function DraggableBookingCalendar() {
       <Dialog open={!!dayListDate} onOpenChange={(o) => !o && setDayListDate(null)}>
         <DialogContent className="sm:max-w-[460px] max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dayListDate} — qabullar</DialogTitle></DialogHeader>
+          {dayListDate && (bookingsByDate[dayListDate] ?? []).length === 0 && (
+            <p className="text-sm text-muted-foreground py-4 text-center">Bu kunda qabullar yo'q</p>
+          )}
           <ul className="space-y-1">
             {(dayListDate ? bookingsByDate[dayListDate] ?? [] : []).map((b) => (
               <li key={b.id}>

@@ -22,6 +22,7 @@ import { StatCard } from '@/shared/components/StatCard';
 import { Users, UserPlus, Target } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useCan } from '@/shared/hooks/usePermissions';
+import { useStore } from '@/store/useStore';
 import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { clinicToday } from '@/shared/lib/date-utils';
@@ -69,6 +70,8 @@ function PatientsPageContent() {
   } = usePatients();
 
   const can = useCan();
+  // a doctor only sees their own patients — no other doctors to filter by
+  const isDoctor = useStore((s) => s.currentUser?.role) === 'doctor';
 
   // deep link, e.g. from "Bemorga aylantirish" on the leads page: /patients?search=+998...
   const initialSearch = searchParams.get('search');
@@ -230,6 +233,7 @@ function PatientsPageContent() {
             </SelectContent>
           </Select>
 
+          {!isDoctor && (
           <Select
             value={filters.doctorId || 'all'}
             onValueChange={(val) => setFilters('doctorId', val === 'all' ? undefined : val)}
@@ -246,6 +250,7 @@ function PatientsPageContent() {
               ))}
             </SelectContent>
           </Select>
+          )}
 
           <Button 
             variant={filters.debtOnly === 'true' ? 'destructive' : 'outline'}

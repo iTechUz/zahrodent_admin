@@ -157,6 +157,8 @@ export const useDashboard = () => {
     pendingBookings: stats?.pendingBookings ?? 0,
     activeDoctors: stats?.activeDoctors ?? 0,
     totalDoctors: stats?.totalDoctors ?? 0,
+    periodBookingsByStatus: stats?.periodBookingsByStatus ?? {},
+    isDoctor: role === 'doctor',
     todayRevenue: stats?.todayRevenue ?? 0,
     monthRevenue: stats?.monthRevenue ?? 0,
     monthExpenses: stats?.monthExpenses ?? 0,
