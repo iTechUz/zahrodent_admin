@@ -1,6 +1,7 @@
 import { Pencil, Trash2, MoreHorizontal, ClipboardList, Stethoscope, Plus } from 'lucide-react';
 import { Doctor, Patient, Visit } from '@/shared/types';
 import { VisitStatusBadge } from '@/shared/components/StatusBadge';
+import { UserAvatar } from '@/shared/components/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -33,9 +34,7 @@ export const DoctorCard = ({
     <div className="bg-card rounded-xl border border-border p-5">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center text-primary-foreground font-bold shrink-0">
-            {doctor.firstName[0]}{doctor.lastName[0]}
-          </div>
+          <UserAvatar src={doctor.avatar} firstName={doctor.firstName} lastName={doctor.lastName} className="w-12 h-12" />
           <div>
             <h3 className="font-bold text-lg leading-none">{doctor.firstName} {doctor.lastName}</h3>
             <p className="text-xs text-muted-foreground mt-1">{doctor.specialty}</p>

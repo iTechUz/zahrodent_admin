@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import type { BookingPrefill, NewPatientInput } from '../components/BookingForm';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/store/useStore';
 import { Booking, BookingStatus } from '@/shared/types';
@@ -79,7 +80,21 @@ export const useBookings = () => {
   };
 
   const createMut = useMutation({
-    mutationFn: (body: BookingFormValues) => bookingsApi.create(body as Parameters<typeof bookingsApi.create>[0]),
+    mutationFn: async ({ body, newPatient }: { body: BookingFormValues; newPatient?: NewPatientInput }) => {
+      let patientId = body.patientId;
+      if (newPatient) {
+        // quick add from the booking form: name + phone only (age unknown, filled in later on the patient card)
+        const created = await patientsApi.create({
+          ...newPatient,
+          age: 0,
+          ageUnknown: true,
+          source: body.source,
+        } as Parameters<typeof patientsApi.create>[0]);
+        patientId = created.id;
+        queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      }
+      return bookingsApi.create({ ...body, patientId } as Parameters<typeof bookingsApi.create>[0]);
+    },
     onSuccess: () => {
       invalidate();
       toast.success('Yangi qabul yaratildi');
@@ -103,9 +118,22 @@ export const useBookings = () => {
   });
 
   const dialog = useDialogState<Booking>(BookingService.initialState());
+  const [prefill, setPrefill] = useState<BookingPrefill | null>(null);
+  const openCreate = useCallback(() => {
+    setPrefill(null);
+    dialog.openCreate();
+  }, [dialog]);
+  /** "New booking" with date / time / doctor already filled (clicked calendar slot). */
+  const openCreateAt = useCallback(
+    (p: BookingPrefill) => {
+      setPrefill(p);
+      dialog.openCreate();
+    },
+    [dialog],
+  );
 
   const handleSave = useCallback(
-    (data: BookingFormValues, statusReason?: string) => {
+    (data: BookingFormValues, statusReason?: string, newPatient?: NewPatientInput) => {
       if (createMut.isPending || updateMut.isPending) return;
       if (dialog.editingItem) {
         updateMut.mutate(
@@ -120,7 +148,7 @@ export const useBookings = () => {
       } else {
         // keep the form open on errors (time conflict, past date, outside the doctor's schedule)
         // so the user can fix it; the backend message is shown by the global mutation toast
-        createMut.mutate(data, { onSuccess: () => dialog.closeDialog() });
+        createMut.mutate({ body: data, newPatient }, { onSuccess: () => dialog.closeDialog() });
       }
     },
     [dialog, createMut, updateMut],
@@ -154,7 +182,9 @@ export const useBookings = () => {
     modalOpen: dialog.isOpen,
     setModalOpen: dialog.setIsOpen,
     editing: dialog.editingItem,
-    openCreate: dialog.openCreate,
+    openCreate,
+    openCreateAt,
+    prefill,
     openEdit: (b: Booking) => dialog.openEdit(b, BookingService.mapToForm),
     patients,
     doctors,

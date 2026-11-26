@@ -19,6 +19,7 @@ import {
   DOCTOR_WEEKDAY_LABELS,
   normalizeDoctorSchedule,
 } from '@/shared/lib/doctor-schedule';
+import { AvatarUpload } from '@/shared/components/AvatarUpload';
 import * as z from 'zod';
 
 type DoctorFormValues = z.infer<typeof DoctorSchema>;
@@ -40,6 +41,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = fa
       lastName: '',
       specialty: '',
       phone: '',
+      avatar: '',
       password: '',
       schedule: defaultDoctorSchedule(),
       daysOffText: '',
@@ -59,6 +61,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = fa
           lastName: editing.lastName,
           specialty: editing.specialty,
           phone: editing.phone,
+          avatar: editing.avatar ?? '',
           password: '',
           schedule: normalizeDoctorSchedule(editing.schedule),
           daysOffText: editing.daysOff?.length ? editing.daysOff.join(', ') : '',
@@ -69,6 +72,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = fa
           lastName: '',
           specialty: '',
           phone: '',
+          avatar: '',
           password: '',
           schedule: defaultDoctorSchedule(),
           daysOffText: '',
@@ -89,6 +93,24 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = fa
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="avatar"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rasm</FormLabel>
+                  <FormControl>
+                    <AvatarUpload
+                      value={field.value}
+                      onChange={field.onChange}
+                      firstName={form.watch('firstName')}
+                      lastName={form.watch('lastName')}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}

@@ -19,6 +19,8 @@ import {
 interface Option {
   value: string;
   label: string;
+  /** optional leading visual (e.g. a doctor's avatar) shown in the list and in the closed field */
+  icon?: React.ReactNode;
 }
 
 interface SearchableSelectProps {
@@ -49,9 +51,14 @@ export function SearchableSelect({
           aria-expanded={open}
           className={cn("w-full justify-between", className)}
         >
-          {value
-            ? options.find((option) => option.value === value)?.label
-            : placeholder}
+          {value ? (
+            <span className="flex min-w-0 items-center gap-2">
+              {options.find((option) => option.value === value)?.icon}
+              <span className="truncate">{options.find((option) => option.value === value)?.label}</span>
+            </span>
+          ) : (
+            placeholder
+          )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -76,6 +83,7 @@ export function SearchableSelect({
                       value === option.value ? "opacity-100" : "opacity-0"
                     )}
                   />
+                  {option.icon && <span className="mr-2 flex">{option.icon}</span>}
                   {option.label}
                 </CommandItem>
               ))}

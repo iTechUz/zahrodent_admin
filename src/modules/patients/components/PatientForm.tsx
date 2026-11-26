@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { doctorsApi, patientsApi } from '@/lib/api/endpoints';
 import { fetchAllPages } from '@/lib/api/helpers';
 import { queryKeys } from '@/lib/api/query-keys';
+import { doctorSelectOptions } from '@/shared/components/doctorOptions';
 import { patientBirthYear } from '@/shared/lib/patient-age';
 import * as z from 'zod';
 
@@ -62,10 +63,7 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave, isPending = f
   });
   const assignedDoctorId = editing?.assignedDoctorId ?? detail?.assignedDoctorId ?? '';
 
-  const doctorOptions = (doctorsData?.data || []).map((d) => ({
-    value: d.id,
-    label: `${d.firstName} ${d.lastName} (${d.specialty})`,
-  }));
+  const doctorOptions = doctorSelectOptions(doctorsData?.data || []);
 
   useEffect(() => {
     if (editing) {
@@ -161,6 +159,25 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave, isPending = f
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="assignedDoctorId"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Shifokor (mas'ul/davolovchi)</FormLabel>
+                    <FormControl>
+                      <SearchableSelect
+                        options={doctorOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder="Shifokorni tanlang"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* Rest is filled in later via edit */}
               {editing && (
                 <>
@@ -172,24 +189,6 @@ export const PatientForm = ({ open, onOpenChange, editing, onSave, isPending = f
                         <FormLabel>Manzil</FormLabel>
                         <FormControl>
                           <Input placeholder="Masalan: Toshkent sh., Chilonzor" {...field} value={field.value ?? ''} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="assignedDoctorId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Biriktirilgan shifokor</FormLabel>
-                        <FormControl>
-                          <SearchableSelect
-                            options={doctorOptions}
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            placeholder="Shifokorni tanlang"
-                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

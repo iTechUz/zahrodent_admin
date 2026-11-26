@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { UserAvatar } from '@/shared/components/UserAvatar';
 import { useParams, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useDoctor, useDoctors } from '../hooks/useDoctors';
@@ -126,9 +127,13 @@ function DoctorDetailsContent() {
             </Button>
             
             <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20">
-                <User className="w-10 h-10" />
-              </div>
+              <UserAvatar
+                src={doctor.avatar}
+                firstName={doctor.firstName}
+                lastName={doctor.lastName}
+                className="w-20 h-20 rounded-2xl shadow-lg shadow-primary/20"
+                fallbackClassName="rounded-2xl text-2xl"
+              />
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
                   <h1 className="text-3xl font-extrabold tracking-tight">

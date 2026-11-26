@@ -1,7 +1,7 @@
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
-import { DraggableBookingCalendar } from '@/components';
+import { BookingCalendarViews } from '../components/BookingCalendarViews';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -49,6 +49,8 @@ function BookingsPageContent() {
     setPage,
     totalPages,
     openCreate,
+    openCreateAt,
+    prefill,
     openEdit,
     handleDelete,
     handleStatusChange,
@@ -307,7 +309,7 @@ function BookingsPageContent() {
         </TabsContent>
 
         <TabsContent value="calendar">
-          <DraggableBookingCalendar />
+          <BookingCalendarViews onSlotClick={openCreateAt} onBookingClick={setViewBooking} />
         </TabsContent>
       </Tabs>
 
@@ -320,6 +322,7 @@ function BookingsPageContent() {
         services={services}
         onSave={handleSave}
         isPending={isSaving}
+        prefill={prefill}
       />
 
       <BookingDetails 
