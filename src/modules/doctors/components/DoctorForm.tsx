@@ -3,6 +3,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { TimePicker } from '@/components/ui/time-picker';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import {
   DOCTOR_WEEKDAY_LABELS,
   normalizeDoctorSchedule,
 } from '@/shared/lib/doctor-schedule';
+import { AvatarUpload } from '@/shared/components/AvatarUpload';
 import * as z from 'zod';
 
 type DoctorFormValues = z.infer<typeof DoctorSchema>;
@@ -27,9 +29,10 @@ interface DoctorFormProps {
   onOpenChange: (open: boolean) => void;
   editing: Doctor | null;
   onSave: (data: DoctorFormValues) => void;
+  isPending?: boolean;
 }
 
-export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormProps) => {
+export const DoctorForm = ({ open, onOpenChange, editing, onSave, isPending = false }: DoctorFormProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const form = useForm<DoctorFormValues>({
     resolver: zodResolver(DoctorSchema),
@@ -38,6 +41,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
       lastName: '',
       specialty: '',
       phone: '',
+      avatar: '',
       password: '',
       schedule: defaultDoctorSchedule(),
       daysOffText: '',
@@ -57,6 +61,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
           lastName: editing.lastName,
           specialty: editing.specialty,
           phone: editing.phone,
+          avatar: editing.avatar ?? '',
           password: '',
           schedule: normalizeDoctorSchedule(editing.schedule),
           daysOffText: editing.daysOff?.length ? editing.daysOff.join(', ') : '',
@@ -67,6 +72,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
           lastName: '',
           specialty: '',
           phone: '',
+          avatar: '',
           password: '',
           schedule: defaultDoctorSchedule(),
           daysOffText: '',
@@ -87,6 +93,24 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="avatar"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rasm</FormLabel>
+                  <FormControl>
+                    <AvatarUpload
+                      value={field.value}
+                      onChange={field.onChange}
+                      firstName={form.watch('firstName')}
+                      lastName={form.watch('lastName')}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -204,7 +228,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
                           render={({ field: startField }) => (
                             <FormItem className="space-y-0">
                               <FormControl>
-                                <Input type="time" className="h-8 w-[7.5rem] text-xs" disabled={!working} {...startField} />
+                                <TimePicker className="h-8 w-[7.5rem] text-xs" disabled={!working} value={startField.value} onChange={startField.onChange} />
                               </FormControl>
                             </FormItem>
                           )}
@@ -216,7 +240,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
                           render={({ field: endField }) => (
                             <FormItem className="space-y-0">
                               <FormControl>
-                                <Input type="time" className="h-8 w-[7.5rem] text-xs" disabled={!working} {...endField} />
+                                <TimePicker className="h-8 w-[7.5rem] text-xs" disabled={!working} value={endField.value} onChange={endField.onChange} />
                               </FormControl>
                             </FormItem>
                           )}
@@ -247,7 +271,7 @@ export const DoctorForm = ({ open, onOpenChange, editing, onSave }: DoctorFormPr
               )}
             />
 
-            <Button type="submit" className="w-full">{editing ? "Yangilash" : "Qo'shish"}</Button>
+            <Button type="submit" className="w-full" disabled={isPending}>{editing ? "Yangilash" : "Qo'shish"}</Button>
           </form>
         </Form>
       </DialogContent>
@@ -264,6 +288,7 @@ interface VisitFormProps {
   doctor: Doctor | null;
   patients: Patient[];
   onSave: (data: VisitFormValues) => void;
+  isPending?: boolean;
 }
 
 export const DoctorVisitForm = ({ 
@@ -272,7 +297,8 @@ export const DoctorVisitForm = ({
   editingVisit, 
   doctor, 
   patients, 
-  onSave 
+  onSave,
+  isPending = false,
 }: VisitFormProps) => {
   const form = useForm<VisitFormValues>({
     resolver: zodResolver(VisitSchema),
@@ -400,7 +426,7 @@ export const DoctorVisitForm = ({
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full">{editingVisit ? "Yangilash" : "Yaratish"}</Button>
+            <Button type="submit" className="w-full" disabled={isPending}>{editingVisit ? "Yangilash" : "Yaratish"}</Button>
           </form>
         </Form>
       </DialogContent>

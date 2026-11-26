@@ -1,15 +1,17 @@
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
-import { DraggableBookingCalendar } from '@/components';
+import { BookingCalendarViews } from '../components/BookingCalendarViews';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Search, List, CalendarDays, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BOOKING_STATUSES, BOOKING_SOURCES, BOOKING_STATUS_LABELS, BOOKING_SOURCE_LABELS } from '@/shared/constants';
 import { useState } from 'react';
+import { useStore } from '@/store/useStore';
 import { useBookings } from '../hooks/useBookings';
 import { CancelReasonDialog, StatusHistoryDialog } from '../components/BookingStatusDialogs';
 import type { BookingStatus } from '@/shared/types';
@@ -20,6 +22,7 @@ import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { Booking } from '@/shared/types';
 import { StatusBadge, SourceBadge } from '@/shared/components/StatusBadge';
 import { formatDate } from '@/shared/lib/formatters';
+import { clinicPeriodRange } from '@/shared/lib/date-utils';
 import { StatCard } from '@/shared/components/StatCard';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
@@ -47,10 +50,13 @@ function BookingsPageContent() {
     setPage,
     totalPages,
     openCreate,
+    openCreateAt,
+    prefill,
     openEdit,
     handleDelete,
     handleStatusChange,
     handleSave,
+    isSaving,
     isLoading,
     error,
     refetch,
@@ -61,6 +67,8 @@ function BookingsPageContent() {
   } = useBookings();
 
   const can = useCan();
+  // a doctor only ever sees their own bookings, so there is no doctor to filter by
+  const isDoctor = useStore((s) => s.currentUser?.role) === 'doctor';
   const canCreate = can('bookings.create');
   const canUpdate = can('bookings.update');
   const canDelete = can('bookings.delete');
@@ -138,10 +146,10 @@ function BookingsPageContent() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
           <StatCard 
-            title="Bugungi qabullar" 
-            value={stats?.today ?? 0} 
+            title="Barcha qabullar" 
+            value={stats?.total ?? 0} 
             icon={<Clock className="w-5 h-5 text-primary" />} 
-            trend="Bugun uchun jami"
+            trend="Jami qabullar soni"
           />
           <StatCard 
             title="Kutilmoqda" 
@@ -150,8 +158,8 @@ function BookingsPageContent() {
             trend="Tasdiqlanishi kerak"
           />
           <StatCard 
-            title="Bugun yakunlandi" 
-            value={stats?.completedToday ?? 0} 
+            title="Yakunlangan qabullar" 
+            value={stats?.completed ?? 0} 
             icon={<CheckCircle2 className="w-5 h-5 text-success" />} 
             trend="Muvaffaqiyatli qabullar"
             trendUp={true}
@@ -178,18 +186,26 @@ function BookingsPageContent() {
             </div>
 
             <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border h-10">
-              <Input 
-                type="date" 
-                className="w-[140px] h-8 text-xs border-none bg-transparent" 
-                value={filters.startDate || ''} 
-                onChange={(e) => setFilters('startDate', e.target.value || undefined)}
+              <DatePicker
+                className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+                placeholder="Dan"
+                clearable
+                value={filters.startDate || ''}
+                onChange={(v) => {
+                  setFilters('startDate', v || undefined);
+                  setFilters('dateRange', 'all');
+                }}
               />
               <span className="text-muted-foreground text-xs">—</span>
-              <Input 
-                type="date" 
-                className="w-[140px] h-8 text-xs border-none bg-transparent" 
-                value={filters.endDate || ''} 
-                onChange={(e) => setFilters('endDate', e.target.value || undefined)}
+              <DatePicker
+                className="w-[140px] h-8 text-xs border-none bg-transparent shadow-none"
+                placeholder="Gacha"
+                clearable
+                value={filters.endDate || ''}
+                onChange={(v) => {
+                  setFilters('endDate', v || undefined);
+                  setFilters('dateRange', 'all');
+                }}
               />
             </div>
 
@@ -197,10 +213,10 @@ function BookingsPageContent() {
               value={filters.dateRange || 'all'} 
               onValueChange={(val) => {
                 setFilters('dateRange', val);
-                if (val !== 'all') {
-                  setFilters('startDate', undefined);
-                  setFilters('endDate', undefined);
-                }
+                // keep the date pickers in sync with the chosen period
+                const range = val === 'all' ? undefined : clinicPeriodRange(val as 'today' | 'week' | 'month');
+                setFilters('startDate', range?.startDate);
+                setFilters('endDate', range?.endDate);
               }}
             >
               <SelectTrigger className="w-[160px] h-10">
@@ -226,6 +242,7 @@ function BookingsPageContent() {
                 ))}
               </SelectContent>
             </Select>
+            {!isDoctor && (
             <Select
               value={filters.doctorId || 'all'}
               onValueChange={(val) => setFilters('doctorId', val === 'all' ? undefined : val)}
@@ -238,6 +255,7 @@ function BookingsPageContent() {
                 ))}
               </SelectContent>
             </Select>
+            )}
             <Select 
               value={filters.source || 'all'} 
               onValueChange={(val) => setFilters('source', val)}
@@ -296,7 +314,7 @@ function BookingsPageContent() {
         </TabsContent>
 
         <TabsContent value="calendar">
-          <DraggableBookingCalendar />
+          <BookingCalendarViews onSlotClick={openCreateAt} onBookingClick={setViewBooking} />
         </TabsContent>
       </Tabs>
 
@@ -308,6 +326,8 @@ function BookingsPageContent() {
         doctors={doctors}
         services={services}
         onSave={handleSave}
+        isPending={isSaving}
+        prefill={prefill}
       />
 
       <BookingDetails 

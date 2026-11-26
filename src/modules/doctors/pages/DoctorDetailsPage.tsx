@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { UserAvatar } from '@/shared/components/UserAvatar';
 import { useParams, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useDoctor, useDoctors } from '../hooks/useDoctors';
@@ -29,6 +30,7 @@ import { formatUzS } from '@/shared/lib/formatters';
 import { DOCTOR_WEEKDAY_LABELS, normalizeDoctorSchedule } from '@/shared/lib/doctor-schedule';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DoctorForm, DoctorVisitForm } from '../components/DoctorForm';
+import { DoctorActivityPanel } from '../components/DoctorActivityPanel';
 import { SortableTableHead } from '@/shared/components/SortableHeader';
 import { PatientNameLabel } from '@/shared/components/PatientNameLabel';
 import { resolvePatientRef } from '@/shared/lib/patient-ref';
@@ -49,6 +51,8 @@ function DoctorDetailsContent() {
     setModalOpen,
     editing,
     handleSaveDoctor,
+    isSavingDoctor,
+    isSavingVisit,
     patients,
     visitModal,
     setVisitModal,
@@ -123,9 +127,13 @@ function DoctorDetailsContent() {
             </Button>
             
             <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20">
-                <User className="w-10 h-10" />
-              </div>
+              <UserAvatar
+                src={doctor.avatar}
+                firstName={doctor.firstName}
+                lastName={doctor.lastName}
+                className="w-20 h-20 rounded-2xl shadow-lg shadow-primary/20"
+                fallbackClassName="rounded-2xl text-2xl"
+              />
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
                   <h1 className="text-3xl font-extrabold tracking-tight">
@@ -171,36 +179,40 @@ function DoctorDetailsContent() {
         </div>
       </div>
 
+      <DoctorActivityPanel doctorId={doctor.id} />
+
+      {can('doctors.efficiency') && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard 
           title="Jami bemorlar"
           value={doctorEfficiency?.uniquePatients || 0}
           icon={<Users className="w-5 h-5 text-primary" />}
-          trend="Unique patients"
+          trend="Noyob bemorlar"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
-          title="Umumiy tushum"
+          title="Hisoblangan tushum"
           value={formatUzS(doctorEfficiency?.totalRevenue || 0)}
           icon={<CreditCard className="w-5 h-5 text-success" />}
-          trend="Total revenue"
+          trend="Yakunlangan tashriflar bo'yicha"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
           title="Tashriflar"
           value={totalVisits}
           icon={<ClipboardList className="w-5 h-5 text-info" />}
-          trend="Total visits"
+          trend="Yakunlangan tashriflar"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
         <StatCard 
           title="O'rtacha chek"
           value={formatUzS(avgCheck)}
           icon={<TrendingUp className="w-5 h-5 text-warning" />}
-          trend="Avg per visit"
+          trend="Har bir tashrif bo'yicha"
           className="bg-card/50 backdrop-blur-sm border-none shadow-lg"
         />
       </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Basic Info */}
@@ -319,6 +331,7 @@ function DoctorDetailsContent() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSave={handleSaveDoctor}
+        isPending={isSavingDoctor}
         editing={editing}
       />
 
@@ -329,6 +342,7 @@ function DoctorDetailsContent() {
         doctor={selectedDoctor}
         patients={patients}
         onSave={handleSaveVisit}
+        isPending={isSavingVisit}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { AUTH_NOTICE_KEY, AUTH_TOKEN_KEY, AUTH_USER_KEY, REFRESH_TOKEN_KEY, TOKEN_EXPIRES_AT_KEY } from './auth-token';
+import { INVALID_INPUT_MESSAGE, SERVER_ERROR_MESSAGE } from './error-messages';
 
 type ClientModule = typeof import('./client');
 
@@ -199,33 +200,33 @@ describe('apiRequest', () => {
       expect(err.message).toBe('Patient not found');
     });
 
-    it('joins an array `message` (class-validator errors) with "; "', async () => {
+    it('replaces class-validator English text with an Uzbek sentence', async () => {
       const { apiRequest } = await loadClient('https://api.test');
       fetchMock.mockResolvedValue(
         jsonResponse({ message: ['phone: invalid', 'age: must be positive'] }, { status: 400 }),
       );
       await expect(apiRequest('/patients')).rejects.toMatchObject({
         status: 400,
-        message: 'phone: invalid; age: must be positive',
+        message: INVALID_INPUT_MESSAGE,
       });
     });
 
-    it('falls back to statusText when the body has no message', async () => {
+    it('shows the Uzbek server-error text when the body has no message', async () => {
       const { apiRequest } = await loadClient('https://api.test');
       fetchMock.mockResolvedValue(jsonResponse({ error: 'x' }, { status: 500, statusText: 'Internal Server Error' }));
-      await expect(apiRequest('/x')).rejects.toMatchObject({ status: 500, message: 'Internal Server Error' });
+      await expect(apiRequest('/x')).rejects.toMatchObject({ status: 500, message: SERVER_ERROR_MESSAGE });
     });
 
-    it('falls back to "Request failed" when there is no message and no statusText', async () => {
+    it('shows the Uzbek server-error text when there is no message and no statusText', async () => {
       const { apiRequest } = await loadClient('https://api.test');
       fetchMock.mockResolvedValue(jsonResponse('', { status: 502 }));
-      await expect(apiRequest('/x')).rejects.toMatchObject({ status: 502, message: 'Request failed' });
+      await expect(apiRequest('/x')).rejects.toMatchObject({ status: 502, message: SERVER_ERROR_MESSAGE });
     });
 
-    it('uses a plain-text error body as the message', async () => {
+    it('hides a plain-text proxy error body behind the Uzbek server-error text', async () => {
       const { apiRequest } = await loadClient('https://api.test');
       fetchMock.mockResolvedValue(jsonResponse('Bad Gateway from nginx', { status: 502 }));
-      await expect(apiRequest('/x')).rejects.toMatchObject({ status: 502, message: 'Bad Gateway from nginx' });
+      await expect(apiRequest('/x')).rejects.toMatchObject({ status: 502, message: SERVER_ERROR_MESSAGE });
     });
 
     it('does not clear the session on non-401 errors', async () => {

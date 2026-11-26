@@ -64,7 +64,7 @@ describe('useBookings', () => {
         source: 'all',
         dateRange: 'month',
         startDate: '2026-06-01',
-        endDate: '',
+        endDate: '2026-06-30',
       });
       expect(result.current.totalBookings).toBe(1);
       expect(result.current.totalPages).toBe(1);
@@ -107,9 +107,9 @@ describe('useBookings', () => {
     });
 
     it('loads stats', async () => {
-      bookings.stats.mockResolvedValue({ today: 4, pending: 2, completedToday: 1 });
+      bookings.stats.mockResolvedValue({ total: 4, pending: 2, completed: 1 });
       const { result } = setup();
-      await waitFor(() => expect(result.current.stats).toEqual({ today: 4, pending: 2, completedToday: 1 }));
+      await waitFor(() => expect(result.current.stats).toEqual({ total: 4, pending: 2, completed: 1 }));
     });
 
     it('doctor role loads the doctor lookup (GET /doctors is allowed for doctors)', async () => {
@@ -159,6 +159,15 @@ describe('useBookings', () => {
       expect(bookings.create).not.toHaveBeenCalled();
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ['bookings'] });
       expect(toastMock.success).toHaveBeenCalledWith('Qabul muvaffaqiyatli yangilandi');
+    });
+
+    it('edit with a statusReason sends it along (cancel from the edit form)', async () => {
+      bookings.update.mockResolvedValue(booking);
+      const { result } = setup();
+      act(() => result.current.openEdit(booking));
+      act(() => result.current.handleSave({ ...form, status: 'cancelled' }, '  Bemor kela olmaydi '));
+      await waitFor(() => expect(result.current.modalOpen).toBe(false));
+      expect(bookings.update).toHaveBeenCalledWith('b1', { ...form, status: 'cancelled', statusReason: 'Bemor kela olmaydi' });
     });
 
     it('a rejected create (conflict / past date / outside schedule) keeps the form open and shows no success toast', async () => {

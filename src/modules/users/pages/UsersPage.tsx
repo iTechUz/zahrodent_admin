@@ -14,6 +14,7 @@ import { cn } from '@/shared/lib/utils';
 import { useState, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { normalizeSearch } from '@/shared/lib/formatters';
 import { SEARCH_DEBOUNCE_MS } from '@/shared/hooks/useServerTable';
 import type { UsersSort } from '../hooks/useUsers';
 
@@ -41,6 +42,7 @@ export function UsersPageContent() {
     openCreate,
     openEdit,
     handleSave,
+    isSaving,
     setDeleteId,
     deleteId,
     handleDelete,
@@ -50,7 +52,7 @@ export function UsersPageContent() {
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const term = useDebouncedValue(search.trim().toLowerCase(), SEARCH_DEBOUNCE_MS);
+  const term = useDebouncedValue(normalizeSearch(search).toLowerCase(), SEARCH_DEBOUNCE_MS);
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
@@ -203,6 +205,7 @@ export function UsersPageContent() {
         onOpenChange={setModalOpen}
         editing={editing}
         onSave={handleSave}
+        isPending={isSaving}
       />
 
       <ConfirmDeleteDialog

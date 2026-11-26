@@ -8,6 +8,7 @@ import {
   type AuthTokens,
 } from './auth-token';
 import { emitAuthEvent } from './auth-events';
+import { toUserMessage } from './error-messages';
 import { resolveApiUrl } from './runtime-config';
 
 const baseUrl = resolveApiUrl();
@@ -96,10 +97,9 @@ async function parseBody(res: Response): Promise<unknown> {
 function toApiError(res: Response, data: unknown): ApiError {
   const body = (data ?? {}) as Record<string, unknown>;
   const raw = body.message;
-  const msg =
-    typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.join('; ') : res.statusText || 'Request failed';
+  const msg = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.join('; ') : res.statusText;
   const requestId = typeof body.requestId === 'string' ? body.requestId : undefined;
-  return new ApiError(res.status, msg, requestId);
+  return new ApiError(res.status, toUserMessage(res.status, msg), requestId);
 }
 
 /** Clear the session, remember the reason for the login page and go there. */

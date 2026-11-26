@@ -23,6 +23,7 @@ import { formatUzS, formatDate } from '@/shared/lib/formatters';
 import { DashboardSkeleton } from '@/components/Skeletons';
 import { QueryErrorState } from '@/shared/components/QueryErrorState';
 import { CLINIC_TIME_ZONE } from '@/shared/lib/date-utils';
+import { BOOKING_STATUSES, BOOKING_STATUS_LABELS } from '@/shared/constants';
 
 function DashboardPageContent() {
   const {
@@ -33,6 +34,8 @@ function DashboardPageContent() {
     todayBookings,
     monthRevenue,
     totalDoctors,
+    periodBookingsByStatus,
+    isDoctor,
     newPatients,
     completedToday,
     pendingBookings,
@@ -58,6 +61,7 @@ function DashboardPageContent() {
   } = useDashboard();
 
   if (isLoading) return <DashboardSkeleton />;
+  const periodBookingsTotal = Object.values(periodBookingsByStatus).reduce((a, b) => a + b, 0);
   if (isError) {
     return <QueryErrorState error={error} onRetry={refetch} title="Bosh sahifa ma'lumotlari yuklanmadi" />;
   }
@@ -100,14 +104,23 @@ function DashboardPageContent() {
 
       {/* Statistikalar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Jami bemorlar" value={totalPatients} icon={<Users className="w-5 h-5" />} />
+        <StatCard title={isDoctor ? "Mening bemorlarim" : "Jami bemorlar"} value={totalPatients} icon={<Users className="w-5 h-5" />} />
         <StatCard
-          title="Bugungi qabullar"
+          title={isDoctor ? "Bugungi qabullarim" : "Bugungi qabullar"}
           value={todayBookings}
           icon={<CalendarDays className="w-5 h-5" />}
           trend={`${completedToday} ta yakunlangan`}
           trendUp={completedToday > 0}
         />
+        {isDoctor ? (
+          <StatCard
+            title={`Qabullarim (${periodLabel.toLowerCase()})`}
+            value={periodBookingsTotal}
+            icon={<CalendarDays className="w-5 h-5" />}
+            trend={`${periodBookingsByStatus.completed ?? 0} ta yakunlangan`}
+            trendUp={(periodBookingsByStatus.completed ?? 0) > 0}
+          />
+        ) : (
         <StatCard
           title={`Daromad (${periodLabel.toLowerCase()})`}
           value={canViewPayments ? formatUzS(monthRevenue) : '—'}
@@ -115,6 +128,7 @@ function DashboardPageContent() {
           trend={canViewPayments ? revenueTrend?.text : "Faqat admin ko'radi"}
           trendUp={canViewPayments ? revenueTrend?.up : undefined}
         />
+        )}
         <StatCard
           title={`Yangi bemorlar (${periodLabel.toLowerCase()})`}
           value={newPatients}
@@ -135,6 +149,8 @@ function DashboardPageContent() {
             <p className="text-xs text-muted-foreground">Kutayotgan qabullar</p>
           </div>
         </div>
+        {!isDoctor && (
+          <>
         <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card">
           <div className="w-10 h-10 rounded-full bg-destructive/15 flex items-center justify-center">
             <AlertCircle className="w-5 h-5 text-destructive" />
@@ -157,7 +173,27 @@ function DashboardPageContent() {
             <p className="text-xs text-muted-foreground">Faol shifokorlar</p>
           </div>
         </div>
+          </>
+        )}
       </div>
+
+
+      {/* Shifokor: o'z qabullari holatlar kesimida (tanlangan davr) */}
+      {isDoctor && (
+        <div className="bg-card rounded-xl border border-border p-5">
+          <h3 className="text-sm font-semibold mb-3">
+            Qabullarim holatlar bo'yicha <span className="font-normal text-muted-foreground">· {periodLabel.toLowerCase()}</span>
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {BOOKING_STATUSES.map((st) => (
+              <div key={st} className="rounded-lg border border-border p-3">
+                <p className="text-xl font-bold">{periodBookingsByStatus[st] ?? 0}</p>
+                <p className="text-xs text-muted-foreground">{BOOKING_STATUS_LABELS[st]}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Grafiklar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

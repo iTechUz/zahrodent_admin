@@ -10,9 +10,11 @@ interface ConfirmDeleteDialogProps {
   title?: string;
   description?: string;
   confirmLabel?: string;
+  /** red confirm button (default); pass false for non-destructive confirmations */
+  destructive?: boolean;
 }
 
-export function ConfirmDeleteDialog({ open, onOpenChange, onConfirm, title = 'Ishonchingiz komilmi?', description = 'Bu amalni qaytarib bo\'lmaydi. Ma\'lumot butunlay o\'chiriladi.', confirmLabel = "O'chirish" }: ConfirmDeleteDialogProps) {
+export function ConfirmDeleteDialog({ open, onOpenChange, onConfirm, title = 'Ishonchingiz komilmi?', description = 'Bu amalni qaytarib bo\'lmaydi. Ma\'lumot butunlay o\'chiriladi.', confirmLabel = "O'chirish", destructive = true }: ConfirmDeleteDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -22,7 +24,7 @@ export function ConfirmDeleteDialog({ open, onOpenChange, onConfirm, title = 'Is
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          <AlertDialogAction onClick={onConfirm} className={destructive ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}>
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

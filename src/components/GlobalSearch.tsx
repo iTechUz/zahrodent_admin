@@ -5,7 +5,7 @@ import { useStore } from '@/store/useStore';
 import { patientsApi, doctorsApi, bookingsApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/query-keys';
 import { roleAccess } from '@/shared/config/roles';
-import { doctorFullName } from '@/shared/lib/formatters';
+import { doctorFullName, normalizeSearch } from '@/shared/lib/formatters';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import type { Patient } from '@/shared/types';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -36,7 +36,7 @@ export function GlobalSearch() {
   const canOpenDoctors = routes.includes('/doctors');
 
   // the backend searches the whole table (`search` param) — not just the first cached page
-  const term = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS);
+  const term = useDebouncedValue(normalizeSearch(query), SEARCH_DEBOUNCE_MS);
   const searching = authed && open && term.length > 0;
 
   const patientParams = { search: term, limit: SEARCH_LIMITS.patients };

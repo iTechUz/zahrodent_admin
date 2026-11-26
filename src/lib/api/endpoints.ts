@@ -110,6 +110,8 @@ export const patientsApi = {
       endDate?: string;
       debtOnly?: string | boolean;
       doctorId?: string;
+      /** assigned, booked or visited — everyone who belongs to this doctor */
+      relatedDoctorId?: string;
     },
   ) => apiRequest<PaginatedResponse<Patient>>(`/patients${qs(params ?? {})}`),
   stats: () => apiRequest<{ total: number; newThisMonth: number; topSource: string }>('/patients/stats'),
@@ -152,6 +154,21 @@ export const doctorsApi = {
   remove: (id: string) => apiRequest<{ id: string }>(`/doctors/${id}`, { method: 'DELETE' }),
 };
 
+export const uploadsApi = {
+  /** Admin/receptionist: uploads a JPG/PNG/WEBP (≤ 3 MB) to the CDN, returns its public URL. */
+  avatar: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return apiRequest<{ url: string }>('/uploads/avatar', { method: 'POST', body });
+  },
+  /** Doctor role: uploads and saves the photo on the doctor's own profile. */
+  ownAvatar: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return apiRequest<{ url: string }>('/uploads/avatar/me', { method: 'POST', body });
+  },
+};
+
 export const bookingsApi = {
   list: (
     params?: ListParams & {
@@ -165,7 +182,7 @@ export const bookingsApi = {
     },
   ) =>
     apiRequest<PaginatedResponse<Booking>>(`/bookings${qs(params ?? {})}`),
-  stats: () => apiRequest<{ today: number; pending: number; completedToday: number }>('/bookings/stats'),
+  stats: () => apiRequest<{ total: number; pending: number; completed: number }>('/bookings/stats'),
   get: (id: string) => apiRequest<Booking>(`/bookings/${id}`),
   create: (body: Omit<Booking, 'id' | 'createdAt'> & { createdAt?: string }) =>
     apiRequest<Booking>('/bookings', { method: 'POST', body: JSON.stringify(body) }),
@@ -213,7 +230,9 @@ export const paymentsApi = {
   ) =>
     apiRequest<PaginatedResponse<Payment>>(`/payments${qs(params ?? {})}`),
   stats: () => apiRequest<{ totalRevenue: number; pendingAmount: number; todayRevenue: number }>('/payments/stats'),
-  doctorStats: () => apiRequest<{ doctorId: string; total: number }[]>('/payments/doctor-stats'),
+  /** Cash actually collected per doctor (paid INCOME); optional period (backend may ignore it on older versions). */
+  doctorStats: (params?: { startDate?: string; endDate?: string }) =>
+    apiRequest<{ doctorId: string; total: number }[]>(`/payments/doctor-stats${qs(params ?? {})}`),
   get: (id: string) => apiRequest<Payment>(`/payments/${id}`),
   create: (body: Omit<Payment, 'id'> & { date?: string }) =>
     apiRequest<Payment>('/payments', { method: 'POST', body: JSON.stringify(body) }),
